@@ -1,0 +1,84 @@
+# Omniread M0 本地基础设施：PostgreSQL + pgvector、MinIO。
+# 只起数据面；Java / Python 服务由各自的构建流程启动，不在这里编排。
+#
+# 端口避让（本机已有容器占用，不要改回镜像默认端口）：
+#   - PostgreSQL 宿主端口用 55432：本机 5432 可能被占；容器内仍是 5432。
+#   - MinIO 宿主端口用 9100/9101：本机已有另一个 minio 容器占用 9000/9001。
+#
+# 凭据不写进本文件：先由 keymgr 注入环境变量再执行 compose（见 README.md）。
+# 顶层不写 version: —— 该字段已 obsolete，Compose v2 会告警。
+
+name: omniread-m0
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16
+    container_name: omniread-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-omniread}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未注入：请先经 keymgr 注入后再执行 compose}
+      POSTGRES_DB: ${POSTGRES_DB:-omniread}
+      # 时间戳统一按 UTC 存储与解释，run 记录跨时区才可比
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # pgvector 镜像只带扩展文件，不会自动 CREATE EXTENSION；
+      # 由 initdb 下的 SQL 在数据卷首次初始化时建好。
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omniread} -d ${POSTGRES_DB:-omniread}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  minio:
+    # 该 tag 无法再从 Docker Hub 拉取：minio/minio 仓库已下线（实测 404）。
+    # 只在本机可用——本机已缓存该镜像；换机器必须改用 quay.io/minio/minio 的冻结 tag。
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: omniread-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      # 控制台登录凭证；secret 与 M0-01 §5.2 的 MINIO_SECRET_KEY 同一个 keymgr 条目
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-MinIO-Omniread}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY 未注入：请先经 keymgr 注入后再执行 compose}
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      # 镜像内没有 curl / wget，用镜像自带的 mc 探活
+      test: ["CMD-SHELL", "mc ready local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  minio-init:
+    # 一次性建桶：MinIO 不会自动创建 bucket，而导入流程假设 omniread-sources 已存在。
+    # 复用 minio 镜像（内含 mc），不额外拉取镜像。
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: omniread-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set omniread http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing "omniread/$$MINIO_BUCKET"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-MinIO-Omniread}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY 未注入：请先经 keymgr 注入后再执行 compose}
+      MINIO_BUCKET: ${MINIO_BUCKET:-omniread-sources}
+    restart: "no"
+
+volumes:
+  pgdata:
+  miniodata:

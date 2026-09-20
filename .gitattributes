@@ -1,0 +1,10 @@
+# 统一换行为 LF。
+# dataset_hash 与 content_hash 都按字节计算，工作区的 CRLF 会让同一份 Golden
+# 在不同平台上算出不同的 hash，基线也就不可复现（M0-02 §5.2、§7.3）。
+* text=auto eol=lf
+
+# 二进制文件不做换行转换
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.epub binary

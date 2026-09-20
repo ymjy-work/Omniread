@@ -1,0 +1,475 @@
+openapi: 3.0.4
+info:
+  title: Omniread 前端契约
+  version: 1.0.0
+  description: |
+    前端 ↔ Java 网关的外部契约。
+
+    与 `rag-internal-v1.yaml` 的共享 schema **结构等价**——字段名、类型、
+    required、enum 取值逐项一致，只有描述文字可以不同（M0-01 §1：Java 是薄网关，
+    形状一致时它的映射退化为「按 code 选状态 + 原样转发」）。
+
+    两份文件各自复制定义，而不是用跨文件 `$ref` —— 3.0 下外部 `$ref` 会给生成器
+    增加不确定性。漂移由 `services/rag/tests/test_contract_equivalence.py` 守住：
+    它比对两份文件里**双方都有的** schema 结构等价，并显式登记只属于一侧的清单。
+
+    两侧的差异（其余全同）：
+
+    | | 外部 | 内部 |
+    | --- | --- | --- |
+    | 路径前缀 | `/api/v1` | `/internal/v1` |
+    | `service` 取值 | `omniread-backend` | `omniread-rag` |
+    | 进度端点 | **有**（Java 自己持久化） | 无 —— Python 不存进度 |
+    | `retrieval-only` | 不暴露 | **有**（仅评测 runner 直连） |
+    | 响应侧 | 多一层 HTTP 状态映射 | 原样 |
+
+    前端不直连 Python，所有数据（含插图与 SSE）都经本网关。
+servers:
+  - url: http://127.0.0.1:8080
+    description: 本机开发
+
+tags:
+  - name: meta
+  - name: catalog
+  - name: rag
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [meta]
+      operationId: health
+      summary: 存活探针
+      description: |
+        只报 Java 自身存活。不探 Python、不探 provider —— 组件可用性由 M0-0 的
+        环境就绪检查覆盖，健康检查不该有外部成本与抖动。
+      responses:
+        "200":
+          description: 进程存活
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /api/v1/books:
+    get:
+      tags: [catalog]
+      operationId: listBooks
+      summary: 书列表
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookList"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/books/{book_id}/chapters:
+    get:
+      tags: [catalog]
+      operationId: listChapters
+      summary: 章节列表（平铺，按 chapter_index 升序，不分页）
+      description: 前端按 `volume_index` 自行分组渲染章节树。
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChapterList"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/books/{book_id}/chapters/{chapter_index}:
+    get:
+      tags: [catalog]
+      operationId: getChapter
+      summary: 章节详情（含正文与插图映射）
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+        - $ref: "#/components/parameters/ChapterIndex"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChapterDetail"
+        "404":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/books/{book_id}/images/{path}:
+    get:
+      tags: [catalog]
+      operationId: getImage
+      summary: 插图二进制流（从 MinIO 取）
+      description: |
+        路径来自 `index.jsonl[].images` 去掉一层 `images/` 前缀。
+        **必须做两道防护**：目录穿越（归一化后判是否落在该书的 images 前缀内）与
+        扩展名白名单。路径由客户端传来，不能信。
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+        - name: path
+          in: path
+          required: true
+          schema: { type: string }
+          example: 01_第1卷/007.jpg
+      responses:
+        "200":
+          description: 图片字节
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png:  { schema: { type: string, format: binary } }
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/books/{book_id}/progress:
+    get:
+      tags: [catalog]
+      operationId: getProgress
+      summary: 读取单机阅读进度
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Progress"
+        "503":
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [catalog]
+      operationId: putProgress
+      summary: 写入单机阅读进度
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressWrite"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Progress"
+        "400":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/query:
+    post:
+      tags: [rag]
+      operationId: query
+      summary: 单轮问答（JSON 同步）
+      description: 供评测 runner 与脚本使用；前端走 `/api/v1/query/stream`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: 作答或拒答（两者都是正常业务结果，拒答仍为 200）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+        "504":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/query/stream:
+    post:
+      tags: [rag]
+      operationId: queryStream
+      summary: 单轮问答（SSE 事件流）
+      description: |
+        供前端的流式渲染。事件顺序与内部契约完全一致：
+
+        ```
+        query_started → realm_resolved → retrieval_completed → rerank_completed
+        → context_assembled → generation_started → answer_delta* → citation_ready
+        → query_done | query_error
+        ```
+
+        前端消费点：`answer_delta` 逐字上屏；`realm_resolved` /
+        `retrieval_completed` / `rerank_completed` 渲染「思考 · 检索依据」面板；
+        `citation_ready` 定角标。
+
+        成功终止帧 `data: [DONE]`；异常为 `event: error` + `data: {request_id, code, message}`
+        后关闭连接（帧已开始发时 HTTP 状态无法再改，失败只能用终止帧表达）。
+
+        两个 query 路径用**路径区分**而非 `Accept` 内容协商 —— 适配器选择是显式的，
+        省掉协商分支与 `Accept` 解析的边界情况。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: SSE 帧流
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/EventStream"
+
+components:
+  parameters:
+    BookId:
+      name: book_id
+      in: path
+      required: true
+      schema: { type: integer, format: int32 }
+      example: 1
+    ChapterIndex:
+      name: chapter_index
+      in: path
+      required: true
+      description: 全书连续序号 1..193（不是卷内序号）
+      schema: { type: integer, format: int32, minimum: 1, maximum: 193 }
+      example: 17
+
+  responses:
+    Error:
+      description: 统一错误体
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status: { type: string, enum: ["ok"] }
+        service:
+          type: string
+          enum: ["omniread-rag", "omniread-backend"]
+          description: 两个进程各有一个 health，脚本同时探两者时 body 必须能自证来源
+
+    BookList:
+      type: object
+      required: [books]
+      properties:
+        books:
+          type: array
+          items:
+            type: object
+            required: [book_id, title, author, chapter_count, volume_count]
+            properties:
+              book_id: { type: integer, format: int32, example: 1 }
+              title: { type: string }
+              author: { type: string }
+              chapter_count:
+                type: integer
+                format: int32
+                description: Java 用它校验 progress 上界
+              volume_count: { type: integer, format: int32 }
+
+    ChapterList:
+      type: object
+      required: [book_id, chapters]
+      properties:
+        book_id: { type: integer, format: int32 }
+        chapters:
+          type: array
+          description: 平铺，排序恒为 chapter_index 升序，不分页；前端按 volume_index 自行分组
+          items:
+            type: object
+            required: [chapter_index, chapter_title, volume_index, volume_title]
+            properties:
+              chapter_index: { type: integer, format: int32 }
+              chapter_title: { type: string }
+              volume_index: { type: integer, format: int32, minimum: 1, maximum: 15 }
+              volume_title:
+                type: string
+                description: 取 index.jsonl[].vol 原值，不做归一化
+
+    ChapterDetail:
+      type: object
+      required: [chapter_index, chapter_title, volume_index, volume_title, text, images]
+      properties:
+        chapter_index: { type: integer, format: int32 }
+        chapter_title: { type: string }
+        volume_index: { type: integer, format: int32 }
+        volume_title: { type: string }
+        text:
+          type: string
+          description: |
+            章节正文全文，经最小规范化（统一换行为 \n、去行尾空白）。
+            `[插图NNN]` 占位符原样保留 —— 换成图是前端的事。
+        images:
+          type: array
+          description: marker 与正文里的 [插图NNN] 编号对齐；对不上就不渲染
+          items:
+            type: object
+            required: [marker, url]
+            properties:
+              marker: { type: string, example: "007" }
+              url: { type: string, example: "/api/v1/books/1/images/01_第1卷/007.jpg" }
+        prev_chapter_index:
+          type: integer
+          format: int32
+          nullable: true
+          description: 只回章序号，不回正文 —— 前端要的是导航目标
+        next_chapter_index:
+          type: integer
+          format: int32
+          nullable: true
+
+    Progress:
+      type: object
+      required: [book_id, max_seq]
+      properties:
+        book_id: { type: integer, format: int32 }
+        max_seq:
+          type: integer
+          format: int32
+          description: 已读到的章（= chapter_index），1..chapter_count
+
+    ProgressWrite:
+      type: object
+      required: [max_seq]
+      properties:
+        max_seq: { type: integer, format: int32, minimum: 1 }
+
+    QueryRequest:
+      type: object
+      required: [book_id, question, level]
+      properties:
+        book_id: { type: integer, format: int32 }
+        question: { type: string, minLength: 1, maxLength: 2000 }
+        level:
+          type: string
+          enum: [past, full]
+          description: "past: chapter_index <= progress；full: 全部章节"
+        progress:
+          type: integer
+          format: int32
+          nullable: true
+          minimum: 1
+          maximum: 193
+          description: level=past 时必填；由 Java 在 API 边界校验，Python 不重复校验
+        options:
+          $ref: "#/components/schemas/QueryOptions"
+
+    QueryOptions:
+      type: object
+      properties:
+        rewrite:
+          type: boolean
+          default: false
+          description: M0 不实现模型改写，字段保留但不接模型
+        neighbor_expand:
+          type: boolean
+          default: true
+
+    QueryResponse:
+      type: object
+      required: [request_id, status, answer, context_chapters, usage]
+      properties:
+        request_id: { type: string, pattern: "^req_[0-9a-f]{32}$" }
+        status:
+          type: string
+          enum: [answered, insufficient_evidence]
+          description: 拒答是正常业务结果，HTTP 仍为 200
+        answer:
+          type: string
+          description: 拒答时由服务端固定话术填充，不由模型生成
+        context_chapters:
+          type: array
+          description: |
+            本次上下文涉及的章 —— 即**允许被引用的范围**，不是模型实际引用了哪些章。
+            字段名用 citations 会制造「回答是『材料不足』却列了 5 条引用」这类假矛盾。
+            拒答时不一定为空：检索为空导致的是 []，模型级拒答时可能非空。
+          items:
+            $ref: "#/components/schemas/ContextChapter"
+        usage:
+          $ref: "#/components/schemas/Usage"
+
+    ContextChapter:
+      type: object
+      required: [chapter_index, chapter_title]
+      properties:
+        chapter_index: { type: integer, format: int32 }
+        chapter_title: { type: string }
+
+    Usage:
+      type: object
+      required: [answer_provider, answer_model, latency_ms]
+      properties:
+        answer_provider: { type: string, example: glm }
+        answer_model: { type: string, example: glm-5.3-flash }
+        latency_ms: { type: integer }
+
+    ErrorBody:
+      type: object
+      description: |
+        只覆盖非 2xx。200 的 answered / insufficient_evidence 走各自的体，
+        不套用本形状 —— 拒答是正常业务结果，塞进错误体等于把两类事混成一类。
+
+        前端只按 `code` 分支，不得字符串匹配 `message`。
+      required: [request_id, code, message]
+      properties:
+        request_id: { type: string, pattern: "^req_[0-9a-f]{32}$" }
+        code:
+          type: string
+          enum: [RAG_INVALID_REALM, RAG_PROVIDER_ERROR, RAG_UNAVAILABLE, RAG_TIMEOUT]
+        message:
+          type: string
+          description: 短、人类可读；不得含密钥、堆栈、文件路径、provider 原始响应体或章节正文
+
+    EventStream:
+      type: object
+      description: |
+        SSE 事件流（顺序见 operation 描述）。各事件的负载：
+        - query_started: request_id, book_id, level, progress
+        - realm_resolved: lo, hi
+        - retrieval_completed: dense_count, bm25_count, fused_count, fused_top[]
+        - rerank_completed: input_count, output_count, ranked[]
+        - context_assembled: chunks[], token_estimate, dropped[]
+        - generation_started: answer_provider, answer_model, prompt_version
+        - answer_delta: text
+        - citation_ready: context_chapters[]
+        - query_done: status, context_chapters, usage
+        - query_error: request_id, code, message
+
+        `context_assembled.chunks[]` 即**最终进入 prompt 的集合**（realm re-check
+        与 token budget 均已结算），被裁项走 `dropped[]`。
+      properties:
+        event:
+          type: string
+          enum:
+            - query_started
+            - realm_resolved
+            - retrieval_completed
+            - rerank_completed
+            - context_assembled
+            - generation_started
+            - answer_delta
+            - citation_ready
+            - query_done
+            - query_error

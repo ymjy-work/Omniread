@@ -1,0 +1,32 @@
+# 本地保留，不入库（M0-00 §6）
+# docs/ 与 CLAUDE.md 是人机交互与工作约定文件，temp/ 是一次性脚本与临时验证。
+# 三者都保留在本地，不进 git。
+docs/
+CLAUDE.md
+temp/
+
+# 语料：整本原文不得进入 git（M0-00 §6）
+# 可逆性理由——rm + 新提交无法从 git 历史中清除内容，只能重写历史或重建仓库，
+# 「先提交、公开前再清理」在 git 上不成立。
+asset/
+
+# Java / Maven
+target/
+*.class
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 密钥与运行产物
+# 密钥只经 keymgr 注入，不落任何文件（M0-00 §6）
+.env
+*.log
+
+# Java 网关的本地运行状态（阅读进度文件等）
+var/

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniread.local/eval/golden/schema.json",
+  "title": "Omniread M0 Golden 题目",
+  "description": "Omniread M0 Golden 数据集单题 Schema（draft 2020-12）。必填字段集：schema_version / id / type / difficulty / book_id / question / reference_points / level / expect_refusal / must_cite_groups；reference_answer 可选。字段集明确不含 source_seqs / must_not_claim / forbidden_patterns / notes。本 schema 只做单题结构约束；纯 JSON Schema 表达力覆盖不到、必须由校验器补的规则：（1）level=past 时，must_cite_groups 内每个 evidence 的 chapter_index 必须 ≤ 该题 progress；（2）book_id 与 progress 必须是整数，不接受小数或布尔值；（3）id 在数据集内唯一；（4）数量目标（总量 ≥60、单类型 ≥8、expect_refusal=true ≥10）在数据集层面统计，不在单题层面。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "type",
+    "difficulty",
+    "book_id",
+    "question",
+    "reference_points",
+    "level",
+    "expect_refusal",
+    "must_cite_groups"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Golden schema 版本，M0 固定为 m0.1.0。",
+      "const": "m0.1.0"
+    },
+    "id": {
+      "description": "题目标识，数据集内唯一（唯一性由校验器跨文件检查，JSON Schema 不表达）。",
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "description": "六桶类型。fact=单章可答；alias=需经别名/昵称/称号召回；cross=证据跨多章需拼合多个 must_cite_groups；foreshadow=伏笔与兑现分处不同章；boundary=证据紧贴 progress 边界；spoiler=答案位于 progress 之后。",
+      "enum": ["fact", "alias", "cross", "foreshadow", "boundary", "spoiler"]
+    },
+    "difficulty": {
+      "description": "难度三档。",
+      "enum": ["easy", "medium", "hard"]
+    },
+    "book_id": {
+      "description": "书目 id，M0 恒为 1。整数类型，不接受 1.0 或 true。",
+      "type": "integer",
+      "const": 1
+    },
+    "question": {
+      "description": "题面。",
+      "type": "string",
+      "minLength": 1
+    },
+    "reference_points": {
+      "description": "生成层评测主标准，逐条要点。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reference_answer": {
+      "description": "完整参考回答，辅助字段，可选。",
+      "type": "string",
+      "minLength": 1
+    },
+    "level": {
+      "description": "past=限定在 progress 章内作答；full=全书可见。",
+      "enum": ["past", "full"]
+    },
+    "progress": {
+      "description": "阅读进度（章序号）。level=past 时必填，取值 1..193；level=full 时必须缺省（由本 schema 的 allOf 条件分支强制）。",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 193
+    },
+    "expect_refusal": {
+      "description": "是否期望模型拒答，M0 只用布尔值。",
+      "type": "boolean"
+    },
+    "must_cite_groups": {
+      "description": "必引证据组：外层 AND、组内 OR。外层数组不得为空，每组也不得为空（空 must_cite_groups 视为 schema 非法）。evidence 叶子只存 chapter_id + content，不存 chunk_id；content 必须是原文片段而非转述，运行时用于映射到当前切片。chapter_id 格式 book:{book_id}:chapter:{chapter_index}，M0 book_id=1、chapter_index ∈ 1..193。跨字段约束 chapter_index ≤ progress（仅 level=past）无法在 JSON Schema 中表达，由校验器补。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chapter_id", "content"],
+          "properties": {
+            "chapter_id": {
+              "description": "章节标识，格式 book:{book_id}:chapter:{chapter_index}，M0 固定 book:1:chapter:N，N 为 1..193 的十进制整数。",
+              "type": "string",
+              "pattern": "^book:1:chapter:(?:[1-9]|[1-9][0-9]|1[0-8][0-9]|19[0-3])$"
+            },
+            "content": {
+              "description": "证据原文片段（非转述）。是否为原文需人工/映射阶段复核，JSON Schema 不表达。",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "level=past 时 progress 必填；其 chapter_index ≤ progress 的约束见本文件顶部 description 与校验器。",
+      "if": {
+        "properties": {
+          "level": {
+            "const": "past"
+          }
+        },
+        "required": ["level"]
+      },
+      "then": {
+        "required": ["progress"]
+      }
+    },
+    {
+      "description": "level=full 时 progress 必须缺省。",
+      "if": {
+        "properties": {
+          "level": {
+            "const": "full"
+          }
+        },
+        "required": ["level"]
+      },
+      "then": {
+        "not": {
+          "required": ["progress"]
+        }
+      }
+    },
+    {
+      "description": "spoiler 桶的答案位于 progress 之后，必须期望拒答。",
+      "if": {
+        "properties": {
+          "type": {
+            "const": "spoiler"
+          }
+        },
+        "required": ["type"]
+      },
+      "then": {
+        "properties": {
+          "expect_refusal": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

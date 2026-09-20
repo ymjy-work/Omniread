@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: omniread-backend
+
+omniread:
+  progress:
+    # 阅读进度落在 Java 进程本地（M0-01 §1：Python 不保存用户进度），目录不存在会自动创建。
+    file: ${OMNIREAD_PROGRESS_FILE:var/progress.json}
+  rag:
+    # Python RAG 服务地址。Java 是唯一调用方，前端不直连（M0-00 §4）。
+    base-url: ${OMNIREAD_RAG_BASE_URL:http://127.0.0.1:8000}
+    # 连不上要快速失败：请求已经进来，拖住客户端没有意义。
+    connect-timeout: 2s
+    # 读超时要覆盖一次完整生成（含 provider 往返），按最慢的情况留。
+    read-timeout: 120s
+    retry:
+      # max-attempts 是总次数，2 表示重试一次。只重试传输失败。
+      max-attempts: 2
+      wait-duration: 300ms
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 20
+      minimum-number-of-calls: 5
+      wait-duration-in-open-state: 10s
+  web:
+    # 前端构建产物目录（web/ 由前端产出）。相对路径从进程工作目录向上最多找 4 层，
+    # 从仓库根或从 services/backend 启动都能命中；目录不存在时只跳过静态资源托管。
+    dist-dir: ${OMNIREAD_WEB_DIST:web/dist}
+
+logging:
+  level:
+    com.omniread.backend: INFO
+  pattern:
+    # 每行日志带 request_id（MDC，由 RequestIdFilter 放入）；请求线程之外的行该值为空。
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{request_id:-}] %logger{36} - %msg%n"

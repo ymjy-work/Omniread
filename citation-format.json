@@ -1,0 +1,152 @@
+{
+  "spec": "docs/m0/M0-01-技术方案.md §6.4、docs/m0/M0-04-评测规范.md §5.2",
+  "purpose": "引用标记 `[C{chapter_index}]` 的扫描与渲染口径。Python 与 TypeScript 无法共用同一份代码，所以这里是唯一的权威定义，两侧各自实现一份、由等价的样本断言行为一致。",
+  "pattern": "\\[C(\\d{1,3})\\]",
+  "pattern_note": "规范引用的识别正则。大小写敏感（无 i 标志）；\\d 按 ASCII 0-9 解释（JS 原生如此，Python 侧需 re.ASCII，否则全角/阿拉伯-印度数字会让两侧分叉）。",
+  "candidate_pattern": "\\[[Cc]\\d[^\\]]*\\]",
+  "candidate_pattern_note": "非规范写法的候选扫描：形如方括号 + C/c + 数字。只用于判定「违规」，不用于渲染。",
+  "recognized_rule": "候选文本能被 pattern 完整匹配、且捕获组是无前导零的十进制写法，才算规范引用；chapter_index 取该数字。",
+  "violation_rule": "命中 candidate_pattern 但不满足 recognized_rule 的，计违规（解析失败），不忽略。",
+  "not_recognized_examples": [
+    {
+      "form": "[C17,C45]",
+      "why": "复合写法，pattern 不匹配；候选扫描判违规"
+    },
+    {
+      "form": "[C017]",
+      "why": "捕获组有前导零；pattern 能匹配但不算规范引用"
+    },
+    {
+      "form": "[c17]",
+      "why": "pattern 大小写敏感，不匹配；候选扫描判违规"
+    },
+    {
+      "form": "[C1234]",
+      "why": "超过三位数字，pattern 不匹配；候选扫描判违规"
+    }
+  ],
+  "usage": "只用于扫描与渲染，不是净化规则：服务端不改写模型输出，越界引用与非规范写法都原样保留在正文里；序号是否落在允许范围由 Java / 评测 runner 判定，扫描器不做范围过滤。",
+  "consumers": ["客户端渲染（web/src/citation.ts）", "评测 runner（services/rag/src/omniread/domain/citation.py）", "schema 校验"],
+  "samples": [
+    {
+      "name": "canonical-mixed",
+      "text": "第3话已经埋下伏笔[C3]，第17话回收[C17]。",
+      "citations": [3, 17],
+      "violations": []
+    },
+    {
+      "name": "lowercase",
+      "text": "这里引用写成了[c17]，大小写不匹配。",
+      "citations": [],
+      "violations": ["[c17]"]
+    },
+    {
+      "name": "leading-zero",
+      "text": "[C017] 有前导零，不是规范写法。",
+      "citations": [],
+      "violations": ["[C017]"]
+    },
+    {
+      "name": "compound",
+      "text": "[C17,C45] 是复合写法。",
+      "citations": [],
+      "violations": ["[C17,C45]"]
+    },
+    {
+      "name": "bounds",
+      "text": "[C1] [C999] [C0]",
+      "citations": [1, 999, 0],
+      "violations": []
+    },
+    {
+      "name": "overlong",
+      "text": "[C1234] 超过三位，[C1] 正常。",
+      "citations": [1],
+      "violations": ["[C1234]"]
+    },
+    {
+      "name": "cross-line",
+      "text": "跨行写法 [C1\n] 不识别。",
+      "citations": [],
+      "violations": ["[C1\n]"]
+    },
+    {
+      "name": "nested-bracket",
+      "text": "[C[1]] 与 [[C2]]",
+      "citations": [2],
+      "violations": []
+    },
+    {
+      "name": "markdown-neighbor",
+      "text": "**重点**[C5] 别漏了",
+      "citations": [5],
+      "violations": []
+    },
+    {
+      "name": "none",
+      "text": "这段话没有任何引用。",
+      "citations": [],
+      "violations": []
+    },
+    {
+      "name": "adjacent",
+      "text": "[C1][C2][C3]",
+      "citations": [1, 2, 3],
+      "violations": []
+    },
+    {
+      "name": "range-form",
+      "text": "[C10-C12] 是区间写法。",
+      "citations": [],
+      "violations": ["[C10-C12]"]
+    },
+    {
+      "name": "cn-punct",
+      "text": "结尾引用[C7]。",
+      "citations": [7],
+      "violations": []
+    },
+    {
+      "name": "empty",
+      "text": "",
+      "citations": [],
+      "violations": []
+    },
+    {
+      "name": "bare-bracket",
+      "text": "[C] 与 [C 1] 都不成形。",
+      "citations": [],
+      "violations": []
+    },
+    {
+      "name": "latin-suffix",
+      "text": "[C1x] 数字后带字母。",
+      "citations": [],
+      "violations": ["[C1x]"]
+    },
+    {
+      "name": "fullwidth-digits",
+      "text": "[C１７] 全角数字不识别。",
+      "citations": [],
+      "violations": []
+    },
+    {
+      "name": "astral-before",
+      "text": "😀[C4]",
+      "citations": [4],
+      "violations": []
+    },
+    {
+      "name": "trailing-text",
+      "text": "x[C5]y",
+      "citations": [5],
+      "violations": []
+    },
+    {
+      "name": "repeat-and-three-digit",
+      "text": "第一处[C2]，第二处[C2]重复，第三处[C100]。",
+      "citations": [2, 2, 100],
+      "violations": []
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    Java 薄网关（M0-01 §7）。parent 必须显式钉版本：
+    spring-boot-starter-web 在 Maven Central 上的 <latest> 被 4.2.0-M1 预发布占据，
+    不钉版本会拉到里程碑版。
+  -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.1</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.omniread</groupId>
+  <artifactId>omniread-backend</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <name>omniread-backend</name>
+  <description>Omniread M0 Java 薄网关：外部 API、静态资源托管、参数校验、request_id、超时与错误映射</description>
+
+  <properties>
+    <java.version>25</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- resilience4j 的 Boot 4 集成；-spring-boot3 面向 Boot 3，用它会与 Boot 4 的自动配置对不上。 -->
+    <resilience4j.version>2.4.0</resilience4j.version>
+    <openapi-generator.version>7.25.0</openapi-generator.version>
+    <build-helper.version>3.6.0</build-helper.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.resilience4j</groupId>
+      <artifactId>resilience4j-spring-boot4</artifactId>
+      <version>${resilience4j.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- 可执行 fat jar：部署与联调都直接 java -jar，不依赖本机 Maven。 -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+
+      <!--
+        契约 DTO 生成：只出 model，不出 API 接口。
+        生成的接口会与手写 Controller 的 Spring Web 写法打架（同一路径两套映射），
+        协议转换由 Controller 承担。
+      -->
+      <plugin>
+        <groupId>org.openapitools</groupId>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <version>${openapi-generator.version}</version>
+        <executions>
+          <execution>
+            <id>generate-internal-models</id>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <inputSpec>${project.basedir}/../../contracts/openapi/rag-internal-v1.yaml</inputSpec>
+              <!--
+                用 spring 生成器而不是 java 生成器：java 生成器的 model 走 Gson，
+                与本工程的 Jackson 3 运行时不兼容。spring 生成器的 model 是 Jackson POJO，
+                且 performBeanValidation 会把契约上的 minLength / minimum / maximum
+                落成 jakarta validation 注解。
+              -->
+              <generatorName>spring</generatorName>
+              <output>${project.build.directory}/generated-sources/openapi</output>
+              <modelPackage>com.omniread.backend.contract.model</modelPackage>
+              <generateApis>false</generateApis>
+              <generateSupportingFiles>false</generateSupportingFiles>
+              <generateModelDocumentation>false</generateModelDocumentation>
+              <generateModelTests>false</generateModelTests>
+              <configOptions>
+                <useSpringBoot3>true</useSpringBoot3>
+                <!-- 只留 Jackson 与 jakarta.validation，不要 swagger / springdoc 注解。 -->
+                <annotationLibrary>none</annotationLibrary>
+                <documentationProvider>none</documentationProvider>
+                <openApiNullable>false</openApiNullable>
+                <performBeanValidation>true</performBeanValidation>
+                <generateBuilders>false</generateBuilders>
+                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+              </configOptions>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 把生成目录注册为源码根；必须在同一 phase 里排在生成器之后。 -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>${build-helper.version}</version>
+        <executions>
+          <execution>
+            <id>add-generated-model-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/openapi/src/main/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
