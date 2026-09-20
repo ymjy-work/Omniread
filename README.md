@@ -71,6 +71,12 @@ npm --prefix web install
 #    其中 POSTGRES_PASSWORD 指向的条目要先建：keymgr set omniread-pg
 ```
 
+**profile 是全有或全无**：只要其中任一 Key 不存在，`keymgr run omniread` 整个失败，
+连其余几个能用的也一起用不了。所以缺哪个就先补哪个，不要先把映射写进去占位。
+当前本机已配齐 GLM / DeepSeek / 百炼 / MinIO 四项，缺 `omniread-pg`；
+`keymgr list` 是查准确名称（区分大小写）的唯一途径。验证用
+`keymgr.cmd run omniread python temp/probe_keymgr_env.py`（只打印注入与否与长度，不打印明文）。
+
 密钥只经 keymgr 注入进程环境，不写进源码、`.env`、compose 或日志（M0-00 §6）。
 `infra/docker/docker-compose.yml` 里的两个口令是必填插值，未注入时 compose 直接报错，不会退化成空密码。
 

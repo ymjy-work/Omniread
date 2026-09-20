@@ -88,6 +88,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="用假 embedding/rerank；产物会标注不可作为基线",
     )
     parser.add_argument("--write-db", action="store_true", help="把 run 记录写进 rag_runs")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="只跑前 N 题。用于先拿真 provider 验链路（每题 2 次请求），再放开全量",
+    )
     return parser.parse_args(argv)
 
 
@@ -140,6 +146,8 @@ async def main_async(args: argparse.Namespace) -> int:
     manifest_hash = str(build_checksums(corpus)["corpus_manifest_hash"])
 
     questions = load_golden_questions(args.golden_dir)
+    if args.limit is not None:
+        questions = questions[: args.limit]
     mapping_lookup = load_mapping_lookup(args.runs_dir, args.mapping_run)
     pipeline, provider, embedding_model, rerank_model = build_pipeline(args)
 
