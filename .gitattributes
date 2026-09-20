@@ -1,6 +1,6 @@
-# 统一换行为 LF。
-# dataset_hash 与 content_hash 都按字节计算，工作区的 CRLF 会让同一份 Golden
-# 在不同平台上算出不同的 hash，基线也就不可复现（M0-02 §5.2、§7.3）。
+# 统一换行为 LF：工作区是 CRLF、仓库存 LF，避免同一份文件在不同平台上 diff 出满屏差异。
+# 注意这不影响 dataset_hash——它算的是 json.dumps(sort_keys=True, ...) 重新序列化后的字节，
+# 而不是文件原始字节，JSON 解析本身就忽略换行差异（M0-02 §5.2）。
 * text=auto eol=lf
 
 # 二进制文件不做换行转换
