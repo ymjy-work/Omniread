@@ -92,3 +92,37 @@ class RerankModel(Protocol):
     async def rerank(
         self, query: str, documents: Sequence[str], top_n: int | None = None
     ) -> list[RerankResult]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class MapperCandidate:
+    """喂给映射模型的候选 chunk：键 + 正文。正文只在内存里流转，不落 `eval/`。"""
+
+    chunk_key: str
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
+class MapperResult:
+    """映射模型的输出，即 M0-02 §6.1 的四字段。"""
+
+    matched_chunk_key: str | None
+    confidence: float
+    overlap_reason: str
+    alternative_chunk_key: str | None
+    model: str
+
+
+@runtime_checkable
+class MapperModel(Protocol):
+    """evidence → chunk 的兜底映射模型。
+
+    只在确定性区间包含不成立时才被调用（evidence 不是原文精确子串）。
+    `model` 即写进 `chunk_mappings.mapper_model` 的型号，是复合主键的分量。
+    """
+
+    model: str
+
+    async def map_evidence(
+        self, evidence_content: str, candidates: Sequence[MapperCandidate]
+    ) -> MapperResult: ...

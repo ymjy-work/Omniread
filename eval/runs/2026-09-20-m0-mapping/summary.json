@@ -1,0 +1,47 @@
+{
+  "dataset_hash": "601623c7f526d2f7bd02e7f41d15f8ca4246dabf04ae3268747aeafc0c6d5b00",
+  "decision_tiers": {
+    "introducer": 19,
+    "max_coverage": 3,
+    "unique_cover": 335
+  },
+  "evidence_count": 357,
+  "mapping_coverage": 1.0,
+  "match_status": {
+    "matched": 357
+  },
+  "matched_count": 357,
+  "multi_cover_count": 3,
+  "per_difficulty": {
+    "easy": {
+      "matched": 51
+    },
+    "hard": {
+      "matched": 154
+    },
+    "medium": {
+      "matched": 152
+    }
+  },
+  "per_type": {
+    "alias": {
+      "matched": 52
+    },
+    "boundary": {
+      "matched": 47
+    },
+    "cross": {
+      "matched": 96
+    },
+    "fact": {
+      "matched": 48
+    },
+    "foreshadow": {
+      "matched": 77
+    },
+    "spoiler": {
+      "matched": 37
+    }
+  },
+  "run_id": "2026-09-20-m0-mapping"
+}

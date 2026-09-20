@@ -20,6 +20,8 @@ from omniread.infrastructure.providers.base import (
     ChatMessage,
     ChatOptions,
     ChatResponse,
+    MapperCandidate,
+    MapperResult,
     RerankResult,
 )
 from omniread.infrastructure.providers.errors import ProviderError, ProviderTimeoutError
@@ -140,6 +142,71 @@ class FakeChatModel:
             if self._delay_ms > 0:
                 await asyncio.sleep(self._delay_ms / 1000)
             yield ChatChunk(text=self._answer[start : start + self._chunk_size])
+
+
+class FakeMapperModel:
+    """确定性假映射模型：无网络、无随机，用于兜底路径的 smoke 验证。
+
+    选择规则与确定性主路径同源但不共用实现——假 provider 要能**走通**解析、键校验、
+    结论构造这条链路，直接复用主路径就把被测链路短路了。所以这里按「候选正文是否
+    包含证据」挑一条，与主路径的区间包含无关，只求确定。
+
+    `fabricate_key` 用于注入「模型编造 chunk_key」这一故障，验证调用方会整条作废。
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str = "fake-mapper",
+        confidence: float = 0.9,
+        fabricate_key: str | None = None,
+    ) -> None:
+        self.model = model
+        self._confidence = confidence
+        self._fabricate_key = fabricate_key
+        self.calls: list[tuple[str, tuple[MapperCandidate, ...]]] = []
+
+    async def map_evidence(
+        self, evidence_content: str, candidates: Sequence[MapperCandidate]
+    ) -> MapperResult:
+        self.calls.append((evidence_content, tuple(candidates)))
+        if self._fabricate_key is not None:
+            return MapperResult(
+                matched_chunk_key=self._fabricate_key,
+                confidence=self._confidence,
+                overlap_reason="假 provider 注入的编造键",
+                alternative_chunk_key=None,
+                model=self.model,
+            )
+        if not candidates:
+            return MapperResult(
+                matched_chunk_key=None,
+                confidence=0.0,
+                overlap_reason="假 provider：无候选",
+                alternative_chunk_key=None,
+                model=self.model,
+            )
+        selected = next(
+            (
+                candidate
+                for candidate in candidates
+                if evidence_content and evidence_content in candidate.content
+            ),
+            None,
+        )
+        chosen = selected or candidates[0]
+        alternative = (
+            candidates[0].chunk_key
+            if selected is not None and candidates[0] is not selected
+            else None
+        )
+        return MapperResult(
+            matched_chunk_key=chosen.chunk_key,
+            confidence=self._confidence,
+            overlap_reason="假 provider：按候选是否包含证据选择",
+            alternative_chunk_key=alternative,
+            model=self.model,
+        )
 
 
 class FaultyChatModel:

@@ -4,9 +4,10 @@
 由 Java 薄网关、Python RAG 服务、Vue 前端与 PostgreSQL + pgvector / MinIO 四部分组成。
 
 > 当前处于 **M0（流程冒烟与效果简测）**：契约冻结，Java 网关与 Python RAG 全部端点、
-> 数据层与迁移、语料导入与向量化、检索链、回答链、前端端到端链路均已可用，Golden 86 题已冻结。
-> M0-7b 映射与 Ready Gate、M0-8 judge 校准、M0-9 基准与 `baseline-m0` 未做；
-> 真实 provider 凭据也未接入，见下文「当前进度」。
+> 数据层与迁移、语料导入与向量化、检索链、回答链、前端端到端链路均已可用，Golden 86 题已冻结，
+> evidence→chunk 映射已全量跑通（357/357）。
+> M0-8 judge 校准、M0-9 基准与 `baseline-m0` 未做；Ready Gate 八条全过，Golden 已冻结；
+> 真实 provider 凭据未接入，见下文「当前进度」。
 
 ## 目录结构
 
@@ -113,11 +114,20 @@ Java jar 不存在时会自动 `mvn -DskipTests package`。
 一条命令把四个产物的构建与检查串起来，默认还会跑检索链与回答链冒烟：
 
 ```bash
-bash scripts/verify-all.sh                # 默认：compose 校验 / Python / Java 测试 / Java 打包 / web / 检索冒烟 / 回答冒烟
+bash scripts/verify-all.sh                # 默认 9 步：compose / Python / Java 测试 / Java 打包 / web / 检索冒烟 / 回答冒烟 / 映射链 / 产物红线
 bash scripts/verify-all.sh --smoke        # 追加第 6 步：起一次全栈，curl 端到端后自动停
 bash scripts/verify-all.sh --skip-web     # 跳过 web 三步（没装 node 时）
 bash scripts/verify-all.sh --data-layer   # 追加第 7 步：真连 PG / MinIO 验证数据层
 bash scripts/verify-all.sh --gateway      # 追加第 10 步：起 Java + Python（假 provider）跑 M0-6 网关联调
+```
+
+M0-7b 的两条也可单独跑（都不需要凭据）：
+
+```bash
+bash scripts/verify-mapping.sh            # 映射链：语料直读 + 假 provider 兜底，25 项断言
+bash scripts/verify-artifacts.sh          # eval/ 产物红线：文件白名单 + 字段长度 + 与语料比对
+python scripts/run_mapping.py             # 跑一次映射，产出 eval/runs/<run_id>/ 与 temp/ 复核件
+python scripts/run_mapping.py --source db --write-db   # 读真库切片并写 chunk_mappings（需凭据）
 ```
 
 数据层（M0-2）单独跑：
@@ -142,6 +152,8 @@ bash scripts/verify-data-layer.sh --start-infra   # 顺手用 compose 起 infra
 | 8 检索冒烟 | `verify-retrieval.sh --source corpus`：语料直读 + 假 embedding，不连库 | 脚本输出的逐项断言 |
 | 9 回答冒烟 | `verify-answering.sh`：假 provider 跑通事件流与 JSON / SSE 适配器 | 脚本输出；细节在 `scripts/verify_answering.py` |
 | 10 网关联调（`--gateway`） | `verify-gateway.sh`：Client → Java → Python 端到端 | 需要 `POSTGRES_PASSWORD` 与已起的 PostgreSQL |
+| 11 映射链 | `verify-mapping.sh`：确定性区间映射 + 假 provider 兜底 + 产物红线 | 脚本输出的逐项断言；语料需在 `asset/` 下 |
+| 12 产物红线 | `verify-artifacts.sh`：`eval/runs/` 的文件白名单、字段长度、与语料比对 | `eval/` 进 git，夹带正文只能重写历史；报错行给出文件名与字符位置 |
 
 手动 smoke（全栈起好后）：
 
@@ -157,7 +169,7 @@ bash infra/docker/scripts/verify.sh                          # 容器 / 扩展 /
 
 ## 当前进度
 
-**已完成 M0-1 ~ M0-6**：
+**已完成 M0-1 ~ M0-6、M0-7a、M0-7b**：
 
 - **契约冻结**：`contracts/openapi/` 两份契约冻结；Java 的 DTO 由 `openapi-generator` 从内部契约生成 model。
 - **Java 网关**：外部端点全部落位，Controller → QueryOrchestrator → RagGatewayClient 分层，
@@ -167,12 +179,13 @@ bash infra/docker/scripts/verify.sh                          # 容器 / 扩展 /
   且已全部嵌入；230 张插图归档到 MinIO。
 - **检索链**：dense(top60) / BM25(top60) / RRF 融合 / rerank(top24) / 装配三 cap / realm 过滤可用。
 - **回答链**：GLM 适配器 + 拒答判定 + JSON / SSE 双适配器可用。
-- **评测**：Golden 86 题已冻结。
+- **评测**：Golden 86 题已冻结；evidence→chunk 映射 357/357 命中
+  （335 唯一覆盖 / 19 跨块引入者 / 3 章内重复出现），run 产物在 `eval/runs/2026-09-20-m0-mapping/`。
 - **前端**：书库 → 章节树 → 正文（含插图）→ 提问 → 流式回答 → 引用跳章 整条链路可跑通。
 
 **未做**：
 
-- M0-7b 映射与 Ready Gate；
+- `rag_runs.dataset_hash` 落库（Ready Gate 八条已全过、Golden 已冻结；落库需 `POSTGRES_PASSWORD`）；
 - M0-8 judge 校准；
 - M0-9 基准与 `baseline-m0`。
 

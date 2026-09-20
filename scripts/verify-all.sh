@@ -2,7 +2,7 @@
 # Omniread M0 可复现验证序列：把四个产物（Java / Python / infra / web）的构建与检查串成一条命令。
 #
 # 用法（Git Bash，仓库根执行）：
-#   bash scripts/verify-all.sh                默认跑第 1–5、8、9 步（共 7 步）
+#   bash scripts/verify-all.sh                默认跑第 1–5、8、9、11、12 步（共 9 步）
 #   bash scripts/verify-all.sh --skip-web     跳过第 5 步（没装 node 时）
 #   bash scripts/verify-all.sh --smoke        跑完后再起一次全栈并 curl 端到端，最后自动停掉
 #   bash scripts/verify-all.sh --data-layer   追加第 7 步：真连 PG / MinIO 跑迁移往返与对象读写
@@ -151,6 +151,22 @@ if [ "$GATEWAY" -eq 1 ]; then
   fi
 else
   step 10 "M0-6 Java 网关联调：未启用（加 --gateway 才跑；需 POSTGRES_PASSWORD 与已起的 PostgreSQL）"
+fi
+
+# 第 11、12 步默认启用：两者都走语料直读 + 假 provider，不连库、不发真实调用。
+# 它们把 M0-7b 的映射链与 eval/ 产物的入库红线纳入项目级校验。
+step 11 "M0-7b 映射链：语料直读 + 假 provider 兜底（不连库、不发真实调用）"
+if bash "$ROOT/scripts/verify-mapping.sh"; then
+  ok "mapping-smoke"
+else
+  bad "mapping-smoke" "bash scripts/verify-mapping.sh 看详情；语料需在 asset/ 下"
+fi
+
+step 12 "eval/ 产物红线：文件白名单 + 字段长度 + 与语料比对"
+if bash "$ROOT/scripts/verify-artifacts.sh"; then
+  ok "artifact-redline"
+else
+  bad "artifact-redline" "bash scripts/verify-artifacts.sh 看详情；eval/ 进 git，夹带正文只能重写历史"
 fi
 
 printf '\n=== 汇总：%d 项通过，%d 项失败 ===\n' "$PASS" "$FAIL"
