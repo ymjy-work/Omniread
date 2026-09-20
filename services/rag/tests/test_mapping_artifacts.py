@@ -102,13 +102,21 @@ def _config() -> RunConfig:
     )
 
 
+# 映射 run 实际产出的文件。`ALLOWED_RUN_FILES` 是整个 run 目录布局的并集
+# （含 retrieval / generation 侧的文件），映射只写其中这五个。
+MAPPING_RUN_FILES = frozenset(
+    {"config.json", "summary.json", "summary.md", "mappings.jsonl", "mapping_failures.jsonl"}
+)
+
+
 class TestArtifactWhitelist:
-    def test_writes_exactly_the_allowed_files(self, tmp_path: Path) -> None:
+    def test_writes_exactly_the_mapping_files(self, tmp_path: Path) -> None:
         run_dir = tmp_path / "run"
         write_run_dir(
             run_dir, config=_config(), records=[_record()], summary={"run_id": "test-run"}
         )
-        assert {path.name for path in run_dir.iterdir()} == set(ALLOWED_RUN_FILES)
+        assert {path.name for path in run_dir.iterdir()} == set(MAPPING_RUN_FILES)
+        assert MAPPING_RUN_FILES <= ALLOWED_RUN_FILES
         assert check_run_dir(run_dir) == []
 
     def test_extra_file_is_rejected(self, tmp_path: Path) -> None:

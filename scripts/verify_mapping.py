@@ -59,6 +59,7 @@ from omniread.pipelines.mapping.runner import (  # noqa: E402
     DEFAULT_CORPUS_ROOT,
     DEFAULT_GOLDEN_DIR,
     golden_dataset_hash,
+    golden_schema_version,
     load_golden_evidence,
     run_mapping,
 )
@@ -308,6 +309,7 @@ def main() -> int:
         "slices": slices,
         "evidence": evidence,
         "dataset_hash": dataset_hash,
+        "dataset_version": golden_schema_version(DEFAULT_GOLDEN_DIR),
         "chunk_source": "corpus",
         "chunking_version": M0_PLACEHOLDER_V1.profile_id,
         "tokenizer_id": M0_PLACEHOLDER_V1.tokenizer_id,

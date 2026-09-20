@@ -128,6 +128,14 @@ bash scripts/verify-mapping.sh            # 映射链：语料直读 + 假 provi
 bash scripts/verify-artifacts.sh          # eval/ 产物红线：文件白名单 + 字段长度 + 与语料比对
 python scripts/run_mapping.py             # 跑一次映射，产出 eval/runs/<run_id>/ 与 temp/ 复核件
 python scripts/run_mapping.py --source db --write-db   # 读真库切片并写 chunk_mappings（需凭据）
+python scripts/render_golden_review.py    # Golden 逐题复核件 → temp/（免凭据）
+```
+
+M0-9 检索层评测（**需要真实 embedding/rerank**，假 provider 的数字是噪声不可作基线）：
+
+```bash
+keymgr run codex python scripts/run_eval.py --run-id 2026-09-20-m0-baseline
+keymgr run omniread python scripts/run_eval.py --write-db   # 顺带写 rag_runs
 ```
 
 数据层（M0-2）单独跑：

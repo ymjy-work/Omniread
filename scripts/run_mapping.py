@@ -46,6 +46,7 @@ from omniread.pipelines.mapping.runner import (  # noqa: E402
     DEFAULT_RUNS_DIR,
     load_golden_evidence,
     golden_dataset_hash,
+    golden_schema_version,
     run_mapping,
 )
 from omniread.pipelines.mapping.sources import slices_from_db  # noqa: E402
@@ -95,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
 
     evidence = load_golden_evidence(args.golden_dir)
     dataset_hash = golden_dataset_hash(args.golden_dir)
+    dataset_version = golden_schema_version(args.golden_dir)
     question_count = len({item.question_id for item in evidence})
 
     result = run_mapping(
@@ -102,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         slices=slices,
         evidence=evidence,
         dataset_hash=dataset_hash,
+        dataset_version=dataset_version,
         chunk_source=chunk_source,
         chunking_version=M0_PLACEHOLDER_V1.profile_id,
         tokenizer_id=M0_PLACEHOLDER_V1.tokenizer_id,

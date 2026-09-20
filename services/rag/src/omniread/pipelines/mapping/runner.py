@@ -105,6 +105,28 @@ def load_golden_evidence(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> list[Evidence
     return [evidence for _, evidence in entries]
 
 
+def golden_schema_version(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> str:
+    """Golden 的 `schema_version`，即 run 记录里的 `dataset_version`。
+
+    逐题读一遍并断言全体一致：schema 把该字段定为 const，真出现不一致说明有人手改了文件、
+    校验器却没拦住——那比读到一个错值更值得当场炸掉。
+    """
+    versions: set[str] = set()
+    for path in sorted(golden_dir.glob("*.json")):
+        if path.name in _NON_QUESTION_FILES:
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        versions.add(payload.get("schema_version", ""))
+    if not versions:
+        raise GoldenError(f"{golden_dir} 下没有题目文件")
+    if len(versions) > 1:
+        raise GoldenError(f"Golden 的 schema_version 不一致：{sorted(versions)}")
+    version = versions.pop()
+    if not version:
+        raise GoldenError("Golden 缺 schema_version 字段")
+    return version
+
+
 def golden_dataset_hash(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> str:
     """调校验器取 `dataset_hash`；校验不通过即抛错，不带着坏数据集往下走。"""
     completed = subprocess.run(
@@ -210,6 +232,7 @@ def run_mapping(
     slices: Mapping[str, ChapterSlices],
     evidence: Sequence[EvidenceRef],
     dataset_hash: str,
+    dataset_version: str,
     chunk_source: str,
     chunking_version: str,
     tokenizer_id: str,
@@ -225,7 +248,10 @@ def run_mapping(
         run_id=run_id,
         kind="mapping",
         dataset_hash=dataset_hash,
-        dataset_version=chunking_version,
+        # Golden 的 schema_version，**不是** chunking_version。
+        # 两者都是形如 `m0-xxx-vN` 的短串，混用不会报错，只会让 run 记录把
+        # 「数据集版本」说成「切片 profile」，事后无法据以判断可比性。
+        dataset_version=dataset_version,
         golden_question_count=golden_question_count,
         evidence_count=len(records),
         chunking_version=chunking_version,

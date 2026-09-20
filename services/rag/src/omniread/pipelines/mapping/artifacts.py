@@ -19,35 +19,37 @@ evidence 的 content 与 chunk 正文一律不进 `eval/`。
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omniread.domain.artifacts import (
+    ALLOWED_RUN_FILES,
+    MAX_FREE_TEXT_CHARS,
+    MAX_STRING_FIELD,
+    ArtifactRedlineError,
+    check_markdown,
+    check_strings,
+    clamp_text,
+    guard_payload,
+)
 from omniread.pipelines.mapping.types import MATCH_MATCHED, MappingOutcome
 
-# M0-02 §7.1：CI 检查 JSONL 内任一字符串字段长度上限 500 字符，超限即视为夹带了正文。
-MAX_STRING_FIELD = 500
+__all__ = [
+    "ALLOWED_RUN_FILES",
+    "MAX_FREE_TEXT_CHARS",
+    "MAX_STRING_FIELD",
+    "ArtifactRedlineError",
+    "MappingRecord",
+    "RunConfig",
+    "check_run_dir",
+    "flatten_reason",
+    "write_run_dir",
+]
 
-# 自由文本列的落盘上限。规格给的 500 是「夹带正文」的判定线，这里再收紧一档：
-# 理由是这一列由模型产出，长度越短、越难塞下一段正文。
-MAX_REASON_CHARS = 200
-
-# run 目录**只准**出现这些文件。多出来的文件（debug.txt、raw/、请求响应 dump）
-# 不受白名单约束，是整章语料入库最现实的路径，所以以「白名单 + 目录校验」而非「黑名单」来管。
-ALLOWED_RUN_FILES = frozenset(
-    {
-        "config.json",
-        "summary.json",
-        "summary.md",
-        "mappings.jsonl",
-        "mapping_failures.jsonl",
-    }
-)
-
-
-class ArtifactRedlineError(ValueError):
-    """产物违反入库红线：字段超长、出现正文、或目录里有白名单外的文件。"""
+# 自由文本列的落盘上限，与共用规则同一口径；改名只为在映射语境下读起来明确。
+MAX_REASON_CHARS = MAX_FREE_TEXT_CHARS
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,8 +116,7 @@ def flatten_reason(reason: str) -> str:
     模型可能把候选 chunk 原文粘进理由里，截断是这里唯一能做的确定性收敛；
     真要禁止正文进入该列，只能靠「不让模型产出自由文本」——那正是默认走确定性路径的理由之一。
     """
-    flattened = " ".join(reason.split())
-    return flattened[:MAX_REASON_CHARS]
+    return clamp_text(reason, MAX_REASON_CHARS)
 
 
 def write_run_dir(
@@ -133,15 +134,15 @@ def write_run_dir(
         "summary.json": dict(summary),
     }
     for name, payload in payloads.items():
-        _guard_payload(name, payload)
+        guard_payload(name, payload)
 
     records_payload = [asdict(record) for record in records]
     for row in records_payload:
-        _guard_payload("mappings.jsonl", row)
+        guard_payload("mappings.jsonl", row)
 
     failures = [row for row in records_payload if row["match_status"] != MATCH_MATCHED]
     for row in failures:
-        _guard_payload("mapping_failures.jsonl", row)
+        guard_payload("mapping_failures.jsonl", row)
 
     _write_json(run_dir / "config.json", payloads["config.json"])
     _write_json(run_dir / "summary.json", payloads["summary.json"])
@@ -180,49 +181,16 @@ def check_run_dir(run_dir: Path) -> list[str]:
             elif entry.suffix == ".json":
                 rows = [json.loads(entry.read_text(encoding="utf-8"))]
             else:
-                problems.extend(_check_markdown(entry))
+                # 逐行长度只是兜底；markdown 的真正约束是「只写指针与计数」，
+                # 那由各自的渲染函数保证，不靠这里。
+                problems.extend(check_markdown(entry.name, entry.read_text(encoding="utf-8")))
                 continue
         except json.JSONDecodeError as exc:
             problems.append(f"{entry.name} 不是合法 JSON：{exc}")
             continue
         for index, row in enumerate(rows):
-            problems.extend(_check_strings(entry.name, index, row))
+            problems.extend(check_strings(entry.name, row, index))
 
-    return problems
-
-
-def _check_markdown(path: Path) -> list[str]:
-    """Markdown 不受 JSONL 长度检查保护，单独兜一道：按行看是否有超长行。
-
-    summary.md 由本模块生成、只含计数与键名，但它是 run 目录里唯一的非结构化文件，
-    一旦有人往模板里塞正文，没有别的检查会拦。
-    """
-    problems: list[str] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        if len(line) > MAX_STRING_FIELD:
-            problems.append(f"{path.name}:{number} 单行超过 {MAX_STRING_FIELD} 字符")
-    return problems
-
-
-def _guard_payload(name: str, payload: Any) -> None:
-    problems = _check_strings(name, 0, payload)
-    if problems:
-        raise ArtifactRedlineError("；".join(problems))
-
-
-def _check_strings(name: str, index: int, payload: Any, prefix: str = "") -> list[str]:
-    problems: list[str] = []
-    if isinstance(payload, str):
-        if len(payload) > MAX_STRING_FIELD:
-            problems.append(
-                f"{name}[{index}]{prefix} 字符串长度 {len(payload)} 超上限 {MAX_STRING_FIELD}"
-            )
-    elif isinstance(payload, Mapping):
-        for key, value in payload.items():
-            problems.extend(_check_strings(name, index, value, f"{prefix}.{key}"))
-    elif isinstance(payload, Iterable) and not isinstance(payload, (bytes, bytearray)):
-        for position, value in enumerate(payload):
-            problems.extend(_check_strings(name, index, value, f"{prefix}[{position}]"))
     return problems
 
 
