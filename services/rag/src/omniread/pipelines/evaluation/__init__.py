@@ -14,6 +14,12 @@ from omniread.pipelines.evaluation.artifacts import (
     fmt_ratio,
     write_eval_run_dir,
 )
+from omniread.pipelines.evaluation.generation import (
+    MEMBERSHIP_KEY,
+    CitationVerdict,
+    aggregate_generation,
+    judge_citation_membership,
+)
 from omniread.pipelines.evaluation.metrics import (
     aggregate,
     matched_keys_from_records,
@@ -28,17 +34,25 @@ from omniread.pipelines.evaluation.runner import (
     load_golden_questions,
     run_retrieval_eval,
 )
-from omniread.pipelines.evaluation.types import RetrievalScoreRecord
+from omniread.pipelines.evaluation.types import (
+    GenerationScoreRecord,
+    RetrievalScoreRecord,
+)
 
 __all__ = [
     "FAKE_TRUST_NOTE",
+    "MEMBERSHIP_KEY",
+    "CitationVerdict",
     "EvalError",
     "EvalRunConfig",
+    "GenerationScoreRecord",
     "RetrievalEvalResult",
     "RetrievalScoreRecord",
     "aggregate",
+    "aggregate_generation",
     "failure_rows",
     "fmt_ratio",
+    "judge_citation_membership",
     "load_golden_questions",
     "matched_keys_from_records",
     "run_retrieval_eval",

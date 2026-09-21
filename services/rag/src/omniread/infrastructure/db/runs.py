@@ -19,10 +19,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from omniread.infrastructure.db.models import RagRun
 from omniread.pipelines.evaluation.artifacts import EvalRunConfig
 
-# 本 run 没有经过这一层。写明确的值而不是空串：空串在库里看起来像「漏填」，
-# 而它是确定结论——这一层没跑。
-NOT_EXERCISED = "not-exercised"
-
 
 def build_run_row(
     config: EvalRunConfig,
@@ -30,13 +26,13 @@ def build_run_row(
     artifact_dir: str,
     started_at: datetime,
     finished_at: datetime,
-    answer_provider: str = NOT_EXERCISED,
-    answer_model: str = NOT_EXERCISED,
-    judge_provider: str = NOT_EXERCISED,
-    judge_model: str = NOT_EXERCISED,
-    prompt_version: str = NOT_EXERCISED,
 ) -> dict[str, object]:
-    """把 run 配置折成一行 `rag_runs`；参数与列一一对应。"""
+    """把 run 配置折成一行 `rag_runs`；参数与列一一对应。
+
+    `answer_*` / `judge_*` / `prompt_version` **取自 config 本身**，不再另立参数：
+    那五个值本来就在 `EvalRunConfig` 里，多一路传参就多一处两边可以不一致的地方
+    （传了 A、config 里记着 B，事后看产物根本分不出来）。
+    """
     return {
         "run_id": config.run_id,
         "kind": config.kind,
@@ -45,16 +41,16 @@ def build_run_row(
         "corpus_manifest_hash": config.corpus_manifest_hash,
         "chunking_version": config.chunking_version,
         "tokenizer_id": config.tokenizer_id,
-        "answer_provider": answer_provider,
-        "answer_model": answer_model,
-        "judge_provider": judge_provider,
-        "judge_model": judge_model,
+        "answer_provider": config.answer_provider,
+        "answer_model": config.answer_model,
+        "judge_provider": config.judge_provider,
+        "judge_model": config.judge_model,
         "embedding_provider": config.embedding_provider,
         "embedding_model": config.embedding_model,
         "embedding_dim": config.embedding_dim,
         "rerank_provider": config.rerank_provider,
         "rerank_model": config.rerank_model,
-        "prompt_version": prompt_version,
+        "prompt_version": config.prompt_version,
         "retrieval_params": dict(config.retrieval_params),
         "artifact_dir": artifact_dir,
         "started_at": started_at,

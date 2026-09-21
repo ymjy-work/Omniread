@@ -14,11 +14,17 @@
    `retrieval.scores.jsonl` 被截断或换过。照写会得到一份题数更少、数字看着
    仍然合理的汇总，而退出码与红线检查都报成功。确实要按当前记录重算，
    得显式加 `--allow-question-count-change`。
-2. **config.json 往返守卫**。`write_eval_run_dir` 会**无条件**重写 config.json
-   （与传不传 records 无关）。先把配置往返一遍，与磁盘上的值不一致就拒绝落盘——
-   那说明数据类的字段集或默认值变过，重写会把这次 run 的参数快照换成本版本的默认值。
-3. **config.json 字节守卫**。值相同不代表字节相同（缩进、转义、外部手工编辑过的
-   表示）。落盘后再按字节核一遍，不同就还原。
+2. **config.json 键集闸门**。`write_eval_run_dir` 会**无条件**重写 config.json
+   （与传不传 records 无关）。产物里出现本版本不认识的键即拒绝——那说明产物比代码新。
+   反过来，产物**缺**字段是正常的：新加的字段带默认值，旧的 run 自然没有它们。
+   （不做「取值往返比对」：`EvalRunConfig(**payload)` 原样收下再原样吐回，那种比对恒真。）
+3. **config.json 字节闸门**。值相同不代表字节相同（缩进、转义、外部手工编辑过的表示）。
+   落盘后按字节核一遍，不同就还原——放在 `finally` 里，落盘中途抛错也会还原。
+
+**一处已知限制**：`summary.md` 的头部是从内存里那份 config（= 产物 ∪ 代码默认值）渲染的，
+它**没有**字节闸门（它本来就该被重写）。所以若将来给一个会被渲染的字段改默认值，
+旧产物的 `summary.md` 头部会冒出那个新默认值，而 config.json 已被还原、两者对不上。
+今天不可达：带默认值且被渲染的字段只有 `trust_note`，其默认值是空串、渲染时整段跳过。
 
 
 用法（仓库根执行）：
@@ -32,7 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -92,11 +98,15 @@ def load_config(run_dir: Path) -> EvalRunConfig:
             f"config.json 与本版本的 EvalRunConfig 对不上：{exc}\n"
             "  拒绝继续：照当前默认值补字段会把这次 run 的参数快照改掉。"
         ) from exc
-    if asdict(config) != payload:
-        raise SystemExit(
-            "config.json 与当前代码往返后不一致（字段集或默认值变过）。\n"
-            "  拒绝继续：重写它会把这次 run 的参数快照悄悄换成本版本的默认值。"
-        )
+    # 这里**不做**「往返一遍比对取值」：那是个恒真的检查，写了等于没写。
+    # `EvalRunConfig(**payload)` 把 payload 的值原样收下（dataclass 不做类型转换，
+    # 也没有 `__post_init__`），`asdict` 再原样吐回，所以「已记录的字段被换成了别的值」
+    # 根本不可能被这道检查发现——它真正拦得住的只有「payload 缺键」，而缺键在新字段
+    # 带默认值之后本就是正常的（旧产物没有生成层那几个字段）。
+    #
+    # 于是 config.json 只剩两道**各自有效**的闸门：
+    #   1. 键集闸门（上面）：payload 出现本版本不认识的键 → 拒绝，产物比代码新；
+    #   2. 字节闸门（main 里）：落盘后逐字节比对并还原，一个字节都不许动。
     return config
 
 
@@ -187,11 +197,16 @@ def main(argv: list[str] | None = None) -> int:
     config_bytes = config_path.read_bytes()
 
     # 只写 summary 与 failures；records 不传，逐题记录原样保留。
-    write_eval_run_dir(run_dir, config=config, summary=summary, failures=failures)
-
-    if config_path.read_bytes() != config_bytes:
-        config_path.write_bytes(config_bytes)
-        print(f"注意：config.json 被重写且字节有变化，已还原为原内容：{config_path}")
+    #
+    # 还原放在 `finally` 里：`write_eval_run_dir` 在写完 config.json 之后还可能抛错
+    # （超长字段、渲染异常），那时若不还原，磁盘上就留下一份「参数快照被悄悄加上
+    # 新默认字段」的半成品，而这次运行看起来是失败的、没人会去查它。
+    try:
+        write_eval_run_dir(run_dir, config=config, summary=summary, failures=failures)
+    finally:
+        if config_path.read_bytes() != config_bytes:
+            config_path.write_bytes(config_bytes)
+            print(f"注意：config.json 被重写且字节有变化，已还原为原内容：{config_path}")
 
     print()
     print(f"已重写：{old_path}")

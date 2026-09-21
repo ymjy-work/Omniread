@@ -154,6 +154,24 @@ services/rag/.venv/Scripts/python.exe scripts/resummarize_eval.py \
   --run-id 2026-09-20-m0-baseline --dry-run    # 先看差异；去掉 --dry-run 才落盘
 ```
 
+M0-9 生成层评测（**需要 `GLM_API_KEY`**；真跑 86 题 = 86 次 GLM + 172 次百炼）。
+**用与检索层不同的 `run_id`**——它是 `rag_runs` 主键，同名会把检索层基线 upsert 掉：
+
+```bash
+source temp/local-env.sh && keymgr run omniread \
+  services/rag/.venv/Scripts/python.exe scripts/run_generation_eval.py --write-db
+
+# 只验链路结构（假回答模型 + 假检索，零费用；产物会写明不可作基线）
+... --fake-providers --limit 3
+
+# 断了接着跑：已答出来的题不重花调用；generation_failed 的题会重试
+... --resume
+```
+
+产物分两处：`temp/generation/<run_id>/run.gen.jsonl` 放**模型看到与写出的全部文本**
+（`temp/` 不进 git，全仓只有这一处能放），`eval/runs/<run_id>/generation.scores.jsonl`
+只放指针与标量——`eval/` 进 git，那里的字段集由 `GenerationScoreRecord` 定死。
+
 数据层（M0-2）单独跑：
 
 ```bash

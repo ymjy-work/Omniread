@@ -15,16 +15,26 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from omniread.infrastructure.db.runs import build_run_row
 from omniread.pipelines.evaluation.artifacts import (
+    NOT_EXERCISED,
+    PHASE_GENERATION,
     EvalRunConfig,
     fmt_ratio,
     write_eval_run_dir,
 )
-from omniread.pipelines.evaluation.types import RetrievalScoreRecord
+from omniread.pipelines.evaluation.types import (
+    STATUS_ANSWERED,
+    GenerationScoreRecord,
+    RetrievalScoreRecord,
+)
+
+_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _config() -> EvalRunConfig:
@@ -171,6 +181,132 @@ class TestSummaryMarkdown:
         )
         text = _render(tmp_path, summary)
         assert "| `fact` | 2 | ? | 1.0000 | 1.0000 | 0 |" in text
+
+
+def _gen_config(**overrides: object) -> EvalRunConfig:
+    base = replace(
+        _config(),
+        run_id="run-gen",
+        phase=PHASE_GENERATION,
+        answer_provider="glm",
+        answer_model="glm-5.3-flash",
+        judge_provider="deepseek",
+        judge_model="deepseek-flash",
+        prompt_version="abc123def456",
+    )
+    return replace(base, **overrides)  # type: ignore[arg-type]
+
+
+def _gen_record(**overrides: object) -> GenerationScoreRecord:
+    base = GenerationScoreRecord(
+        question_id="fact-001",
+        question_type="fact",
+        difficulty="easy",
+        expect_refusal=False,
+        status=STATUS_ANSWERED,
+        citation_count=1,
+        citation_membership_ok=True,
+        citation_out_of_range=(),
+        citation_malformed_count=0,
+        request_id="req_" + "0" * 32,
+        answer_provider="glm",
+        answer_model="glm-5.3-flash",
+        prompt_version="abc123def456",
+        judge_provider="deepseek",
+        judge_model="deepseek-flash",
+    )
+    return replace(base, **overrides) if overrides else base  # type: ignore[arg-type]
+
+
+_GEN_SUMMARY: dict[str, object] = {
+    "question_count": 2,
+    "answer_citation_membership": 0.5,
+    "citation_membership_denominator": 2,
+    "generation_failed": 1,
+    "citation_out_of_range_total": 3,
+    "citation_malformed_total": 0,
+    "answered": 2,
+    "point_coverage": None,
+    "faithfulness": None,
+    "answer_relevancy": None,
+    "answer_boundary_violation": None,
+    "citation_supported": None,
+    "per_difficulty": {
+        "easy": {
+            "questions": 2,
+            "citation_membership_denominator": 2,
+            "answer_citation_membership": 0.5,
+            "generation_failed": 1,
+        }
+    },
+}
+
+
+class TestGenerationRunDir:
+    def test_writes_generation_scores_and_its_own_summary(self, tmp_path: Path) -> None:
+        """生成层 run 落 `generation.scores.jsonl`，且用生成层那套渲染。
+
+        分派靠 `config.phase`：检索层的指标名不能出现在生成层产物里（反过来也一样），
+        否则「这份产物跑了什么」靠字段名都看不出来。
+        """
+        write_eval_run_dir(
+            tmp_path,
+            config=_gen_config(),
+            generation_records=[_gen_record()],
+            summary=_GEN_SUMMARY,
+        )
+        assert (tmp_path / "generation.scores.jsonl").is_file()
+        # 没传检索记录就不该有那个文件——空文件会让人以为「跑了但全是 0」
+        assert not (tmp_path / "retrieval.scores.jsonl").exists()
+
+        text = (tmp_path / "summary.md").read_text(encoding="utf-8")
+        assert "answer_citation_membership" in text
+        assert "must_cite_recall" not in text
+        assert "prompt `abc123def456`" in text
+        assert "deepseek / `deepseek-flash`" in text
+
+    def test_judge_metrics_render_as_not_run(self, tmp_path: Path) -> None:
+        """judge 未校准前指标是 None，产物必须写「未执行」而不是 `0.0000`。"""
+        write_eval_run_dir(tmp_path, config=_gen_config(), summary=_GEN_SUMMARY)
+        text = (tmp_path / "summary.md").read_text(encoding="utf-8")
+        assert "- `faithfulness`：未执行" in text
+        assert "0.0000" not in text.split("## judge 指标")[1]
+
+    def test_retrieval_phase_still_uses_the_retrieval_renderer(self, tmp_path: Path) -> None:
+        """加了分派之后，检索层那条老路不能被带跑。"""
+        write_eval_run_dir(tmp_path, config=_config(), summary=_summary())
+        text = (tmp_path / "summary.md").read_text(encoding="utf-8")
+        assert "must_cite_recall" in text
+        assert "answer_citation_membership" not in text
+
+
+class TestRunRowDerivesFromConfig:
+    """`rag_runs` 那一行只能有一个来源：`EvalRunConfig`。
+
+    这五个值曾经是 `build_run_row` 的独立参数，于是「传了 A、config 里记着 B」
+    的空间就摆在那儿，而事后看产物分不出哪个是真的。
+    """
+
+    def test_generation_config_fills_the_row(self) -> None:
+        row = build_run_row(
+            _gen_config(), artifact_dir="eval/runs/x", started_at=_EPOCH, finished_at=_EPOCH
+        )
+        assert row["answer_provider"] == "glm"
+        assert row["answer_model"] == "glm-5.3-flash"
+        assert row["judge_provider"] == "deepseek"
+        assert row["judge_model"] == "deepseek-flash"
+        assert row["prompt_version"] == "abc123def456"
+
+    def test_retrieval_config_marks_the_layers_as_not_exercised(self) -> None:
+        """检索层 run 没跑生成与 judge——写 `not-exercised` 这个确定结论，不留空。"""
+        row = build_run_row(
+            _config(), artifact_dir="eval/runs/x", started_at=_EPOCH, finished_at=_EPOCH
+        )
+        assert row["answer_provider"] == NOT_EXERCISED
+        assert row["answer_model"] == NOT_EXERCISED
+        assert row["judge_provider"] == NOT_EXERCISED
+        assert row["judge_model"] == NOT_EXERCISED
+        assert row["prompt_version"] == NOT_EXERCISED
 
 
 class TestRecordFromPayload:
