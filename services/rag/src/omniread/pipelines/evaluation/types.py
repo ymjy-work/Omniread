@@ -13,7 +13,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, fields
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +60,32 @@ class RetrievalScoreRecord:
     dropped: tuple[str, ...]
     # 映射到、但没进 assembled 的 chunk_key —— 「被截掉」的那批，失败定位用。
     mapped_not_assembled_keys: tuple[str, ...]
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> RetrievalScoreRecord:
+        """从 `retrieval.scores.jsonl` 的一行还原。
+
+        JSON 没有元组，指针列读回来是 list；直接塞进 frozen dataclass 会让再次
+        `asdict` 出来的形状与首次落盘时不同。哪些字段是元组由注解本身决定，
+        不另维护一份名单——新加元组字段时不会漏。
+        """
+        data: dict[str, Any] = dict(payload)
+        for item in fields(cls):
+            if not str(item.type).startswith("tuple[") or item.name not in data:
+                continue
+            value = data[item.name]
+            # 必须是「字符串序列」。只写 `tuple(value)` 的话，一个误写成字符串的
+            # 指针列会被拆成一串单字符元组：不报错，下游 `set(record.rerank_keys)`
+            # 也照样跑，只是判定悄悄变错（`_failure_stage` 会把「装配截掉」判成
+            # 「根本没召回」）。这种错不会以异常的形式出现，所以要在这里拦住。
+            if not isinstance(value, (list, tuple)) or not all(
+                isinstance(element, str) for element in value
+            ):
+                raise ValueError(
+                    f"{item.name} 应为字符串列表，收到 {type(value).__name__}"
+                )
+            data[item.name] = tuple(value)
+        return cls(**data)
 
     @property
     def leak_total(self) -> int:

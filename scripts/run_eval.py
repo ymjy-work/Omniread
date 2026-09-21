@@ -48,6 +48,7 @@ from omniread.infrastructure.providers.fake import (  # noqa: E402
 from omniread.pipelines.chunking import M0_PLACEHOLDER_V1  # noqa: E402
 from omniread.pipelines.evaluation import (  # noqa: E402
     FAKE_TRUST_NOTE,
+    fmt_ratio,
     load_golden_questions,
     run_retrieval_eval,
     write_eval_run_dir,
@@ -188,15 +189,24 @@ async def main_async(args: argparse.Namespace) -> int:
     print(f"产物目录 : {run_dir}")
     print(f"映射来源 : eval/runs/{args.mapping_run}/mappings.jsonl")
     print()
+    denominator = result.summary["must_cite_recall_denominator"]
     for key in ("question_count", "must_cite_recall", "evidence_recall", "group_recall", "leak"):
-        print(f"  {key:20s} {result.summary[key]}")
-    print(f"  {'must_cite 分母':20s} {result.summary['must_cite_recall_denominator']}")
+        # 与产物走同一条渲染规则（`fmt_ratio`），不在这里另写一套。
+        value = (
+            fmt_ratio(result.summary[key], denominator)
+            if key == "must_cite_recall"
+            else result.summary[key]
+        )
+        print(f"  {key:20s} {value}")
+    print(f"  {'must_cite 分母':20s} {denominator}")
     print()
     print("按难度分列（只分列、不加权）：")
     for difficulty, values in result.summary["per_difficulty"].items():  # type: ignore[union-attr]
+        # 分母紧挨着比率打印：0/0 也是 0.0000，两个数并排才不会读错。
         print(
             f"  {difficulty:8s} 题数 {values['questions']:3d} "
-            f"must_cite {values['must_cite_recall']:.4f} "
+            f"must_cite 分母 {values['must_cite_recall_denominator']:3d} "
+            f"命中 {fmt_ratio(values['must_cite_recall'], values['must_cite_recall_denominator'])} "
             f"evidence {values['evidence_recall']:.4f} leak {values['leak']}"
         )
     print()

@@ -132,19 +132,27 @@ async def run_retrieval_eval(
         config=config,
         records=tuple(records),
         summary=summary,
-        failures=tuple(_failure_row(question, record) for question, record in zip(
-            questions, records, strict=True
-        ) if _is_failure(record)),
+        failures=failure_rows(records),
     )
+
+
+def failure_rows(
+    records: Sequence[RetrievalScoreRecord],
+) -> tuple[dict[str, object], ...]:
+    """失败清单：只从逐题记录生成，不回读题面。
+
+    题面里用得上的字段（`type`）逐题记录里本来就有；少一路输入就少一处
+    「产物重算不出来」的地方——而改口径时恰恰只能靠逐题记录重算，
+    重跑要再花一遍真实调用，还会把同一个 run_id 换成另一次采样的结果。
+    """
+    return tuple(_failure_row(record) for record in records if _is_failure(record))
 
 
 def _is_failure(record: RetrievalScoreRecord) -> bool:
     return not record.must_cite_hit or record.leak_total > 0
 
 
-def _failure_row(
-    question: Mapping[str, object], record: RetrievalScoreRecord
-) -> dict[str, object]:
+def _failure_row(record: RetrievalScoreRecord) -> dict[str, object]:
     """失败清单的一行：只写指针、阶段与指标快照（M0-02 §7.1 的字段白名单）。
 
     `stage` 是判定失败**卡在哪一层**，用来分辨修检索还是修装配：
@@ -167,7 +175,7 @@ def _failure_row(
             f"mapped {record.evidence_mapped}/{record.evidence_total} "
             f"leak {record.leak_total}"
         ),
-        "question_form": str(question.get("type", "")),
+        "question_form": record.question_type,
     }
 
 
@@ -193,6 +201,7 @@ __all__ = [
     "EvalError",
     "RetrievalEvalResult",
     "chapter_of",
+    "failure_rows",
     "load_golden_questions",
     "matched_keys_from_records",
     "run_retrieval_eval",

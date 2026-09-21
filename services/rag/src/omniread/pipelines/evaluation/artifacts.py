@@ -124,6 +124,7 @@ def _render_summary_markdown(config: EvalRunConfig, summary: Mapping[str, Any]) 
         lines.extend([f"> **可信度**：{config.trust_note}", ""])
 
     lines.extend(["## 指标", ""])
+    must_cite_denominator = summary.get("must_cite_recall_denominator")
     for key in (
         "must_cite_recall",
         "evidence_recall",
@@ -133,10 +134,25 @@ def _render_summary_markdown(config: EvalRunConfig, summary: Mapping[str, Any]) 
         "evidence_mapped",
         "leak",
     ):
-        if key in summary:
-            lines.append(f"- `{key}`：{_fmt(summary[key])}")
+        if key not in summary:
+            continue
+        # 头条与分列必须是同一条渲染规则：同一个量在两处读法不同，本身就是缺陷。
+        value = (
+            fmt_ratio(summary[key], must_cite_denominator)
+            if key == "must_cite_recall"
+            else _fmt(summary[key])
+        )
+        lines.append(f"- `{key}`：{value}")
     lines.extend(
-        ["", f"（`must_cite_recall` 分母 = {summary.get('must_cite_recall_denominator')}）", ""]
+        [
+            "",
+            f"（`must_cite_recall` 分母 = {_fmt_denominator(must_cite_denominator)}。"
+            "拒答题不进这个分母——它衡量的是「答案该引的都引了」，而拒答题本就不该引用；"
+            "拒答题的检索质量由 `evidence_recall` 与失败清单承载，"
+            "**没能召回到判定所需的证据仍算失败**。分列表同口径，"
+            "**分母为 0 的记 `—`**：那是「没有可判定的题」，不是「一道都没中」。）",
+            "",
+        ]
     )
 
     for dimension in ("per_difficulty", "per_type", "per_level"):
@@ -144,11 +160,13 @@ def _render_summary_markdown(config: EvalRunConfig, summary: Mapping[str, Any]) 
         if not breakdown:
             continue
         lines.extend([f"## 按{_DIMENSION_LABEL[dimension]}分列", ""])
-        lines.append("| 分组 | 题数 | must_cite_recall | evidence_recall | leak |")
-        lines.append("| --- | --- | --- | --- | --- |")
+        lines.append("| 分组 | 题数 | must_cite 分母 | must_cite_recall | evidence_recall | leak |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
         for key, values in breakdown.items():
+            denominator = values.get("must_cite_recall_denominator")
             lines.append(
-                f"| `{key}` | {values['questions']} | {_fmt(values['must_cite_recall'])} "
+                f"| `{key}` | {values['questions']} | {_fmt_denominator(denominator)} "
+                f"| {fmt_ratio(values['must_cite_recall'], denominator)} "
                 f"| {_fmt(values['evidence_recall'])} | {values['leak']} |"
             )
         lines.append("")
@@ -186,6 +204,27 @@ def _render_failures_markdown(failures: Sequence[Mapping[str, Any]]) -> str:
 
 def _fmt(value: Any) -> str:
     return f"{value:.4f}" if isinstance(value, float) else str(value)
+
+
+def _fmt_denominator(value: Any) -> str:
+    """老产物没有这个字段（口径是本轮才补的），缺了记 `?` 而不是假装是 0。
+
+    `?` 与 `—` 必须分开：前者是「产物太旧、算不出来」，后者是「算出来就是 0 道题」。
+    """
+    return "?" if value is None else str(value)
+
+
+def fmt_ratio(value: Any, denominator: Any) -> str:
+    """分母为 0 时不写 `0.0000`。
+
+    `_ratio` 在空分母上返回 `0.0`（是个防御性默认值，不是测量结果），照直渲染
+    会被读成「该档引用全错」。本 Golden 的 `spoiler` 档全是拒答题，正是这个情形。
+
+    判据是 `denominator == 0`，**不是 `not denominator`**：后者会把「分母字段缺失」
+    一并吞成 `—`，连真实算出来的比率（比如 `1.0000`）都不显示了——而缺失是「不知道」，
+    与「就是 0」是两回事，分母列已用 `?` 区分，比率列不能把它抹平。
+    """
+    return "—" if denominator == 0 else _fmt(value)
 
 
 def _write_json(path: Path, payload: Any) -> None:

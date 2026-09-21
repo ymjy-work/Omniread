@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from omniread.pipelines.evaluation.artifacts import (
     EvalRunConfig,
+    fmt_ratio,
     write_eval_run_dir,
 )
 from omniread.pipelines.evaluation.metrics import (
@@ -23,6 +24,7 @@ from omniread.pipelines.evaluation.runner import (
     FAKE_TRUST_NOTE,
     EvalError,
     RetrievalEvalResult,
+    failure_rows,
     load_golden_questions,
     run_retrieval_eval,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "RetrievalEvalResult",
     "RetrievalScoreRecord",
     "aggregate",
+    "failure_rows",
+    "fmt_ratio",
     "load_golden_questions",
     "matched_keys_from_records",
     "run_retrieval_eval",

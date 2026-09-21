@@ -218,6 +218,10 @@ def _breakdown(
         population = _must_cite_population(items)
         result[key] = {
             "questions": len(items),
+            # 分母与比率并排给出，理由同总口径（见 `aggregate`）。分列尤其需要：
+            # 某一档全是拒答题时分母为 0，`_ratio` 会填成 0.0，于是「没有可判定的题」
+            # 与「一道都没中」在产物里长得一模一样。本 Golden 的 `spoiler` 正是前者。
+            "must_cite_recall_denominator": len(population),
             # 分列走与总口径同一个分母人群，否则「各档加起来」对不上总数。
             "must_cite_recall": _ratio(
                 sum(1 for r in population if r.must_cite_hit), len(population)

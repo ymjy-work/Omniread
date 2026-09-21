@@ -12,6 +12,9 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
+
 from omniread.domain.text import evidence_hash
 from omniread.pipelines.assembly import AssembledChunk, DroppedChunk
 from omniread.pipelines.evaluation.metrics import (
@@ -20,6 +23,7 @@ from omniread.pipelines.evaluation.metrics import (
     matched_keys_from_records,
     score_question,
 )
+from omniread.pipelines.evaluation.types import RetrievalScoreRecord
 from omniread.pipelines.mapping.artifacts import MappingRecord
 from omniread.pipelines.retrieval.query import RealmBounds
 from omniread.pipelines.retrieval.types import RetrievalOutcome, StageHit
@@ -217,6 +221,25 @@ class TestAggregate:
         # 总口径是简单计数，不是两档的加权平均
         assert breakdown["easy"]["questions"] == 1
 
+    def test_breakdown_carries_its_own_denominator(self) -> None:
+        """分列必须自带分母。
+
+        某一档全是拒答题时分母为 0，`_ratio` 会把它填成 `0.0`——产物里那个
+        `0.0000` 与「一道都没中」长得一模一样。本 Golden 的 `spoiler` 档正是
+        这个情形（14 题全是拒答题），曾把「不可计算」读成了「全错」。
+        """
+        answer = self._record(difficulty="easy")
+        refusal = self._record(
+            difficulty="hard", expect_refusal=True, question_id="spoiler-001"
+        )
+        breakdown = aggregate([answer, refusal])["per_difficulty"]
+        assert isinstance(breakdown, dict)
+        assert breakdown["easy"]["must_cite_recall_denominator"] == 1
+        assert breakdown["easy"]["must_cite_recall"] == 1.0
+        assert breakdown["hard"]["must_cite_recall_denominator"] == 0
+        # 值仍是 0.0（防御性默认），可读性由分母与渲染层的 `—` 负责
+        assert breakdown["hard"]["must_cite_recall"] == 0.0
+
 
 class TestHelpers:
     def test_chapter_index_of_rejects_bad_ids(self) -> None:
@@ -243,6 +266,23 @@ class TestHelpers:
         )
         lookup = matched_keys_from_records([record])
         assert lookup["a" * 64] is None
+
+
+class TestRecordRoundTrip:
+    def test_tuple_fields_survive_a_json_round_trip(self) -> None:
+        """逐题记录要能从产物原样还原。
+
+        JSON 没有元组，指针列读回来是 list。还原不准的话，「改口径离线重算」
+        就会算出一份与 run 当时不同的产物——而那条路正是为了不重花真实调用
+        才存在的，错了还看不出来（数字仍会是一组看着合理的数）。
+        """
+        original = score_question(
+            _question(),
+            _outcome(assembled=[_assembled("book:1:chapter:2#c0", 2)]),
+            _mapping("book:1:chapter:2", "证据甲", "book:1:chapter:2#c0"),
+        )
+        payload = json.loads(json.dumps(asdict(original), ensure_ascii=False))
+        assert asdict(RetrievalScoreRecord.from_payload(payload)) == asdict(original)
 
 
 def _replace(record, **overrides):

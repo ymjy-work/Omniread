@@ -127,7 +127,8 @@ bash scripts/verify-all.sh --data-layer   # 追加第 7 步：真连 PG / MinIO 
 bash scripts/verify-all.sh --gateway      # 追加第 10 步：起 Java + Python（假 provider）跑 M0-6 网关联调
 ```
 
-M0-7b 的两条也可单独跑（都不需要凭据）：
+M0-7b 的两条也可单独跑（都不需要凭据）。下文的 `python` 一律指
+`services/rag/.venv/Scripts/python.exe`：
 
 ```bash
 bash scripts/verify-mapping.sh            # 映射链：语料直读 + 假 provider 兜底，25 项断言
@@ -137,11 +138,20 @@ python scripts/run_mapping.py --source db --write-db   # 读真库切片并写 c
 python scripts/render_golden_review.py    # Golden 逐题复核件 → temp/（免凭据）
 ```
 
-M0-9 检索层评测（**需要真实 embedding/rerank**，假 provider 的数字是噪声不可作基线）：
+M0-9 检索层评测（**需要真实 embedding/rerank**，假 provider 的数字是噪声不可作基线）。
+用 venv 的 python：`local-env.sh` 只注入环境变量、不激活 venv，裸 `python` 没有本项目依赖：
 
 ```bash
-keymgr run codex python scripts/run_eval.py --run-id 2026-09-20-m0-baseline
-keymgr run omniread python scripts/run_eval.py --write-db   # 顺带写 rag_runs
+source temp/local-env.sh && keymgr run omniread \
+  services/rag/.venv/Scripts/python.exe scripts/run_eval.py --write-db   # 顺带写 rag_runs
+```
+
+改口径（改了 `summary` / `failures` 的算法）后**不必重跑**——它们是
+`retrieval.scores.jsonl` 的确定性函数，离线重算即可，零费用：
+
+```bash
+services/rag/.venv/Scripts/python.exe scripts/resummarize_eval.py \
+  --run-id 2026-09-20-m0-baseline --dry-run    # 先看差异；去掉 --dry-run 才落盘
 ```
 
 数据层（M0-2）单独跑：
