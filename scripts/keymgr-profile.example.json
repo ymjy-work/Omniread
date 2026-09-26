@@ -3,7 +3,6 @@
     "POSTGRES_PASSWORD": "omniread-pg",
     "MINIO_SECRET_KEY": "MinIO-Omniread",
     "GLM_API_KEY": "glm-rag",
-    "DEEPSEEK_API_KEY": "dpsk-rag",
     "DASHSCOPE_API_KEY": "ALiBaiLian"
   }
 }

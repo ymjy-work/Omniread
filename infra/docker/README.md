@@ -14,7 +14,7 @@ Java / Python 服务不在这个 compose 里，由各自的构建流程启动。
 先注入凭据（值不落文件）：
 
 ```bash
-keymgr ...        # 注入 POSTGRES_PASSWORD、MINIO_SECRET_KEY、GLM_API_KEY、DEEPSEEK_API_KEY、DASHSCOPE_API_KEY
+keymgr ...        # 注入 POSTGRES_PASSWORD、MINIO_SECRET_KEY、GLM_API_KEY、DASHSCOPE_API_KEY
 ```
 
 然后在**仓库根**执行（`-f` 指定文件时，compose 的项目目录就是 `infra/docker`，`.env` 也从那里读）：

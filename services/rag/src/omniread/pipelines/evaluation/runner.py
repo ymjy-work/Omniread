@@ -6,10 +6,10 @@
 `PgVectorDenseIndex`，指向真库中用真实 embedding 写入的向量列。于是 dense 会拿
 **假查询向量**去比对**真文档向量**——两个向量空间不匹配，余弦值是确定性噪声，
 排名看似正常却无语义（`api/app.py` 的启动日志自己承认了这一点）。噪声随
-`fused → rerank → assembled` 一路传下去，`must_cite_recall` 也跟着失真。
+`fused → rerank → assembled` 一路传下去，`evidence_recall` 也跟着失真。
 
 所以离线的可信子集只有：KW（BM25，纯本地）、装配 cap 的结构约束、以及各阶段的
-`leak` 结构检查。凡是要看 `must_cite_recall` 的结论，必须用真 embedding + rerank。
+`leak` 结构检查。凡是要看 `evidence_recall` 的结论，必须用真 embedding + rerank。
 本模块不阻止你离线跑，但会把这件事写进 run 配置的 `trust_note`，免得日后有人
 把一次假 provider 的产物当成 baseline。
 """
@@ -25,7 +25,6 @@ from omniread.domain.models import QueryRequest, RealmLevel
 from omniread.pipelines.evaluation.artifacts import EvalRunConfig
 from omniread.pipelines.evaluation.metrics import (
     aggregate,
-    chapter_index_of,
     matched_keys_from_records,
     score_question,
     summarize_counts,
@@ -38,7 +37,7 @@ _NON_QUESTION_FILES = frozenset({"schema.json", "example.json"})
 # 离线跑的产物可以看，但不能当基线。这句话会进 config.json。
 FAKE_TRUST_NOTE = (
     "本次跑用假 embedding/rerank：dense 以假查询向量对真库向量，排名无语义，"
-    "噪声随 fused/rerank/assembled 传下去。本产物的 must_cite_recall 不可作为基线，"
+    "噪声随 fused/rerank/assembled 传下去。本产物的 evidence_recall 不可作为基线，"
     "只能用于验证链路结构与 KW/leak 的结构约束。"
 )
 
@@ -149,7 +148,13 @@ def failure_rows(
 
 
 def _is_failure(record: RetrievalScoreRecord) -> bool:
-    return not record.must_cite_hit or record.leak_total > 0
+    """这一题算不算失败：证据没召全，或任一阶段越界。
+
+    用 `evidence_hit < evidence_total` 而不是「有没有命中某个组」：单条口径下
+    「漏了哪几条」才是能直接指到修法的信息，而聚合口径会把「差一条」与
+    「差一整组」抹成同一个布尔值。
+    """
+    return record.evidence_hit < record.evidence_total or record.leak_total > 0
 
 
 def _failure_row(record: RetrievalScoreRecord) -> dict[str, object]:
@@ -170,7 +175,6 @@ def _failure_row(record: RetrievalScoreRecord) -> dict[str, object]:
             record.mapped_not_assembled_keys[0] if record.mapped_not_assembled_keys else ""
         ),
         "metrics": (
-            f"groups {record.groups_hit}/{record.groups_total} "
             f"evidence {record.evidence_hit}/{record.evidence_total} "
             f"mapped {record.evidence_mapped}/{record.evidence_total} "
             f"leak {record.leak_total}"
@@ -190,17 +194,10 @@ def _failure_stage(record: RetrievalScoreRecord) -> str:
     return "assembly"
 
 
-def chapter_of(chunk_key: str) -> int:
-    """`book:1:chapter:17#c3` → 17；失败清单与诊断用。"""
-    chapter_part = chunk_key.split("#", 1)[0]
-    return chapter_index_of(chapter_part)
-
-
 __all__ = [
     "FAKE_TRUST_NOTE",
     "EvalError",
     "RetrievalEvalResult",
-    "chapter_of",
     "failure_rows",
     "load_golden_questions",
     "matched_keys_from_records",

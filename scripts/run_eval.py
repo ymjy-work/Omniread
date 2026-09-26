@@ -14,7 +14,7 @@
 
 **为什么必须连库**：检索链的 dense 一路指向 `chunks.embedding` 列，语料直读没有向量列。
 用假 embedding 也能跑通，但那是「假查询向量 × 真文档向量」——两个向量空间不匹配，
-排名是确定性噪声，会一路污染到 `must_cite_recall`。所以假 provider 模式产出的 run
+排名是确定性噪声，会一路污染到 `evidence_recall`。所以假 provider 模式产出的 run
 会在 `config.json` 里带 `trust_note`，明确标注不可作为基线。
 """
 
@@ -189,25 +189,24 @@ async def main_async(args: argparse.Namespace) -> int:
     print(f"产物目录 : {run_dir}")
     print(f"映射来源 : eval/runs/{args.mapping_run}/mappings.jsonl")
     print()
-    denominator = result.summary["must_cite_recall_denominator"]
-    for key in ("question_count", "must_cite_recall", "evidence_recall", "group_recall", "leak"):
+    evidence_total = result.summary["evidence_total"]
+    for key in ("question_count", "evidence_recall", "evidence_total", "evidence_mapped", "leak"):
         # 与产物走同一条渲染规则（`fmt_ratio`），不在这里另写一套。
         value = (
-            fmt_ratio(result.summary[key], denominator)
-            if key == "must_cite_recall"
+            fmt_ratio(result.summary[key], evidence_total)
+            if key == "evidence_recall"
             else result.summary[key]
         )
         print(f"  {key:20s} {value}")
-    print(f"  {'must_cite 分母':20s} {denominator}")
     print()
     print("按难度分列（只分列、不加权）：")
     for difficulty, values in result.summary["per_difficulty"].items():  # type: ignore[union-attr]
         # 分母紧挨着比率打印：0/0 也是 0.0000，两个数并排才不会读错。
         print(
             f"  {difficulty:8s} 题数 {values['questions']:3d} "
-            f"must_cite 分母 {values['must_cite_recall_denominator']:3d} "
-            f"命中 {fmt_ratio(values['must_cite_recall'], values['must_cite_recall_denominator'])} "
-            f"evidence {values['evidence_recall']:.4f} leak {values['leak']}"
+            f"证据 {values['evidence_total']:4d} "
+            f"evidence_recall {fmt_ratio(values['evidence_recall'], values['evidence_total'])} "
+            f"leak {values['leak']}"
         )
     print()
     print(f"失败样本 {len(result.failures)} 条；计数 {result.summary['failure_counts']}")

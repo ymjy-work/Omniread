@@ -103,7 +103,7 @@ def _config() -> RunConfig:
 
 
 # 映射 run 实际产出的文件。`ALLOWED_RUN_FILES` 是整个 run 目录布局的并集
-# （含 retrieval / generation 侧的文件），映射只写其中这五个。
+# （含检索层那几件），映射只写其中这五个。
 MAPPING_RUN_FILES = frozenset(
     {"config.json", "summary.json", "summary.md", "mappings.jsonl", "mapping_failures.jsonl"}
 )

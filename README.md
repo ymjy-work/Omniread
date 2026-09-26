@@ -5,9 +5,10 @@
 
 > 当前处于 **M0（流程冒烟与效果简测）**：契约冻结，Java 网关与 Python RAG 全部端点、
 > 数据层与迁移、语料导入与向量化、检索链、回答链、前端端到端链路均已可用，Golden 86 题已冻结，
-> evidence→chunk 映射已全量跑通（357/357）。
-> M0-8 judge 校准、M0-9 基准与 `baseline-m0` 未做；Ready Gate 八条全过，Golden 已冻结；
-> 真实 provider 凭据未接入，见下文「当前进度」。
+> evidence→chunk 映射已全量跑通（357/357），检索层基线已落库。
+> 评测**只测检索层**：`evidence_recall` + `leak` 两个数（`M0-04` §5）。答案层的评测
+> （判模型输出那一类）M0 不做——它要一套判据、人工校准与持续迭代，与「快速搭起框架」
+> 不成比例。Ready Gate 八条全过，Golden 已冻结。见下文「当前进度」。
 
 ## 目录结构
 
@@ -73,7 +74,8 @@ npm --prefix web install
 
 **profile 是全有或全无**：只要其中任一 Key 不存在，`keymgr run omniread` 整个失败，
 连其余几个能用的也一起用不了。所以缺哪个就先补哪个，不要先把映射写进去占位。
-当前本机已配齐 GLM / DeepSeek / 百炼 / MinIO 四项，缺 `omniread-pg`；
+`scripts/keymgr-profile.example.json` 列的是当前**需要**的三项（GLM / 百炼 / MinIO）；
+本机那份 profile 里多一个已不再读取的 DeepSeek 条目。缺 `omniread-pg`；
 `keymgr list` 是查准确名称（区分大小写）的唯一途径。验证用
 `keymgr.cmd run omniread python temp/probe_keymgr_env.py`（只打印注入与否与长度，不打印明文）。
 
@@ -154,24 +156,6 @@ services/rag/.venv/Scripts/python.exe scripts/resummarize_eval.py \
   --run-id 2026-09-20-m0-baseline --dry-run    # 先看差异；去掉 --dry-run 才落盘
 ```
 
-M0-9 生成层评测（**需要 `GLM_API_KEY`**；真跑 86 题 = 86 次 GLM + 172 次百炼）。
-**用与检索层不同的 `run_id`**——它是 `rag_runs` 主键，同名会把检索层基线 upsert 掉：
-
-```bash
-source temp/local-env.sh && keymgr run omniread \
-  services/rag/.venv/Scripts/python.exe scripts/run_generation_eval.py --write-db
-
-# 只验链路结构（假回答模型 + 假检索，零费用；产物会写明不可作基线）
-... --fake-providers --limit 3
-
-# 断了接着跑：已答出来的题不重花调用；generation_failed 的题会重试
-... --resume
-```
-
-产物分两处：`temp/generation/<run_id>/run.gen.jsonl` 放**模型看到与写出的全部文本**
-（`temp/` 不进 git，全仓只有这一处能放），`eval/runs/<run_id>/generation.scores.jsonl`
-只放指针与标量——`eval/` 进 git，那里的字段集由 `GenerationScoreRecord` 定死。
-
 数据层（M0-2）单独跑：
 
 ```bash
@@ -211,28 +195,35 @@ bash infra/docker/scripts/verify.sh                          # 容器 / 扩展 /
 
 ## 当前进度
 
-**已完成 M0-1 ~ M0-6、M0-7a、M0-7b**：
+**已完成 M0-1 ~ M0-6、M0-7a、M0-7b、M0-9（检索层基线）**：
 
 - **契约冻结**：`contracts/openapi/` 两份契约冻结；Java 的 DTO 由 `openapi-generator` 从内部契约生成 model。
 - **Java 网关**：外部端点全部落位，Controller → QueryOrchestrator → RagGatewayClient 分层，
   request_id 生成与透传、realm 校验、错误码映射、图片与 SSE 的字节级透传、静态资源托管均可用。
 - **Python RAG**：内部端点全部落位，事件流与 JSON / SSE 两个适配器、图片路径防护、MinIO / 本地双存储可用。
 - **数据层**：表结构与 Alembic 迁移 0001~0003 可用；语料已导入 **1 本书 / 15 卷 / 193 章 / 1807 chunks**，
-  且已全部嵌入；230 张插图归档到 MinIO。
+  且已全部嵌入（1807/1807）；134 张插图归档到 MinIO（磁盘上有 230 张，`index.jsonl` 只引用其中 134 张）。
 - **检索链**：dense(top60) / BM25(top60) / RRF 融合 / rerank(top24) / 装配三 cap / realm 过滤可用。
 - **回答链**：GLM 适配器 + 拒答判定 + JSON / SSE 双适配器可用。
 - **评测**：Golden 86 题已冻结；evidence→chunk 映射 357/357 命中
   （335 唯一覆盖 / 19 跨块引入者 / 3 章内重复出现），run 产物在 `eval/runs/2026-09-20-m0-mapping/`。
+  检索层基线在 `eval/runs/2026-09-20-m0-baseline/`：**`evidence_recall` 0.7003（250/357）、`leak` 0**，
+  `rag_runs` 已落库。瓶颈不在召回在装配截断——41 条证据已进 rerank 却被 `ask_top_k=8` 裁掉。
+  **只测检索层**：答案层的评测要判模型的输出，需判据 + 人工校准 + 持续迭代，M0 不做（`M0-04` §5）。
 - **前端**：书库 → 章节树 → 正文（含插图）→ 提问 → 流式回答 → 引用跳章 整条链路可跑通。
 
 **未做**：
 
-- `rag_runs.dataset_hash` 落库（Ready Gate 八条已全过、Golden 已冻结；落库需 `POSTGRES_PASSWORD`）；
-- M0-8 judge 校准；
-- M0-9 基准与 `baseline-m0`。
+- 映射 run 自己那行 `rag_runs`（`chunk_mappings` 已落库 347 行，run 记录待补）；
+- 答案层评测（M0-8）：**M0 不做**，理由见 `M0-04` §5。
 
-**真实 provider 凭据未接入**：keymgr 没有映射 `GLM_API_KEY` 的 profile，真实问答目前发不出去；
-联调靠 `dev-up.sh --fake-providers`（回答/检索改用假 provider），不要靠 export 环境变量。
+**真实 provider 凭据已接入**：keymgr 的 `omniread` profile 映射了 GLM / 百炼 / MinIO 三项。
+本机那份 profile 里还留着一个 DeepSeek 条目——它随答案层评测回退已不再被任何代码读取，
+删不删无妨。（`keymgr list` 是查准确名称的唯一途径），PG 口令走 `temp/local-env.sh` 明文（本机一次性值，
+不进 keymgr）。**profile 是全有或全无**：任一 Key 不存在，`keymgr run omniread` 整个失败。
+
+**联调仍然一律用假 provider**（`dev-up.sh --fake-providers`）：不是因为没有凭据，而是真实调用
+要逐次批准，联调没有必要花它。
 
 ## 已知边界与集成注意
 

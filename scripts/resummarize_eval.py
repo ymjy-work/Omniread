@@ -57,12 +57,9 @@ from omniread.pipelines.mapping.runner import DEFAULT_RUNS_DIR  # noqa: E402
 
 _HEADLINE = (
     "question_count",
-    "must_cite_recall",
-    "must_cite_recall_denominator",
     "evidence_recall",
-    "group_recall",
-    "all_evidence_recall",
-    "chapter_recall",
+    "evidence_total",
+    "evidence_mapped",
     "leak",
 )
 

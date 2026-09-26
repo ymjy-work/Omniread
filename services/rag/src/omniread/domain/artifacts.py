@@ -6,10 +6,8 @@
   这是主防线——它管的是「不该出现的东西根本没地方写」。
 - **长度上限**（兜底）：任一字符串字段 ≤ 500 字符（M0-02 §7.1 的 CI 口径）。
 
-长度上限**不能单独承担防线**：它拦的是「整段整章搬运」，拦不住一段 300 字的回答或
-judge 解释。而且它对**模型生成的文本天然失效**——`verify_artifacts.py` 的「与语料逐字重合」
-比对只认语料原文，模型写的答案永远不可能命中，那条检查对 generation 层等于不存在。
-所以 generation 层必须靠字段白名单把「回答原文」这类东西挡在类型之外。
+长度上限**不能单独承担防线**：它拦的是「整段整章搬运」，拦不住一段三百字的自由文本。
+产物里唯一可能夹带正文的是映射侧的自由文本列（`overlap_reason`），它另有截断压平。
 
 本模块只放不依赖具体产物的规则；各产物自己的字段集在各自的 `artifacts.py` 里定。
 """
@@ -26,16 +24,15 @@ MAX_STRING_FIELD = 500
 # 真要禁止正文进入该列，只能靠「不让模型产出自由文本」或字段白名单。
 MAX_FREE_TEXT_CHARS = 200
 
-# run 目录**只准**出现这些文件（M0-02 §7.1 的 8 个）。多出来的文件
-# （debug.txt、raw/、请求响应 dump、DeepEval 自己在 cwd 落的缓存）都不受任何
-# 字段规则约束，是整章语料入库最现实的路径，所以以「白名单 + 目录校验」来管。
+# run 目录**只准**出现这些文件。多出来的文件（debug.txt、raw/、请求响应 dump、
+# 某个库自己在 cwd 落的缓存）都不受任何字段规则约束，是整章语料入库最现实的路径，
+# 所以以「白名单 + 目录校验」来管。
 ALLOWED_RUN_FILES = frozenset(
     {
         "config.json",
         "summary.json",
         "summary.md",
         "retrieval.scores.jsonl",
-        "generation.scores.jsonl",
         "mappings.jsonl",
         "mapping_failures.jsonl",
         "failures.md",

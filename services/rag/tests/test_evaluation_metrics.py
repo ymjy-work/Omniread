@@ -3,11 +3,12 @@
 这些函数是纯计算，不连库、不调模型——指标口径一旦滑掉，整条评测线的数字都不可比，
 所以每条口径都单独钉住，而不是只测一个「端到端跑通」。
 
-重点钉住的两条：
+重点钉住的三条：
 
-- `must_cite_hit`（组内 OR）与 `all_evidence_hit`（组内 AND）**是两回事**。
-  前者曾被误写成后者的同义反复，那样「组内只中一条」的比例就永远看不见。
+- `evidence_recall` 的**命中判定以 `assembled` 为准**——映射上了但被装配截掉不算命中，
+  否则「检索没召回到」与「装配把证据挤出去了」就分不开，而两者的修法完全不同。
 - `evidence_recall` 的分母含**未映射**的 evidence。分母随映射塌缩会让指标虚高。
+- `evidence_mapped` 与 `evidence_recall` **分开报**：前者衡量映射，后者衡量检索。
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from omniread.domain.text import evidence_hash
 from omniread.pipelines.assembly import AssembledChunk, DroppedChunk
 from omniread.pipelines.evaluation.metrics import (
     aggregate,
-    chapter_index_of,
     matched_keys_from_records,
     score_question,
 )
@@ -98,8 +98,10 @@ def _mapping(chapter_id: str, content: str, chunk_key: str | None) -> dict[str, 
     return {evidence_hash(chapter_id, content): chunk_key}
 
 
-class TestMustCite:
-    def test_all_groups_hit(self) -> None:
+class TestEvidenceRecall:
+    """逐条证据的召回：命中判定以 `assembled` 为准（M0-04 §5.1）。"""
+
+    def test_every_evidence_recalled(self) -> None:
         question = _question(
             groups=[[("book:1:chapter:2", "甲")], [("book:1:chapter:3", "乙")]]
         )
@@ -111,36 +113,10 @@ class TestMustCite:
             assembled=[_assembled("book:1:chapter:2#c0", 2), _assembled("book:1:chapter:3#c1", 3)]
         )
         record = score_question(question, outcome, lookup)
-        assert record.must_cite_hit is True
-        assert record.groups_hit == 2 and record.groups_total == 2
-        assert record.all_evidence_hit is True
+        assert record.evidence_hit == 2 and record.evidence_total == 2
 
-    def test_group_is_or_within_and_within(self) -> None:
-        """组内 OR：一条命中即整组命中；组间 AND：另一组没中就不算整题命中。"""
-        question = _question(
-            groups=[
-                [("book:1:chapter:2", "甲"), ("book:1:chapter:2", "乙")],
-                [("book:1:chapter:5", "丙")],
-            ]
-        )
-        lookup = {
-            **_mapping("book:1:chapter:2", "甲", "book:1:chapter:2#c0"),
-            **_mapping("book:1:chapter:2", "乙", "book:1:chapter:2#c9"),
-            **_mapping("book:1:chapter:5", "丙", "book:1:chapter:5#c0"),
-        }
-        # 只召回「甲」，乙（同组）与丙（另一组）都没进装配
-        outcome = _outcome(assembled=[_assembled("book:1:chapter:2#c0", 2)])
-        record = score_question(question, outcome, lookup)
-        assert record.groups_hit == 1 and record.groups_total == 2
-        assert record.must_cite_hit is False
-        assert record.evidence_hit == 1 and record.evidence_total == 3
-
-    def test_all_evidence_hit_is_stricter_than_must_cite(self) -> None:
-        """组内只中一条时，must_cite_hit 为真而 all_evidence_hit 必须为假。
-
-        这两个指标曾因 `group_all` 算而不用而退化成一个——那样「靠一条撑住整组」
-        的比例就永远看不见。这条断言就是那次的回归防线。
-        """
+    def test_partial_recall_counts_per_evidence_not_per_group(self) -> None:
+        """组内只中一条也算 1/2——逐条口径下「漏了哪几条」才是能指到修法的信息。"""
         question = _question(
             groups=[[("book:1:chapter:2", "甲"), ("book:1:chapter:2", "乙")]]
         )
@@ -150,8 +126,17 @@ class TestMustCite:
         }
         outcome = _outcome(assembled=[_assembled("book:1:chapter:2#c0", 2)])
         record = score_question(question, outcome, lookup)
-        assert record.must_cite_hit is True
-        assert record.all_evidence_hit is False
+        assert record.evidence_hit == 1 and record.evidence_total == 2
+
+    def test_mapped_but_not_assembled_is_not_a_hit(self) -> None:
+        """映射上了、但被装配截掉，不算命中——正是这条把「召回」与「截断」分开。"""
+        question = _question(groups=[[("book:1:chapter:2", "甲")]])
+        lookup = _mapping("book:1:chapter:2", "甲", "book:1:chapter:2#c9")
+        outcome = _outcome(assembled=[_assembled("book:1:chapter:2#c0", 2)])
+        record = score_question(question, outcome, lookup)
+        assert record.evidence_mapped == 1
+        assert record.evidence_hit == 0
+        assert record.mapped_not_assembled_keys == ("book:1:chapter:2#c9",)
 
     def test_unmapped_evidence_stays_in_denominator(self) -> None:
         """未映射的 evidence 仍进分母，否则分母随映射结果塌缩、指标虚高。"""
@@ -197,36 +182,51 @@ class TestAggregate:
         record = score_question(question, outcome, lookup)
         return record if not overrides else _replace(record, **overrides)
 
-    def test_refusal_questions_are_excluded_from_must_cite_denominator(self) -> None:
+    def test_refusal_questions_stay_in_the_denominator(self) -> None:
+        """分母是**全部** evidence，拒答题也进。
+
+        这一条与曾经那个按题聚合、把拒答题排除在外的口径相反：它问「答案该引的都引了」，
+        拒答题本就不该引用、所以排除；而 `evidence_recall` 问的是**检索有没有
+        把证据捞上来**，与答案该不该引用无关。混用两种分母会让同一个数字
+        在两次 run 里度量不同的人群。
+        """
         hit = self._record()
         refusal = self._record(expect_refusal=True, question_id="spoiler-001")
         summary = aggregate([hit, refusal])
         assert summary["question_count"] == 2
-        assert summary["must_cite_recall_denominator"] == 1
-        assert summary["must_cite_recall"] == 1.0
+        assert summary["evidence_total"] == 2
+        assert summary["evidence_recall"] == 1.0
+
+    def test_evidence_mapped_is_reported_separately(self) -> None:
+        """映射与检索分开报：切片没对上与检索没召回到，修法不同。"""
+        miss = self._record(evidence_hit=0, evidence_mapped=0)
+        summary = aggregate([miss])
+        assert summary["evidence_recall"] == 0.0
+        assert summary["evidence_mapped"] == 0.0
+        assert summary["evidence_total"] == 1
 
     def test_empty_denominator_is_zero_not_a_crash(self) -> None:
-        summary = aggregate([self._record(expect_refusal=True)])
-        assert summary["must_cite_recall"] == 0.0
-        assert summary["must_cite_recall_denominator"] == 0
+        summary = aggregate(
+            [self._record(evidence_total=0, evidence_hit=0, evidence_mapped=0)]
+        )
+        assert summary["evidence_recall"] == 0.0
+        assert summary["evidence_total"] == 0
 
     def test_per_difficulty_is_a_slice_not_a_weight(self) -> None:
         """按难度分列：各档独立算比率，不合成一个加权总分。"""
         easy = self._record(difficulty="easy")
-        hard = self._record(difficulty="hard", groups_hit=0, must_cite_hit=False)
+        hard = self._record(difficulty="hard", evidence_hit=0)
         breakdown = aggregate([easy, hard])["per_difficulty"]
         assert isinstance(breakdown, dict)
-        assert breakdown["easy"]["must_cite_recall"] == 1.0
-        assert breakdown["hard"]["must_cite_recall"] == 0.0
-        # 总口径是简单计数，不是两档的加权平均
+        assert breakdown["easy"]["evidence_recall"] == 1.0
+        assert breakdown["hard"]["evidence_recall"] == 0.0
         assert breakdown["easy"]["questions"] == 1
 
     def test_breakdown_carries_its_own_denominator(self) -> None:
-        """分列必须自带分母。
+        """分列必须自带分母：不列出来就没法判断两次 run 是否同分母。
 
-        某一档全是拒答题时分母为 0，`_ratio` 会把它填成 `0.0`——产物里那个
-        `0.0000` 与「一道都没中」长得一模一样。本 Golden 的 `spoiler` 档正是
-        这个情形（14 题全是拒答题），曾把「不可计算」读成了「全错」。
+        `_ratio` 在空分母上返回 `0.0`（防御性默认，不是测量结果），照直渲染会被
+        读成「一条都没中」；可读性由分母列与渲染层的 `—` 负责，不在这一层包装。
         """
         answer = self._record(difficulty="easy")
         refusal = self._record(
@@ -234,22 +234,17 @@ class TestAggregate:
         )
         breakdown = aggregate([answer, refusal])["per_difficulty"]
         assert isinstance(breakdown, dict)
-        assert breakdown["easy"]["must_cite_recall_denominator"] == 1
-        assert breakdown["easy"]["must_cite_recall"] == 1.0
-        assert breakdown["hard"]["must_cite_recall_denominator"] == 0
-        # 值仍是 0.0（防御性默认），可读性由分母与渲染层的 `—` 负责
-        assert breakdown["hard"]["must_cite_recall"] == 0.0
+        assert breakdown["easy"]["evidence_total"] == 1
+        assert breakdown["hard"]["evidence_total"] == 1
+        empty = aggregate([self._record(difficulty="hard", evidence_total=0)])[
+            "per_difficulty"
+        ]
+        assert isinstance(empty, dict)
+        assert empty["hard"]["evidence_total"] == 0
+        assert empty["hard"]["evidence_recall"] == 0.0
 
 
 class TestHelpers:
-    def test_chapter_index_of_rejects_bad_ids(self) -> None:
-        assert chapter_index_of("book:1:chapter:17") == 17
-        try:
-            chapter_index_of("book:1:chapter:缺")
-        except ValueError:
-            return
-        raise AssertionError("非数字 chapter_id 应抛错，而不是静默当 0")
-
     def test_low_conf_mapping_does_not_count_as_hit(self) -> None:
         record = MappingRecord(
             question_id="fact-001",

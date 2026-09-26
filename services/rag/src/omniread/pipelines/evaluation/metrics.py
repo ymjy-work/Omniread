@@ -1,25 +1,20 @@
 """检索层指标（M0-04 §5.1）—— 全部确定性，不含任何模型判断。
 
-口径先定死再谈数字，否则同一个分数换个分母就能得出相反结论（`M0-04` §5.1 原话）。
-这里定死三条：
+只报两个数：
 
-1. **命中判定以 `assembled` 为准**（M0-04 §5.1）：只有真正进入 prompt 的段算命中。
-   逐阶段列表另报作诊断——「dense 召回了但被装配截掉」与「根本没召回」是两回事。
-2. **分母含未映射的 evidence**：`evidence_recall` 的分母是该题全部 evidence，
-   不是「映射成功的那些」。分母随映射结果塌缩会让指标偏高且不可比
-   （`M0-02` §6.2 的原话）。
-3. **`leak` 逐阶段都算**，任一阶段 >0 即红（`M0-02` §8.7）。只看 assembled 会漏掉
-   「召回了越界内容但被装配丢掉」——那仍是检索链的泄漏，只是没进 prompt。
+- **`evidence_recall`**：进入 `assembled` 的证据条数 ÷ 该题全部证据条数。
+  命中判定以 `assembled` 为准（`M0-04` §5.1）：只有真正进入 prompt 的段算命中；
+  逐阶段指针另存作诊断——「召回了但被装配截掉」与「根本没召回」是两回事，
+  而这两件事的修法完全不同。分母是**该题全部 evidence**，不是「映射成功的那些」：
+  分母随映射结果塌缩会让指标偏高且不可比（`M0-02` §6.2）。
+  `evidence_mapped` 单列——它衡量的是**映射**而不是检索，混进同一个数会让
+  「文本切片没对上」与「检索没召回到」分不开。
 
-`evidence_recall` / `group_recall` / `all_evidence_recall` 三者的确切定义规格未给
-（只列了名字与归类），本模块的取值是**实现时定的**，与 `must_cite_recall` 的区别是：
+- **`leak`**：召回结果里越界章节的数量，**硬门禁**，任一阶段 >0 即红（`M0-02` §8.7）。
+  只看 `assembled` 会漏掉「召回了越界内容但被装配丢掉」——那仍是检索链的泄漏，
+  只是没进 prompt。
 
-| 指标 | 层次 | 组内 |
-| --- | --- | --- |
-| `group_recall` | 组 | OR |
-| `evidence_recall` | 单条 evidence | 不分组 |
-| `all_evidence_recall` | 题 | **AND**（组内也要全中，最严口径） |
-| `must_cite_recall` | 题 | OR（组间 AND）—— 规格已定义 |
+口径先定死再谈数字：同一个分数换个分母就能得出相反结论（`M0-04` §5.1 原话）。
 """
 
 from __future__ import annotations
@@ -37,21 +32,16 @@ from omniread.pipelines.retrieval.types import RetrievalOutcome
 # realm 等级：只有 past 才有越界一说。
 _REALM_PAST = "past"
 
+#: 阶段名 → (`RetrievalOutcome` 上的结果集属性, 记录上的 leak 计数列)。
+#: 逐阶段的 `*_keys` 指针在 `score_question` 里直接取，不经过这张表——
+#: 它只服务「哪个阶段的越界最多」这一件事。
 _STAGE_FIELDS = {
-    "dense": ("dense", "leak_dense", "dense_keys"),
-    "kw": ("kw", "leak_kw", "kw_keys"),
-    "fused": ("fused", "leak_fused", "fused_keys"),
-    "rerank": ("reranked", "leak_rerank", "rerank_keys"),
-    "assembled": ("assembled", "leak_assembled", "assembled_keys"),
+    "dense": ("dense", "leak_dense"),
+    "kw": ("kw", "leak_kw"),
+    "fused": ("fused", "leak_fused"),
+    "rerank": ("reranked", "leak_rerank"),
+    "assembled": ("assembled", "leak_assembled"),
 }
-
-
-def chapter_index_of(chapter_id: str) -> int:
-    """`book:1:chapter:N` → N；取不到即抛错，不静默当 0。"""
-    tail = chapter_id.rsplit(":", 1)[-1]
-    if not tail.isdigit():
-        raise ValueError(f"chapter_id 形如 book:1:chapter:N，收到 {chapter_id!r}")
-    return int(tail)
 
 
 def score_question(
@@ -66,47 +56,29 @@ def score_question(
     """
     groups: list[list[dict[str, str]]] = list(question["must_cite_groups"])
     assembled_keys = {chunk.chunk_key for chunk in outcome.assembled}
-    assembled_chapters = {chunk.chapter_index for chunk in outcome.assembled}
 
-    groups_hit = 0
     evidence_total = 0
     evidence_hit = 0
     evidence_mapped = 0
-    # 最严口径：每一条 evidence 都得命中（组内也取 AND）。与 `must_cite_hit`
-    # （组内 OR）是两回事，两者都报才能看出「组内靠一条撑住」的比例。
-    every_evidence_hit = True
     mapped_keys: set[str] = set()
 
     for group in groups:
-        group_hit = False
         for evidence in group:
             evidence_total += 1
             key = mapping_lookup.get(
                 evidence_hash(evidence["chapter_id"], evidence["content"])
             )
             if key is None:
-                every_evidence_hit = False
                 continue
             evidence_mapped += 1
             mapped_keys.add(key)
             if key in assembled_keys:
-                group_hit = True
                 evidence_hit += 1
-            else:
-                every_evidence_hit = False
-        if group_hit:
-            groups_hit += 1
-
-    chapter_hit = all(
-        chapter_index_of(evidence["chapter_id"]) in assembled_chapters
-        for group in groups
-        for evidence in group
-    )
 
     progress = _progress_of(question)
     leaks = {
         field: _count_leaks(getattr(outcome, attribute), progress)
-        for field, (attribute, _, _) in _STAGE_FIELDS.items()
+        for field, (attribute, _) in _STAGE_FIELDS.items()
     }
 
     return RetrievalScoreRecord(
@@ -116,14 +88,9 @@ def score_question(
         level=str(question["level"]),
         progress=progress,
         expect_refusal=bool(question["expect_refusal"]),
-        must_cite_hit=groups_hit == len(groups) and len(groups) > 0,
-        groups_total=len(groups),
-        groups_hit=groups_hit,
         evidence_total=evidence_total,
         evidence_hit=evidence_hit,
         evidence_mapped=evidence_mapped,
-        all_evidence_hit=every_evidence_hit and evidence_total > 0,
-        chapter_recall_hit=chapter_hit,
         leak_dense=leaks["dense"],
         leak_kw=leaks["kw"],
         leak_fused=leaks["fused"],
@@ -155,32 +122,20 @@ def _count_leaks(hits: Sequence[object], progress: int | None) -> int:
 
 
 def aggregate(records: Sequence[RetrievalScoreRecord]) -> dict[str, object]:
-    """汇总成 `summary.json` 的口径：总体 + 按类型分列 + 按难度分列。
+    """汇总成 `summary.json` 的口径：总体 + 按题型 / 难度 / realm 分列。
 
     **只分列、不加权**：难度是评测者给的主观标签，权重会把它乘进被测系统的分数，
     改一个标签就悄悄挪动总分。分列既能看到「难题差在哪」，又不会让标签动了带走头条数字。
     """
     scored = list(records)
-    population = _must_cite_population(scored)
     return {
         "question_count": len(scored),
-        "must_cite_recall": _ratio(
-            sum(1 for r in population if r.must_cite_hit), len(population)
-        ),
-        # 分母单列出来：它是口径的一部分，不列出来就没法判断两次 run 是否同分母。
-        "must_cite_recall_denominator": len(population),
         "evidence_recall": _ratio(
             sum(r.evidence_hit for r in scored), sum(r.evidence_total for r in scored)
         ),
-        "group_recall": _ratio(
-            sum(r.groups_hit for r in scored), sum(r.groups_total for r in scored)
-        ),
-        "all_evidence_recall": _ratio(
-            sum(1 for r in scored if r.all_evidence_hit), len(scored)
-        ),
-        "chapter_recall": _ratio(
-            sum(1 for r in scored if r.chapter_recall_hit), len(scored)
-        ),
+        # 分母单列出来：它是口径的一部分，不列出来就没法判断两次 run 是否同分母，
+        # 也没法把它与 `evidence_mapped` 分开读——那个量衡量的是**映射**，不是检索。
+        "evidence_total": sum(r.evidence_total for r in scored),
         "evidence_mapped": _ratio(
             sum(r.evidence_mapped for r in scored), sum(r.evidence_total for r in scored)
         ),
@@ -190,19 +145,6 @@ def aggregate(records: Sequence[RetrievalScoreRecord]) -> dict[str, object]:
         "per_difficulty": _breakdown(scored, lambda r: r.difficulty),
         "per_level": _breakdown(scored, lambda r: r.level),
     }
-
-
-def _must_cite_population(
-    records: Sequence[RetrievalScoreRecord],
-) -> list[RetrievalScoreRecord]:
-    """`must_cite_recall` 的分母人群：`must_cite_groups` 非空且不是拒答题。
-
-    **分子分母必须取同一批题**。曾在分子上漏掉「排除拒答」这一步，比率于是能跑到
-    1 以上——那是最容易在评审里被一眼看穿、又最容易在实现里漏掉的一类错。
-    `must_cite_groups` 为空是 schema 非法（M0-04 §5.1），这里的 `groups_total > 0`
-    只是防御，不是判定。
-    """
-    return [r for r in records if r.groups_total > 0 and not r.expect_refusal]
 
 
 def _breakdown(
@@ -215,17 +157,10 @@ def _breakdown(
 
     result: dict[str, dict[str, float | int]] = {}
     for key, items in sorted(grouped.items()):
-        population = _must_cite_population(items)
         result[key] = {
             "questions": len(items),
-            # 分母与比率并排给出，理由同总口径（见 `aggregate`）。分列尤其需要：
-            # 某一档全是拒答题时分母为 0，`_ratio` 会填成 0.0，于是「没有可判定的题」
-            # 与「一道都没中」在产物里长得一模一样。本 Golden 的 `spoiler` 正是前者。
-            "must_cite_recall_denominator": len(population),
-            # 分列走与总口径同一个分母人群，否则「各档加起来」对不上总数。
-            "must_cite_recall": _ratio(
-                sum(1 for r in population if r.must_cite_hit), len(population)
-            ),
+            # 分母与比率并排给出，理由同总口径：不列分母就没法判断两次 run 是否同分母。
+            "evidence_total": sum(r.evidence_total for r in items),
             "evidence_recall": _ratio(
                 sum(r.evidence_hit for r in items), sum(r.evidence_total for r in items)
             ),
@@ -255,11 +190,16 @@ def matched_keys_from_records(
 
 
 def summarize_counts(records: Sequence[RetrievalScoreRecord]) -> dict[str, int]:
-    """失败定位用的小计数：哪一档判据、哪一类失败各有多少。"""
+    """失败定位用的小计数：证据在哪一环掉了。
+
+    三档各自指向一种修法——`evidence_unmapped` 是文本切片的问题，
+    `mapped_but_dropped` 是装配 cap 的问题，`leaked` 是 realm 过滤的问题。
+
+    **三档不互斥**，一道题可能同时占两档（既有没有映射上的证据、又有映射上却被裁掉的），
+    所以三个数相加**不等于**失败题数。要看「几道题失败」用 `failure_rows` 的长度。
+    """
     counts: Counter[str] = Counter()
     for record in records:
-        if not record.must_cite_hit:
-            counts["must_cite_miss"] += 1
         if record.evidence_mapped < record.evidence_total:
             counts["evidence_unmapped"] += 1
         if record.mapped_not_assembled_keys:
