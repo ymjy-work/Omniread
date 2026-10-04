@@ -26,7 +26,17 @@ IMAGES_ROOT="$RUN_DIR/images"
 PROGRESS_FILE="$RUN_DIR/progress.json"
 JAR="$ROOT/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar"
 RAG_PY_DIR="$ROOT/services/rag"
-UV="$LOCALAPPDATA/Microsoft/WinGet/Packages/astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe/uv.exe"
+# uv 优先走 PATH；本机装了 uv 但不在 PATH 时回落到 WinGet 安装目录。
+# 别写死成 Windows 路径：其余 verify-* 脚本都是这个两段式，写死会让脚本在别的平台直接失效。
+if command -v uv >/dev/null 2>&1; then
+  UV="uv"
+else
+  UV="$LOCALAPPDATA/Microsoft/WinGet/Packages/astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe/uv.exe"
+  if [ ! -x "$UV" ]; then
+    echo "找不到 uv：装好 uv 或把 uv 加进 PATH 后重试" >&2
+    exit 2
+  fi
+fi
 PYTHON_LOG=""
 STREAM_DELAY_MS=200
 

@@ -125,9 +125,12 @@ Java jar 不存在时会自动 `mvn -DskipTests package`。
 bash scripts/verify-all.sh                # 默认 9 步：compose / Python / Java 测试 / Java 打包 / web / 检索冒烟 / 回答冒烟 / 映射链 / 产物红线
 bash scripts/verify-all.sh --smoke        # 追加第 6 步：起一次全栈，curl 端到端后自动停
 bash scripts/verify-all.sh --skip-web     # 跳过 web 三步（没装 node 时）
-bash scripts/verify-all.sh --data-layer   # 追加第 7 步：真连 PG / MinIO 验证数据层
+bash scripts/verify-all.sh --data-layer   # 追加第 7 步：真连 PG / MinIO 验证数据层（**会清库，见下**）
 bash scripts/verify-all.sh --gateway      # 追加第 10 步：起 Java + Python（假 provider）跑 M0-6 网关联调
+bash scripts/verify-all.sh --ci           # 公开 CI 用：跳过依赖 asset/ 的三步（8、9、11）
 ```
+
+`.github/workflows/ci.yml` 调的就是 `--ci` 这条——命令表只维护一份，不在 workflow 里重抄。
 
 M0-7b 的两条也可单独跑（都不需要凭据）。下文的 `python` 一律指
 `services/rag/.venv/Scripts/python.exe`：
@@ -165,6 +168,11 @@ bash scripts/verify-data-layer.sh --start-infra   # 顺手用 compose 起 infra
 
 `verify-data-layer.sh` 要求 infra 已起、凭据已注入（`POSTGRES_PASSWORD`、`MINIO_SECRET_KEY`），
 失败时会直接给出「先跑 `scripts/dev-up.sh`」这类可操作提示。
+
+> **它对连接的库是破坏性的**：脚本第 2 步跑 `alembic downgrade base`——**所有表会被 DROP**，
+> 再 `upgrade head` 空建回来。对装着 1807 条 chunks（含向量）、347 行 `chunk_mappings` 与
+> `rag_runs` 的**本机活库跑一次，数据就没了**（要重跑导入 + 181 次 embedding 才能恢复）。
+> 它验的是「迁移能往返、能重建空库」，请在**一次性容器**上跑，或先确认库里的数据可以丢。
 
 | 步骤 | 命令 | 失败时看哪里 |
 | --- | --- | --- |

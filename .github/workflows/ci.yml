@@ -1,0 +1,44 @@
+name: CI
+
+# M0-03 §5 的「每次 push」清单。
+#
+# 命令表只有一份：调 `scripts/verify-all.sh --ci`，不在这里把 uv / pytest / mvn / npm
+# 再抄一遍——两处各写一遍迟早漂移，而漂移的那一侧不会有人发现。
+#
+# `--ci` 跳过依赖 `asset/` 的三步（检索冒烟、回答冒烟、映射链）：语料不入库（M0-00 §6），
+# 远端没有。`eval/` 产物红线那步会自我降级成「只查文件白名单与字段长度」并打印说明。
+#
+# **不进入公共 CI 的**（M0-03 §5）：真实语料、密钥、真实模型调用。
+#
+# **这套配置从未在远端跑过**——本仓库没有 remote。它是照着 `verify-all.sh --ci` 的本地
+# 运行结果写的；首次接上远端时，版本号（JDK / Node / uv）可能要按 runner 的实际可用镜像调。
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/rag/uv.lock
+
+      - name: M0-03 §5 的检查序列（跳过依赖语料的三步）
+        run: bash scripts/verify-all.sh --ci

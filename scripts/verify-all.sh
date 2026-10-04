@@ -7,6 +7,8 @@
 #   bash scripts/verify-all.sh --smoke        跑完后再起一次全栈并 curl 端到端，最后自动停掉
 #   bash scripts/verify-all.sh --data-layer   追加第 7 步：真连 PG / MinIO 跑迁移往返与对象读写
 #   bash scripts/verify-all.sh --gateway      追加第 10 步：起 Java + Python 跑 M0-6 网关联调
+#   bash scripts/verify-all.sh --ci           公开 CI 用：跳过依赖 asset/ 的三步（8、9、11），
+#                                             语料不入库，远端跑不了那三步
 #
 # 每步失败都会打印「看哪里」。默认不写任何凭据；只有 --smoke 且未加 --local-images 时
 # 才会因 compose 的必填插值需要凭据（注入方式见 scripts/dev-up.sh --help）；
@@ -20,12 +22,14 @@ SKIP_WEB=0
 SMOKE=0
 DATA_LAYER=0
 GATEWAY=0
+CI=0
 for arg in "$@"; do
   case "$arg" in
     --skip-web) SKIP_WEB=1 ;;
     --smoke) SMOKE=1 ;;
     --data-layer) DATA_LAYER=1 ;;
     --gateway) GATEWAY=1 ;;
+    --ci) CI=1 ;;
     -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "未知参数：$arg（用 --help 看用法）" >&2; exit 2 ;;
   esac
@@ -126,18 +130,23 @@ fi
 
 # 第 8、9 步默认启用：两者都走语料直读 + 假 provider，不连库、不发真实调用，因此不需要凭据。
 # 它们把 M0-4 / M0-5 的冒烟纳入项目级校验。
-step 8 "M0-4 检索链：语料直读 + 假 embedding（不连库）"
-if bash "$ROOT/scripts/verify-retrieval.sh" --source corpus; then
-  ok "retrieval-smoke"
+if [ "$CI" -eq 1 ]; then
+  step 8 "M0-4 检索链：跳过（--ci；语料不入库，远端没有 asset/）"
+  step 9 "M0-5 回答链：跳过（--ci；verify-answering 要读语料）"
 else
-  bad "retrieval-smoke" "bash scripts/verify-retrieval.sh --source corpus 看详情"
-fi
+  step 8 "M0-4 检索链：语料直读 + 假 embedding（不连库）"
+  if bash "$ROOT/scripts/verify-retrieval.sh" --source corpus; then
+    ok "retrieval-smoke"
+  else
+    bad "retrieval-smoke" "bash scripts/verify-retrieval.sh --source corpus 看详情"
+  fi
 
-step 9 "M0-5 回答链：假 provider 跑通事件流与两个适配器"
-if bash "$ROOT/scripts/verify-answering.sh"; then
-  ok "answering-smoke"
-else
-  bad "answering-smoke" "bash scripts/verify-answering.sh 看详情"
+  step 9 "M0-5 回答链：假 provider 跑通事件流与两个适配器"
+  if bash "$ROOT/scripts/verify-answering.sh"; then
+    ok "answering-smoke"
+  else
+    bad "answering-smoke" "bash scripts/verify-answering.sh 看详情"
+  fi
 fi
 
 # 第 10 步可选：要起真实 Java + Python（假 provider）且真连 PG，比默认那 7 步慢得多，
@@ -155,11 +164,15 @@ fi
 
 # 第 11、12 步默认启用：两者都走语料直读 + 假 provider，不连库、不发真实调用。
 # 它们把 M0-7b 的映射链与 eval/ 产物的入库红线纳入项目级校验。
-step 11 "M0-7b 映射链：语料直读 + 假 provider 兜底（不连库、不发真实调用）"
-if bash "$ROOT/scripts/verify-mapping.sh"; then
-  ok "mapping-smoke"
+if [ "$CI" -eq 1 ]; then
+  step 11 "M0-7b 映射链：跳过（--ci；要读 asset/ 语料）"
 else
-  bad "mapping-smoke" "bash scripts/verify-mapping.sh 看详情；语料需在 asset/ 下"
+  step 11 "M0-7b 映射链：语料直读 + 假 provider 兜底（不连库、不发真实调用）"
+  if bash "$ROOT/scripts/verify-mapping.sh"; then
+    ok "mapping-smoke"
+  else
+    bad "mapping-smoke" "bash scripts/verify-mapping.sh 看详情；语料需在 asset/ 下"
+  fi
 fi
 
 step 12 "eval/ 产物红线：文件白名单 + 字段长度 + 与语料比对"
