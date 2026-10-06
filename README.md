@@ -219,6 +219,9 @@ bash infra/docker/scripts/verify.sh                          # 容器 / 扩展 /
   `rag_runs` 已落库。瓶颈不在召回在装配截断——41 条证据已进 rerank 却被 `ask_top_k=8` 裁掉。
   **只测检索层**：答案层的评测要判模型的输出，需判据 + 人工校准 + 持续迭代，M0 不做（`M0-04` §5）。
 - **前端**：书库 → 章节树 → 正文（含插图）→ 提问 → 流式回答 → 引用跳章 整条链路可跑通。
+  回答正文按**受限 Markdown** 渲染（`web/src/markdown.ts` 手写解析器，零依赖、无 `v-html`
+  因此无 XSS 面；引用切分仍走 `citation.ts`）；等待期显示 转圈 + 阶段 + 已等待秒数；
+  主题与问答档位记在 localStorage。
 
 **未做**：
 
