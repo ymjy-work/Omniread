@@ -5,10 +5,9 @@
  * 数据路径固定为 /api/v1/query/stream（经 Java 网关），失败一律走 sse.ts 的 onError，
  * 这里只负责把事件翻译成界面上的一行行状态。
  */
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { citationSegments } from '../citation'
-import type { CitationSegment } from '../citation'
+import AnswerBody from './AnswerBody.vue'
 import { formatErrorLine } from '../errors'
 import { openQueryStream } from '../sse'
 import type { SseConnection } from '../sse'
@@ -25,7 +24,32 @@ interface ChatMessage {
   /** 召回/重排计数，来自 retrieval_completed 与 rerank_completed */
   recall: string | null
   citations: ContextChapter[]
+  /**
+   * 引用集合是否已下发（citation_ready / query_done）。
+   *
+   * 服务端的顺序是「全部 answer_delta → citation_ready → query_done」，
+   * 所以流式期间 `citations` 必然是空的。没有这个标记时，悬停角标会把
+   * 「还没收到」断言成「本次上下文里没有这一章（越界引用）」——一个假指控。
+   * 出错中断时它保持 false，角标就只报章号、不做断言。
+   */
+  citationsReady: boolean
   error: string | null
+  /**
+   * 当前阶段，等待期间显示在气泡里。
+   *
+   * 它不是锦上添花：回答模型是推理型的（`reasoning_effort=max`），**首字之前可能十几秒
+   * 一个字都不输出**。此前这段时间界面上只有一个闪烁光标，读起来和卡死没有区别。
+   * 阶段文案把「还在检索」与「模型正在想」分开——两件事的等待时间差一个数量级。
+   */
+  phase: string
+  /** 本题发出时刻，用于算已等待多久 */
+  startedAt: number
+  /** 检索阶段结束（context_assembled）的时刻，用来算检索耗时 */
+  retrievedAt: number | null
+  /** 首个 answer_delta 的时刻，即首字延迟 */
+  firstTokenAt: number | null
+  /** 收尾时刻；有值即这题已结束 */
+  doneAt: number | null
 }
 
 const messages = ref<ChatMessage[]>([])
@@ -33,15 +57,41 @@ const draft = ref('')
 const scroller = ref<HTMLElement | null>(null)
 const router = useRouter()
 let seq = 0
-let connection: SseConnection | null = null
+/**
+ * 当前连接。用 `shallowRef` 而不是普通变量：`sending` 是 computed，
+ * 依赖一个普通 `let` 时它永远是首次求值的结果——按钮该禁时不禁、
+ * 该恢复时不恢复。连接对象本身不需要深响应，`shallowRef` 足够。
+ */
+const connection = shallowRef<SseConnection | null>(null)
 
-const sending = computed(() => connection !== null)
+const sending = computed(() => connection.value !== null)
+
+/** 每一秒推一下，让「已等待 N 秒」是活的——不动的东西看起来才像卡住。 */
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | null = null
+
+function startTicker(): void {
+  if (ticker !== null) return
+  ticker = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+}
+
+function stopTicker(): void {
+  if (ticker === null) return
+  clearInterval(ticker)
+  ticker = null
+}
 const canSend = computed(() => store.bookId !== null && draft.value.trim() !== '' && !sending.value)
 
 /** 按 id 定位后原地改字段：数组元素读出来才是响应式代理，直接改局部变量不会触发更新 */
 function patch(id: number, changes: Partial<ChatMessage>): void {
   const target = messages.value.find((message) => message.id === id)
   if (target !== undefined) Object.assign(target, changes)
+}
+
+function messageOf(id: number): ChatMessage | undefined {
+  return messages.value.find((message) => message.id === id)
 }
 
 function recallOf(id: number): string {
@@ -52,6 +102,31 @@ function textOf(id: number): string {
   return messages.value.find((message) => message.id === id)?.text ?? ''
 }
 
+/** 已等待多少秒。收尾后冻结在总耗时上，不再跳动。 */
+function elapsedSeconds(message: ChatMessage): number {
+  const end = message.doneAt ?? now.value
+  return Math.max(0, Math.round((end - message.startedAt) / 1000))
+}
+
+/** 首字延迟（秒，一位小数）；一个字都还没出来时返回空串。 */
+function firstTokenSeconds(message: ChatMessage): string {
+  if (message.firstTokenAt === null) return ''
+  return ((message.firstTokenAt - message.startedAt) / 1000).toFixed(1)
+}
+
+/**
+ * 三段耗时：检索（发出 → 装配完成）、首字（发出 → 第一个字）、共（发出 → 收尾）。
+ *
+ * 分开报是因为它们的量级差得远：检索通常 1–3 秒，而推理型回答模型的首字可能十几秒。
+ * 合成一个「总耗时」就看不出该优化哪一段了。
+ */
+function timingOf(message: ChatMessage): string {
+  if (message.doneAt === null) return ''
+  const at = (moment: number | null): string =>
+    moment === null ? '—' : `${((moment - message.startedAt) / 1000).toFixed(1)}s`
+  return `检索 ${at(message.retrievedAt)} · 首字 ${at(message.firstTokenAt)} · 共 ${at(message.doneAt)}`
+}
+
 watch(messages, () => {
   void nextTick(() => {
     const element = scroller.value
@@ -60,23 +135,49 @@ watch(messages, () => {
 }, { deep: true })
 
 onUnmounted(() => {
-  connection?.close()
-  connection = null
+  connection.value?.close()
+  connection.value = null
+  stopTicker()
 })
 
 function send(): void {
   const question = draft.value.trim()
   const bookId = store.bookId
-  if (question === '' || bookId === null || connection !== null) return
+  if (question === '' || bookId === null || connection.value !== null) return
 
   const level: QueryLevel = store.level
-  messages.value.push({ id: ++seq, role: 'user', text: question, streaming: false, realm: null, recall: null, citations: [], error: null })
+  const askedAt = Date.now()
+  // `citations` 不放进 blank：blank 会被展开两次，数组是引用，两条消息会共用同一个实例。
+  // 今天所有更新都是整体替换所以看不出来，但只要将来有人原地 push，就会同时改到另一条消息。
+  const blank = {
+    streaming: false,
+    realm: null,
+    recall: null,
+    citationsReady: false,
+    error: null,
+    phase: '',
+    startedAt: askedAt,
+    retrievedAt: null,
+    firstTokenAt: null,
+    doneAt: null
+  }
+  messages.value.push({ ...blank, id: ++seq, role: 'user', text: question, citations: [] })
 
   const aiId = ++seq
-  messages.value.push({ id: aiId, role: 'ai', text: '', streaming: true, realm: null, recall: null, citations: [], error: null })
+  // 一发出就写「检索中」：这一段通常 1–3 秒，但空白与「在做事的空白」是两种感受
+  messages.value.push({
+    ...blank,
+    id: aiId,
+    role: 'ai',
+    text: '',
+    streaming: true,
+    phase: '检索中',
+    citations: []
+  })
   draft.value = ''
+  startTicker()
 
-  connection = openQueryStream(
+  connection.value = openQueryStream(
     {
       book_id: bookId,
       question,
@@ -92,58 +193,83 @@ function send(): void {
             break
           case 'retrieval_completed':
             patch(aiId, {
-              recall: `召回：dense ${frame.data.dense_count} · BM25 ${frame.data.bm25_count} · fused ${frame.data.fused_count}`
+              recall: `召回：dense ${frame.data.dense_count} · BM25 ${frame.data.bm25_count} · fused ${frame.data.fused_count}`,
+              phase: '重排与装配中'
             })
             break
           case 'rerank_completed':
             patch(aiId, { recall: `${recallOf(aiId)} · rerank ${frame.data.output_count}/${frame.data.input_count}` })
             break
           case 'context_assembled':
-            patch(aiId, { recall: `${recallOf(aiId)} · 装配 ${frame.data.chunks.length} 片` })
+            patch(aiId, {
+              recall: `${recallOf(aiId)} · 装配 ${frame.data.chunks.length} 片`,
+              phase: '准备生成',
+              retrievedAt: Date.now()
+            })
             break
           case 'generation_started':
-            patch(aiId, { recall: `${recallOf(aiId)} · ${frame.data.answer_provider}/${frame.data.answer_model}` })
+            // 从这里到第一个字之间是**最长的一段静默**：推理型模型先想再写，
+            // 文案要说清是在思考，而不是把这段并进「生成中」让它看起来像卡住
+            patch(aiId, {
+              recall: `${recallOf(aiId)} · ${frame.data.answer_provider}/${frame.data.answer_model}`,
+              phase: '模型思考中'
+            })
             break
           case 'answer_delta':
-            patch(aiId, { text: `${textOf(aiId)}${frame.data.text}` })
+            patch(aiId, {
+              text: `${textOf(aiId)}${frame.data.text}`,
+              phase: '生成中',
+              firstTokenAt: messageOf(aiId)?.firstTokenAt ?? Date.now()
+            })
             break
           case 'citation_ready':
-            patch(aiId, { citations: frame.data.context_chapters })
+            patch(aiId, { citations: frame.data.context_chapters, citationsReady: true })
             break
           case 'query_done':
             // 终止帧只带状态与引用；正文已经由 answer_delta 逐帧上屏，不在此覆盖
-            patch(aiId, { citations: frame.data.context_chapters, streaming: false })
+            patch(aiId, {
+              citations: frame.data.context_chapters,
+              citationsReady: true,
+              streaming: false,
+              phase: '',
+              doneAt: Date.now()
+            })
+            stopTicker()
             break
           case 'query_error':
-            patch(aiId, { error: formatErrorLine(frame.data.code, frame.data.message), streaming: false })
+            patch(aiId, {
+              error: formatErrorLine(frame.data.code, frame.data.message),
+              streaming: false,
+              phase: '',
+              doneAt: Date.now()
+            })
+            stopTicker()
             break
           case 'query_started':
             break
         }
       },
       onError: (error) => {
-        patch(aiId, { error: formatErrorLine(error.code, error.message), streaming: false })
+        patch(aiId, {
+          error: formatErrorLine(error.code, error.message),
+          streaming: false,
+          phase: '',
+          doneAt: Date.now()
+        })
+        stopTicker()
+        // 必须在这里断开：sse.ts 的失败路径只回调 onError、**从不回调 onDone**，
+        // 而 `sending` 看的就是 connection 是否为 null。不置空的话，一次 SSE 失败
+        // 会让发送框永久置灰、Enter 失效，只能刷新页面才能恢复。
+        connection.value?.close()
+        connection.value = null
       },
       onDone: () => {
-        patch(aiId, { streaming: false })
-        connection = null
+        patch(aiId, { streaming: false, phase: '', doneAt: messageOf(aiId)?.doneAt ?? Date.now() })
+        stopTicker()
+        connection.value = null
       }
     }
   )
-}
-
-/** 正文按规范引用切段；非规范写法落在普通文本段里，原样显示 */
-function segmentsOf(message: ChatMessage): CitationSegment[] {
-  return citationSegments(message.text)
-}
-
-/** 角标提示文案：引用列表里有标题就用它，越界引用（不在本次允许集合里）只给章号 */
-function citeTitle(message: ChatMessage, chapterIndex: number | null): string {
-  if (chapterIndex === null) return ''
-  const citation = message.citations.find((item) => item.chapter_index === chapterIndex)
-  return citation === undefined
-    ? `第 ${chapterIndex} 章`
-    : `第 ${chapterIndex} 章 · ${citation.chapter_title}`
 }
 
 /** 跳章复用阅读路由；C0 不是合法章号，不跳 */
@@ -195,6 +321,7 @@ function onKeydown(event: KeyboardEvent): void {
               <summary>
                 <span class="tk-ico">🧠</span>
                 <span>思考 · 检索依据（{{ message.citations.length }} 条引用）</span>
+                <span v-if="timingOf(message)" class="tk-time">{{ timingOf(message) }}</span>
                 <span class="tk-chev">▾</span>
               </summary>
               <div class="think-body">
@@ -213,7 +340,34 @@ function onKeydown(event: KeyboardEvent): void {
               </div>
             </details>
 
-            <div class="ans-text"><template v-for="(segment, index) in segmentsOf(message)" :key="index"><sup v-if="segment.kind === 'citation'" class="cite-an" :title="citeTitle(message, segment.chapterIndex)" @click="jumpTo(segment.chapterIndex)">{{ segment.chapterIndex }}</sup><template v-else>{{ segment.text }}</template></template></div>
+            <!--
+              等待期间的进度行。没有它，这段时间界面上只剩一个闪烁光标——
+              而回答模型是推理型的，首字之前可能十几秒不输出任何东西。
+              转圈 + 阶段 + 已等待秒数三样一起给，才能回答「它还在动吗」。
+
+              **活的只有 `w-phase` 那一个 span**：`role="status"` 隐含 `aria-live="polite"`
+              与 `aria-atomic="true"`，把每秒跳动的秒数放进去，屏幕阅读器会**每秒把整行
+              重念一遍**，真正的阶段变化反而被淹掉。所以秒数与首字延迟对辅助技术隐藏，
+              它们是给眼睛看的时间感，阶段文案才是要播报的信息。
+            -->
+            <div v-if="message.streaming" class="waiter">
+              <span class="spin" aria-hidden="true"></span>
+              <span class="w-phase" role="status">{{ message.phase || '处理中' }}</span>
+              <span class="w-time" aria-hidden="true">{{ elapsedSeconds(message) }}s</span>
+              <span v-if="firstTokenSeconds(message)" class="w-note" aria-hidden="true">
+                首字 {{ firstTokenSeconds(message) }}s
+              </span>
+            </div>
+
+            <!-- 正文渲染交给 AnswerBody：模型输出是 Markdown，星号与井号不该裸露给用户 -->
+            <div class="ans-text">
+              <AnswerBody
+                :text="message.text"
+                :citations="message.citations"
+                :citations-ready="message.citationsReady"
+                @jump="jumpTo"
+              />
+            </div>
             <div v-if="message.error" class="errline">{{ message.error }}</div>
           </div>
         </div>

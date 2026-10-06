@@ -8,7 +8,12 @@ import { computed, reactive } from 'vue'
 import * as api from './api'
 import { ApiError } from './api'
 import { describeErrorCode } from './errors'
+import { readStored, writeStored } from './storage'
 import type { Book, ChapterDetail, ChapterMeta, Progress, QueryLevel } from './types'
+
+/** 问答档位的存储键；取值白名单与 `QueryLevel` 同源。 */
+export const LEVEL_STORAGE_KEY = 'omniread.level'
+const LEVELS: readonly QueryLevel[] = ['past', 'full']
 
 export interface VolumeGroup {
   volume_index: number
@@ -22,8 +27,14 @@ export const store = reactive({
   chapters: [] as ChapterMeta[],
   chapter: null as ChapterDetail | null,
   progress: null as Progress | null,
-  /** 问答档位：回顾 / 剧透，状态栏与问答面板共用 */
-  level: 'past' as QueryLevel,
+  /**
+   * 问答档位：回顾 / 剧透，状态栏与问答面板共用。
+   *
+   * 记住上次的选择——它和主题一样是偏好，刷新就忘等于每次都要重设。档位在界面上
+   * 有四处在显示（问答面板的绿/黄点与分段控件、取证框的档位标签、状态栏的「档位：…」），
+   * 所以「上次开过剧透、这次忘了」不至于悄无声息。
+   */
+  level: readStored(LEVEL_STORAGE_KEY, LEVELS, 'past'),
   loading: false,
   /** 最近一次失败的展示文案；null 表示无错误 */
   error: null as string | null
@@ -141,4 +152,5 @@ export async function setProgress(maxSeq: number): Promise<boolean> {
 
 export function setLevel(level: QueryLevel): void {
   store.level = level
+  writeStored(LEVEL_STORAGE_KEY, level)
 }

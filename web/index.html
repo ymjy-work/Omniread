@@ -4,6 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Omniread · 阅读与问答</title>
+    <script>
+      // 在样式与 bundle 之前恢复主题。模块要等 bundle 加载完才跑，而 CSS 一解析完
+      // 浏览器就会画一帧——暗色用户每次刷新都会先看到一道亮色闪。
+      // 键名与取值的权威定义在 src/theme.ts（THEME_STORAGE_KEY / THEME_NAMES），
+      // 这里是为时序复制的第二份；改那边要同步改这里。
+      try {
+        var saved = localStorage.getItem('omniread.theme')
+        if (saved === 'light' || saved === 'deep') {
+          document.documentElement.dataset.theme = saved
+        }
+      } catch (e) {
+        // 存储不可用就用 <html> 上的默认值
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

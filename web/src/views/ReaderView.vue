@@ -104,6 +104,12 @@ async function markRead(): Promise<void> {
       <template v-else>
         <div class="chapter-head">
           <span class="vol-tag">卷 {{ store.chapter.volume_index }}</span>
+          <!--
+            把全书章序号摆到标题旁边，是为了让它与回答里的 `[C数字]` 对得上号。
+            两者不同源：`[C数字]` 用全书连续序号，章节标题里的「第N话」按卷重新编号——
+            全书第 7 章的标题恰恰写着「第6话」。不摆出来，用户按话数去找就会找错章。
+          -->
+          <span class="vol-tag">全书第 {{ store.chapter.chapter_index }} 章</span>
           <h1>{{ store.chapter.chapter_title }}</h1>
         </div>
 

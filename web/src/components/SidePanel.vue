@@ -118,7 +118,12 @@ async function pickProgress(event: Event): Promise<void> {
         调整进度
         <select class="gobtn" :value="store.progress?.max_seq ?? 1" @change="pickProgress">
           <option v-for="chapter in store.chapters" :key="chapter.chapter_index" :value="chapter.chapter_index">
-            第 {{ chapter.chapter_index }} 话 · {{ chapter.chapter_title }}
+            <!--
+              这个数字是 `chapter_index`（全书连续序号），**不是话数**——标题里的「第N话」
+              按卷重新编号，全书第 7 章的标题写着「第6话」。此前这里写「第 N 话」，
+              渲染出来就是「第 7 话 · 第6话 …」，同一行两个打架的号码。
+            -->
+            全书第 {{ chapter.chapter_index }} 章 · {{ chapter.chapter_title }}
           </option>
         </select>
       </label>
