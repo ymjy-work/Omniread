@@ -42,6 +42,11 @@ START_WEB=0
 FORCE=0
 REBUILD=0
 
+# 原始命令行参数。必须在解析前存下来：`ensure_creds` 里的 `$@` 是**那个函数的**参数
+# （它是无参调用的，恒为空），用它重入会把命令行开关全部丢掉——`--fake-providers`
+# 静默失效、栈按真实 provider 起来，看起来「联调模式」根本没生效。
+SCRIPT_ARGS=("$@")
+
 for arg in "$@"; do
   case "$arg" in
     --no-infra) START_INFRA=0 ;;
@@ -114,7 +119,7 @@ ensure_creds() {
   if [ "${OMNIREAD_KEYMGR_REEXEC:-0}" != "1" ] && profile_exists "$KEYMGR_PROFILE"; then
     log "检测到 keymgr profile '$KEYMGR_PROFILE'，用它注入凭据后重入本脚本"
     export OMNIREAD_KEYMGR_REEXEC=1
-    exec keymgr run "$KEYMGR_PROFILE" bash "$0" "$@"
+    exec keymgr run "$KEYMGR_PROFILE" bash "$0" "${SCRIPT_ARGS[@]}"
   fi
   cat >&2 <<EOF
 
