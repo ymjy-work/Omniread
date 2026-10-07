@@ -2,7 +2,7 @@
 """M0-5 回答链冒烟：检索 → 装配 → prompt → 流式生成 → 引用 → 两个适配器。
 
 默认全程用假 provider、直接从仓库内语料分块，不发真实 API 调用、不连库；`--real` 才把
-回答模型换成 GLM 适配器（需 `GLM_API_KEY`，经 `keymgr run glm-rag` 注入，由用户单独批准）。
+回答模型换成 GLM 适配器（需 `GLM_API_KEY`，经 `keymgr run omniread` 注入，由用户单独批准）。
 
 脚本跑的是同一条真实 `AnsweringRunner` 事件流，因此它验证的不只是 GLM 适配器：
 
@@ -17,7 +17,7 @@
 用法（仓库根执行）：
     bash scripts/verify-answering.sh
     # 真实回答模型（需先批准并注入凭据）：
-    keymgr run glm-rag bash scripts/verify-answering.sh --real
+    keymgr run omniread bash scripts/verify-answering.sh --real
 """
 
 from __future__ import annotations
@@ -367,7 +367,7 @@ async def real_run(
         adapter = GlmChatAdapter()
     except ProviderConfigError as exc:
         print(f"失败：{exc.message}", file=sys.stderr)
-        print("真实冒烟需要 GLM_API_KEY：用 keymgr run glm-rag 注入后重试。", file=sys.stderr)
+        print("真实冒烟需要 GLM_API_KEY：用 keymgr run omniread 注入后重试。", file=sys.stderr)
         return 2
     print(f"[real] 真实调用 {adapter.model}（会消耗额度）")
     try:

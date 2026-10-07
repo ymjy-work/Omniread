@@ -9,7 +9,7 @@
 #   bash scripts/verify-answering.sh
 #   bash scripts/verify-answering.sh --book-id 1
 #   # 真实回答模型（需用户明确批准，凭据经 keymgr 注入）：
-#   keymgr run glm-rag bash scripts/verify-answering.sh --real
+#   keymgr run omniread bash scripts/verify-answering.sh --real
 #   bash scripts/verify-answering.sh --help
 #
 # 前置：只读仓库内 asset/ 语料，不需要 PostgreSQL / MinIO；--real 额外需要 GLM_API_KEY。

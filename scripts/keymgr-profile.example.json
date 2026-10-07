@@ -1,8 +1,8 @@
 {
   "omniread": {
-    "POSTGRES_PASSWORD": "omniread-pg",
-    "MINIO_SECRET_KEY": "MinIO-Omniread",
-    "GLM_API_KEY": "glm-rag",
-    "DASHSCOPE_API_KEY": "ALiBaiLian"
+    "POSTGRES_PASSWORD": "<keymgr 条目名>",
+    "MINIO_SECRET_KEY": "<keymgr 条目名>",
+    "GLM_API_KEY": "<keymgr 条目名>",
+    "DASHSCOPE_API_KEY": "<keymgr 条目名>"
   }
 }

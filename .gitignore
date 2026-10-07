@@ -4,11 +4,18 @@
 docs/
 CLAUDE.md
 temp/
+.claude
 
 # 语料：整本原文不得进入 git（M0-00 §6）
 # 可逆性理由——rm + 新提交无法从 git 历史中清除内容，只能重写历史或重建仓库，
 # 「先提交、公开前再清理」在 git 上不成立。
 asset/
+
+# Golden 的题面：含原著短摘录，出于版权考虑不随仓库发布，只在本地保留。
+# 入库的是同目录的 schema.json / README.md / validate_golden.py（不含原文）。
+# 注意：这条规则只挡「将来」被 add；已进历史的 blob 靠规则删不掉。
+eval/golden/example.json
+eval/golden/*-[0-9][0-9][0-9].json
 
 # Java / Maven
 target/

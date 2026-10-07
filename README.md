@@ -22,10 +22,15 @@ omniread/
     rag/                 # Python 3.13 RAG 服务（uv 管理，src/omniread）
   infra/docker/          # PostgreSQL + pgvector、MinIO 的 compose 与初始化
   scripts/               # 一键启动 / 停止 / 验证脚本（本 README 的主角）
-  eval/                  # Golden 86 题（已冻结）、评测产物与 fixture 目录
+  eval/                  # 评测产物；Golden 入库的只有 schema / 校验器（题面文件不入库，见下）
   temp/                  # 一次性脚本与运行时日志（本地保留，不入库）
   asset/                 # 语料（不入库）
 ```
+
+> **Golden 的题面文件不随仓库发布。** 86 道题与 `example.json` 里含原著的短摘录，出于版权考虑
+> 只保留在本地；入库的是 `eval/golden/` 下的 `schema.json`、`README.md` 与 `validate_golden.py`
+> （出题规范与校验器，不含原文）。因此 clone 之后无法直接复现评测——需要自备 Golden。
+> `eval/runs/` 下已落库的产物不受影响。
 
 ## 端口与入口约定
 
@@ -51,7 +56,7 @@ omniread/
 
 | 组件 | 版本 |
 | --- | --- |
-| JDK / Maven | Java 25 / Maven 3.9.15（本地仓库重定向到 `D:/DevTools/maven-repo`） |
+| JDK / Maven | Java 25 / Maven 3.9.15（本地仓库可重定向到任意目录） |
 | Python / uv | Python 3.13.13 / uv（不在 PATH 时脚本自动用 WinGet 安装目录下的绝对路径） |
 | Node / npm | Node 26 / npm 12 |
 | 容器 | Docker Desktop + Compose v2 |
@@ -69,15 +74,15 @@ npm --prefix web install
 # 3. 密钥注入：配置 keymgr 的 omniread profile
 #    scripts/keymgr-profile.example.json 里是要合并进
 #    %USERPROFILE%\.config\keymgr\profiles.json 的 "omniread" 段。
-#    其中 POSTGRES_PASSWORD 指向的条目要先建：keymgr set omniread-pg
+#    先把 PG 口令存成一个条目：keymgr set <条目名>
 ```
 
 **profile 是全有或全无**：只要其中任一 Key 不存在，`keymgr run omniread` 整个失败，
 连其余几个能用的也一起用不了。所以缺哪个就先补哪个，不要先把映射写进去占位。
-`scripts/keymgr-profile.example.json` 列的是当前**需要**的三项（GLM / 百炼 / MinIO）；
-本机那份 profile 里多一个已不再读取的 DeepSeek 条目。缺 `omniread-pg`；
-`keymgr list` 是查准确名称（区分大小写）的唯一途径。验证用
-`keymgr.cmd run omniread python temp/probe_keymgr_env.py`（只打印注入与否与长度，不打印明文）。
+
+`scripts/keymgr-profile.example.json` 列出 `omniread` 段需要的变量名；
+**右侧是 keymgr 条目的名字、不是密钥本身**，按本机 `keymgr list` 的实际名称填
+（区分大小写，`keymgr list` 是查准确名称的唯一途径）。
 
 密钥只经 keymgr 注入进程环境，不写进源码、`.env`、compose 或日志（M0-00 §6）。
 `infra/docker/docker-compose.yml` 里的两个口令是必填插值，未注入时 compose 直接报错，不会退化成空密码。

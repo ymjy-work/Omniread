@@ -7,7 +7,7 @@ BigModel（需要 `GLM_API_KEY`，经 `keymgr run` 注入）。真实冒烟由�
 用法（仓库根执行）：
     uv run --directory services/rag python scripts/smoke_answer_provider.py
     # 真实调用（需先批准并注入凭据）：
-    keymgr run glm-rag uv run --directory services/rag python scripts/smoke_answer_provider.py --real
+    keymgr run omniread uv run --directory services/rag python scripts/smoke_answer_provider.py --real
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ async def _main(real: bool) -> int:
     except ProviderConfigError as exc:
         print(f"失败：{exc.message}", file=sys.stderr)
         print(
-            "真实冒烟需要 GLM_API_KEY：用 keymgr run glm-rag 注入后重试。",
+            "真实冒烟需要 GLM_API_KEY：用 keymgr run omniread 注入后重试。",
             file=sys.stderr,
         )
         return 2

@@ -127,7 +127,7 @@ ensure_creds() {
 
   A. 配置一次性 keymgr profile（推荐，之后每次启动都不用再管）
      1) 为 PostgreSQL 口令建一个条目（M0-01 §5.2 的映射表尚未登记它）：
-          keymgr set omniread-pg
+          keymgr set <条目名>
      2) 把 scripts/keymgr-profile.example.json 里的 "omniread" 段合并进
         %USERPROFILE%\\.config\\keymgr\\profiles.json
      3) 重新执行本脚本即可。
