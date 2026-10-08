@@ -95,6 +95,8 @@ else
     npm --prefix "$ROOT/web" run typecheck
   run "vite build" "web/vite.config.ts；产物在 web/dist，由 Java 托管" \
     npm --prefix "$ROOT/web" run build
+  run "check:markdown（解析器回归）" "web/scripts/markdown-samples.ts；报错按用例名定位" \
+    npm --prefix "$ROOT/web" run check:markdown
 fi
 
 if [ "$SMOKE" -eq 1 ]; then

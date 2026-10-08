@@ -7,6 +7,7 @@
     "dev": "vite",
     "lint": "eslint .",
     "check:citations": "node scripts/citation-samples.ts ../citation-format.json",
+    "check:markdown": "node --import ./scripts/ts-resolve-hook.mjs scripts/markdown-samples.ts",
     "typecheck": "vue-tsc --noEmit",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview"
