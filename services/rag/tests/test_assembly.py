@@ -57,6 +57,27 @@ def _index(records: Sequence[ChunkRecord]) -> dict[str, ChunkRecord]:
     return {record.chunk_key: record for record in records}
 
 
+def _params(**overrides: int) -> RetrievalParams:
+    """测试自带的参数，**刻意不跟 `RetrievalParams()` 的默认值走**。
+
+    那个默认值就是当前基线，而基线会换：M1 冻结新基线时它从
+    `ask_chunks_per_chapter=2 / ask_top_k=8 / rerank_k=24` 变成 `4 / 12 / 32`，
+    照默认值写的断言当场集体变红——可它们要钉的是**装配逻辑本身**
+    （上限怎么结算、邻居怎么补、预算怎么让位），与某一版基线的取值无关。
+    所以参数在测试里显式给死；测新基线请改这里，或直接传参。
+    """
+    base: dict[str, int] = {
+        "rerank_k": 24,
+        "rerank_output": 24,
+        "ask_max_chapters": 8,
+        "ask_chunks_per_chapter": 2,
+        "ask_top_k": 8,
+        "prompt_token_budget": 6000,
+    }
+    base.update(overrides)
+    return RetrievalParams(**base)
+
+
 def _run(
     candidates: Sequence[ChunkCandidate],
     records: Sequence[ChunkRecord],
@@ -68,7 +89,7 @@ def _run(
         candidates,
         chunks=_index(records),
         realm=realm,
-        params=params or RetrievalParams(),
+        params=params or _params(),
     )
 
 
@@ -249,7 +270,7 @@ def test_token_budget_drops_lowest_rank_hits_first() -> None:
     # 8 条 hit 各 700 token，预算 4800：按 rerank 逆序丢最低分，丢 rank 8、7。
     records = [record for chapter in range(1, 9) for record in _chain(chapter, 1, tokens=700)]
     candidates = [ChunkCandidate(_key(chapter, 0), 1.0, chapter) for chapter in range(1, 9)]
-    params = RetrievalParams(prompt_token_budget=4800)
+    params = _params(prompt_token_budget=4800)
 
     result = _run(candidates, records, params=params)
 
@@ -265,7 +286,7 @@ def test_token_budget_drops_neighbors_before_hits() -> None:
     # 邻居按锚点名次逆序让位，丢 rank 4、3 的补位后回到 4200。
     records = [record for chapter in range(1, 9) for record in _chain(chapter, 2, tokens=700)]
     candidates = [ChunkCandidate(_key(chapter, 0), 1.0, chapter) for chapter in range(1, 9)]
-    params = RetrievalParams(prompt_token_budget=4800)
+    params = _params(prompt_token_budget=4800)
 
     result = _run(candidates, records, params=params)
 
@@ -308,7 +329,7 @@ def test_token_budget_hit_drop_takes_its_neighbor() -> None:
             )
         )
     candidates = [ChunkCandidate(_key(chapter, 0), 1.0, chapter) for chapter in range(1, 9)]
-    params = RetrievalParams(prompt_token_budget=4800)
+    params = _params(prompt_token_budget=4800)
 
     result = _run(candidates, records, params=params)
 

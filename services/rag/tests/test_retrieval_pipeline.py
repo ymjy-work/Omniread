@@ -16,6 +16,7 @@ from omniread.domain.errors import RagInvalidRealm
 from omniread.domain.models import QueryRequest, RealmLevel
 from omniread.infrastructure.providers.errors import ProviderResponseError
 from omniread.infrastructure.providers.fake import FakeEmbeddingModel, FakeRerankModel
+from omniread.pipelines.params import M0_PARAMS
 from omniread.pipelines.retrieval.dense import DenseHit
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline
 from omniread.pipelines.retrieval.types import ChunkRecord
@@ -132,8 +133,10 @@ async def test_pipeline_runs_every_stage_and_closes_with_assembly() -> None:
     assert outcome.realm.lo == 1 and outcome.realm.hi == 6
     assert dense.calls == [(1, 6, 60)]
     assert outcome.kw and outcome.dense and outcome.fused and outcome.reranked
-    assert len(outcome.reranked) <= 24
-    assert len(outcome.assembled) <= 8
+    # 对着参数的上限断言，不写死数字：这是接线测试，要验的是「链尾遵守上限」，
+    # 而具体上限随基线变（M1 把 ask_top_k 8→12、rerank_output 仍是 24）。
+    assert len(outcome.reranked) <= M0_PARAMS.rerank_output
+    assert len(outcome.assembled) <= M0_PARAMS.ask_top_k
     assert all(item.chapter_index in range(1, 7) for item in outcome.assembled)
 
 
@@ -279,7 +282,7 @@ def test_retrieval_only_returns_untruncated_stage_lists(image_root) -> None:
     assert len(body["stages"]["kw"]) == 30
     assert len(body["stages"]["fused"]) == 30
     assert len(body["stages"]["rerank"]) == 24
-    assert len(body["stages"]["assembled"]) <= 8
+    assert len(body["stages"]["assembled"]) <= M0_PARAMS.ask_top_k
     for hit in body["stages"]["kw"]:
         assert set(hit) == {"chunk_key", "chapter_index", "score", "rank"}
     for item in body["stages"]["assembled"]:
