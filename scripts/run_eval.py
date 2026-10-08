@@ -24,6 +24,7 @@ import argparse
 import asyncio
 import json
 import sys
+from dataclasses import fields, replace
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -62,7 +63,11 @@ from omniread.pipelines.mapping.runner import (  # noqa: E402
     golden_schema_version,
 )
 from omniread.pipelines.mapping.types import MATCH_MATCHED  # noqa: E402
-from omniread.pipelines.params import M0_PARAMS, retrieval_params_record  # noqa: E402
+from omniread.pipelines.params import (  # noqa: E402
+    M0_PARAMS,
+    RetrievalParams,
+    retrieval_params_record,
+)
 from omniread.pipelines.retrieval.dense import PgVectorDenseIndex  # noqa: E402
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline  # noqa: E402
 from omniread.pipelines.retrieval.store import PgChunkStore  # noqa: E402
@@ -90,6 +95,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--write-db", action="store_true", help="把 run 记录写进 rag_runs")
     parser.add_argument(
+        "--set",
+        dest="overrides",
+        default="",
+        help=(
+            "单变量实验的参数覆盖，形如 rerank_k=32 或 dense_k=100,rrf_k=100；"
+            "不传即 M0 基线。一次只改一个——同时改两个就分不清是谁起的作用"
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -98,7 +112,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def build_pipeline(args: argparse.Namespace) -> tuple[RetrievalPipeline, str, str, str]:
+def build_params(spec: str) -> RetrievalParams:
+    """把 `k=v,k=v` 解析成参数对象；不传即 M0 基线。
+
+    **刻意不改 `params.py`**：那是单向门，改它就是换基线，而一次实验不该动基线。
+    实际生效的值会随 run 落进 `config.json`，所以每个 run 自证用了什么参数；
+    选定配置要成为新基线时，再单独、显式地改 `params.py`。
+
+    取值合法性由 `RetrievalParams.__post_init__` 把关（例如
+    `ask_top_k <= ask_max_chapters * ask_chunks_per_chapter`），这里不重写一遍。
+    """
+    known = {field.name for field in fields(RetrievalParams)}
+    overrides: dict[str, int] = {}
+    for item in filter(None, (chunk.strip() for chunk in spec.split(","))):
+        name, separator, raw = item.partition("=")
+        name = name.strip()
+        if separator == "" or name not in known:
+            raise SystemExit(f"--set 用法是 名字=整数，不认识这一段：{item!r}")
+        try:
+            overrides[name] = int(raw)
+        except ValueError:
+            raise SystemExit(f"--set {name} 的值不是整数：{raw!r}") from None
+    try:
+        return replace(M0_PARAMS, **overrides)
+    except ValueError as exc:
+        raise SystemExit(f"--set 的参数不合法：{exc}") from exc
+
+
+def build_pipeline(
+    args: argparse.Namespace, params: RetrievalParams
+) -> tuple[RetrievalPipeline, str, str, str]:
     """装配检索链；返回 (pipeline, provider 名, embedding 型号, rerank 型号)。"""
     factory = sessionmaker(create_engine_from_env(), expire_on_commit=False)
     if args.fake_providers:
@@ -112,6 +155,7 @@ def build_pipeline(args: argparse.Namespace) -> tuple[RetrievalPipeline, str, st
         dense=PgVectorDenseIndex(factory),
         embedder=embedder,
         reranker=reranker,
+        params=params,
     )
     return pipeline, provider, embedder.model, reranker.model
 
@@ -150,7 +194,8 @@ async def main_async(args: argparse.Namespace) -> int:
     if args.limit is not None:
         questions = questions[: args.limit]
     mapping_lookup = load_mapping_lookup(args.runs_dir, args.mapping_run)
-    pipeline, provider, embedding_model, rerank_model = build_pipeline(args)
+    params = build_params(args.overrides)
+    pipeline, provider, embedding_model, rerank_model = build_pipeline(args, params)
 
     result = await run_retrieval_eval(
         run_id=args.run_id,
@@ -171,7 +216,7 @@ async def main_async(args: argparse.Namespace) -> int:
         embedding_dim=EMBEDDING_DIM,
         rerank_provider="dashscope" if provider == "ali" else "fake",
         rerank_model=rerank_model,
-        retrieval_params=retrieval_params_record(M0_PARAMS),
+        retrieval_params=retrieval_params_record(params),
         book_id=args.book_id,
         trust_note=FAKE_TRUST_NOTE if args.fake_providers else "",
     )
