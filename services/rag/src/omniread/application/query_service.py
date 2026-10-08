@@ -9,9 +9,14 @@
   剔除越界引用（M0-04 §4：半成品防护只覆盖「带越界引用的越界」，覆盖不了「不带引用的
   越界」，还会制造「已经防住了」的错觉）。M0 的评测只算检索层两个确定性指标，不判模型
   的输出，所以越界引用**没有人替它兜底**——这是已知并接受的缺口（M0-04 §5）。
-- **拒答判据是最终装配集为空**（`context_assembled.chunks[]` 为空）。M0 不做模型级拒答
-  的结构化标记（M0-02 §8.3），因此这是唯一的确定性判据。拒答时 `answer` 由服务端固定
-  话术填充，不走模型。
+- **两条拒答路径**（M0-02 §8.3）：
+  - **检索为空** → 判据是最终装配集为空（`context_assembled.chunks[]` 为空），
+    模型根本不被调用，`context_chapters` 为 `[]`；
+  - **模型级**（有上下文但模型自述答不了）→ 判据是回答以 `[INSUFFICIENT]` 开头
+    （`pipelines/answering/refusal.py`），`context_chapters` **非空**——
+    §8.3 正是用这两个字段区分两种拒答。
+
+  两条路径的 `answer` 都由服务端固定话术填充，不走模型的正文。
 - **provider 故障不降级成拒答**：检索或生成阶段抛出的 `ProviderError` 一律映射成
   `query_error`（超时 `RAG_TIMEOUT`、其余 `RAG_PROVIDER_ERROR`），由适配器写成 5xx；
   故障与「材料不足」不互相伪装。
@@ -51,6 +56,11 @@ from omniread.pipelines.answering.prompt import (
     ContextPassage,
     answer_prompt_version,
     build_answer_messages,
+)
+from omniread.pipelines.answering.refusal import (
+    PREFIX_PENDING,
+    PREFIX_REFUSAL,
+    scan_prefix,
 )
 from omniread.pipelines.retrieval.types import RetrievalOutcome
 
@@ -194,9 +204,44 @@ class AnsweringRunner:
         messages = build_answer_messages(
             request.question, passages, prompt=self._prompt
         )
+        # 首部先压住不吐：模型级拒答的判据是「回答以 `[INSUFFICIENT]` 开头」，
+        # 不缓冲就会把标记本身发给客户端。压住的量有上界（标记 + 前导空白），
+        # 判定一结束就转入直通。
+        refused = False
+        released = False
+        pending = ""
         async for chunk in self._chat.stream(messages):
-            if chunk.text:
-                yield answer_delta(text=chunk.text)
+            if not chunk.text:
+                continue
+            if released or refused:
+                # 已放行则原样转发；已判拒答则丢弃余下分片——整条回答会被换成
+                # 固定话术，模型的正文一个字都不进响应（M0-02 §8.3）。
+                if released:
+                    yield answer_delta(text=chunk.text)
+                continue
+            pending += chunk.text
+            verdict = scan_prefix(pending)
+            if verdict == PREFIX_PENDING:
+                continue
+            if verdict == PREFIX_REFUSAL:
+                refused = True
+                continue
+            released = True
+            yield answer_delta(text=pending)
+            pending = ""
+        if not released and not refused:
+            # 流断在半截标记上（模型吐了 `[INSUF` 就停）不是拒答，压着的照常吐出去。
+            yield answer_delta(text=pending)
+
+        if refused:
+            yield answer_delta(text=REFUSAL_ANSWER)
+            yield citation_ready(context_chapters=context_chapters)
+            yield query_done(
+                status=AnswerStatus.INSUFFICIENT_EVIDENCE,
+                context_chapters=context_chapters,
+                usage=self._usage(started),
+            )
+            return
 
         yield citation_ready(context_chapters=context_chapters)
         yield query_done(

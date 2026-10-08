@@ -49,9 +49,16 @@ from omniread.pipelines.evaluation.artifacts import (  # noqa: E402
     EvalRunConfig,
     write_eval_run_dir,
 )
+from omniread.pipelines.evaluation.generation import (  # noqa: E402
+    aggregate_generation,
+    generation_failure_rows,
+)
 from omniread.pipelines.evaluation.metrics import aggregate, summarize_counts  # noqa: E402
 from omniread.pipelines.evaluation.runner import failure_rows  # noqa: E402
-from omniread.pipelines.evaluation.types import RetrievalScoreRecord  # noqa: E402
+from omniread.pipelines.evaluation.types import (  # noqa: E402
+    GenerationScoreRecord,
+    RetrievalScoreRecord,
+)
 from omniread.pipelines.mapping.artifacts import check_run_dir  # noqa: E402
 from omniread.pipelines.mapping.runner import DEFAULT_RUNS_DIR  # noqa: E402
 
@@ -119,6 +126,21 @@ def load_records(run_dir: Path) -> tuple[RetrievalScoreRecord, ...]:
     return tuple(RetrievalScoreRecord.from_payload(row) for row in rows)
 
 
+def load_generation_records(run_dir: Path) -> tuple[GenerationScoreRecord, ...]:
+    """读答案层逐题记录；**没有这个文件不是错误**。
+
+    只跑了检索层的 run 本来就没有它（`run_eval.py` 不带 `--answer-layer`），
+    把「没跑」当成「文件坏了」会让所有历史 run 都重算不了。
+    """
+    path = run_dir / "generation.scores.jsonl"
+    if not path.is_file():
+        return ()
+    rows = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    return tuple(GenerationScoreRecord.from_payload(row) for row in rows)
+
+
 def _brief(value: Any) -> str:
     text = json.dumps(value, ensure_ascii=False, sort_keys=True)
     return text if len(text) <= 240 else f"{text[:237]}..."
@@ -134,7 +156,14 @@ def main(argv: list[str] | None = None) -> int:
     records = load_records(run_dir)
     summary = aggregate(records)
     summary["failure_counts"] = summarize_counts(records)
-    failures = failure_rows(records)
+    failures = list(failure_rows(records))
+
+    generation_records = load_generation_records(run_dir)
+    generation_summary: dict[str, object] | None = None
+    if generation_records:
+        generation_summary = aggregate_generation(generation_records)
+        summary["generation"] = generation_summary
+        failures.extend(generation_failure_rows(generation_records))
 
     old_path = run_dir / "summary.json"
     old: dict[str, Any] = (
@@ -162,6 +191,16 @@ def main(argv: list[str] | None = None) -> int:
     for key in _HEADLINE:
         if key in summary:
             print(f"  {key:32s} {summary[key]}")
+    if generation_summary is not None:
+        print(f"  {'answered':32s} {generation_summary['answered']}")
+        print(f"  {'citation_in_set':32s} {generation_summary['citation_in_set']}"
+              f"（分母 {generation_summary['citation_in_set_denominator']}）")
+        print(f"  {'answered_without_citation':32s} "
+              f"{generation_summary['answered_without_citation']}")
+        print(f"  {'refusal_correct':32s} {generation_summary['refusal_correct']}"
+              f"（分母 {generation_summary['refusal_denominator']}，"
+              f"误报 {generation_summary['refusal_false_positive']}）")
+        print(f"  {'generation_failed':32s} {generation_summary['generation_failed']}")
     print(f"  {'failures 条数':32s} {len(failures)}")
 
     if args.dry_run:
@@ -186,6 +225,21 @@ def main(argv: list[str] | None = None) -> int:
                 "  确认要按当前记录重算，再加 --allow-question-count-change。"
             )
         print(f"警告：{brief}（--allow-question-count-change 已给出，继续）")
+
+    # 答案层同一道闸门，外加一条只在这一层存在的风险：`generation.scores.jsonl` 被删掉时，
+    # 重算出的 summary 里 `generation` 一节会**整个消失**，而其余字段一切正常——
+    # 那是把一次带答案层的 run 悄悄降级成只跑了检索层的样子。
+    old_generation_count = (old.get("generation") or {}).get("question_count")
+    new_generation_count = (
+        generation_summary["question_count"] if generation_summary is not None else None
+    )
+    if old_generation_count is not None and old_generation_count != new_generation_count:
+        raise SystemExit(
+            f"答案层逐题记录对不上：summary.json 记的是 {old_generation_count}，"
+            f"generation.scores.jsonl 读出来 {new_generation_count or 0}。\n"
+            "  拒绝落盘：那份逐题记录是这次 run 唯一的答案层证据，丢了就该重跑，"
+            "而不是用一份没有答案层的汇总覆盖它。"
+        )
 
     # `write_eval_run_dir` 会顺手重写 config.json，这一步与传不传 records 无关。
     # 内容已由上面的往返守卫保证是同一份，这里再按字节复核并还原：已落盘 run 的

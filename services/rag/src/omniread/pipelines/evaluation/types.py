@@ -1,6 +1,7 @@
 """评测产物的数据形状（M0-04 §5，M0-02 §7.1）。
 
-每条逐题记录都是一个 **frozen dataclass**，字段集即允许进 git 的全部内容。
+两类逐题记录：`RetrievalScoreRecord`（检索层）与 `GenerationScoreRecord`（答案层）。
+每条都是一个 **frozen dataclass**，字段集即允许进 git 的全部内容。
 这不是风格选择：`eval/` 进 git，红线由「字段白名单 + 拒绝未知字段」实现，
 而不是靠「实现者别写错」。散文表格约束不了任何东西——`M0-02` §7.1 对
 `retrieval.scores.jsonl` 只写了「question_id + 指针 + 指标值」，
@@ -71,6 +72,67 @@ class RetrievalScoreRecord:
             + self.leak_rerank
             + self.leak_assembled
         )
+
+
+#: 答案层逐题记录的 `status`。`generation_failed` 是**独立的一种**，绝不并进拒答：
+#: provider 故障记成拒答会让 `refusal_correct` 悄悄失真（M0-02 §8.3）。
+STATUS_ANSWERED = "answered"
+STATUS_INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+STATUS_GENERATION_FAILED = "generation_failed"
+
+_GENERATION_STATUSES = frozenset(
+    {STATUS_ANSWERED, STATUS_INSUFFICIENT_EVIDENCE, STATUS_GENERATION_FAILED}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationScoreRecord:
+    """答案层逐题记录；`generation.scores.jsonl` 的一行。
+
+    **这是答案层唯一的自动防线**：`verify_artifacts.py` 的「与语料逐字重合」比对只认
+    语料原文，对模型写的文本天然失效；500 字符长度上限也拦不住一段 300 字回答。
+    所以放正文的位置在**类型里就没有**——回答原文只落 `temp/`（`M0-02` §7.1）。
+
+    越界引用只记**标记本身**（`[C45]` 这种短 token），且由解析出的章号**重新拼**、
+    不是从答案里切下来的：`CANDIDATE_PATTERN` 是 `\\[[Cc]\\d[^\\]]*\\]`，那个 `[^\\]]*`
+    能一路吃到下一个 `]`，照抄就是整整一段正文。非规范写法同理，只记**条数**。
+    """
+
+    question_id: str
+    question_type: str
+    difficulty: str
+    expect_refusal: bool
+
+    # ── 确定性判定：不调模型判断（D1），因此可复现、可离线重算 ──
+    status: str
+    citation_count: int
+    #: 回答里的引用**全部**落在本次装配集的章号内。空集天然满足——没有引用的回答
+    #: 也是 `True`，所以聚合时把「一条引用都没有的回答」单列（`answered_without_citation`）。
+    citation_in_set: bool
+    #: 越界引用，形如 `[C45]`；由章号重拼，不是原文切片
+    citation_out_of_range: tuple[str, ...]
+    #: 非规范写法（`[c17]` / `[C017]` / `[C1 说明]`）的**条数**。只记数不记原文：
+    #: 那类片段里可能裹着正文。
+    citation_malformed_count: int
+
+    # ── 指针 ──
+    request_id: str
+    answer_provider: str
+    answer_model: str
+    prompt_version: str
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> GenerationScoreRecord:
+        """从 `generation.scores.jsonl` 的一行还原。"""
+        data = _coerce_from_payload(cls, payload)
+        status = data.get("status")
+        # `status` 驱动 `generation_failed` 与 `refusal_correct` 两个计数，一个拼错的
+        # 取值会让「这次 run 带故障」从产物里消失——所以它比 `str` 注解收得更紧。
+        if status is not None and status not in _GENERATION_STATUSES:
+            raise ValueError(
+                f"status 取值非法：{status!r}，应属于 {sorted(_GENERATION_STATUSES)}"
+            )
+        return cls(**data)
 
 
 #: 注解词汇 → 取值检查。布尔是 `int` 的子类，所以 `int` / `float` 都要显式排掉 bool，

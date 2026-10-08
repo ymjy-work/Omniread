@@ -16,7 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from omniread.domain.artifacts import guard_payload
-from omniread.pipelines.evaluation.types import RetrievalScoreRecord
+from omniread.pipelines.evaluation.types import (
+    GenerationScoreRecord,
+    RetrievalScoreRecord,
+)
 
 #: 本 run 没有经过这一层。写明确的值而不是空串：空串在产物里看起来像「漏填」，
 #: 而它是确定结论——这一层没跑。
@@ -73,12 +76,14 @@ def write_eval_run_dir(
     *,
     config: EvalRunConfig,
     retrieval_records: Sequence[RetrievalScoreRecord] = (),
+    generation_records: Sequence[GenerationScoreRecord] = (),
     summary: Mapping[str, Any] | None = None,
     failures: Sequence[Mapping[str, Any]] = (),
 ) -> None:
     """写一个评测 run 的产物目录；已存在则整体重写（同一 run_id 重跑即覆盖）。
 
     只写传进来的那几类文件——空文件会让人以为「跑了但全是 0」。缺哪类就是没跑哪类。
+    两层可以只跑一层：`retrieval_records` 与 `generation_records` 各自独立落盘。
     """
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -91,11 +96,16 @@ def write_eval_run_dir(
         _write_json(run_dir / "summary.json", summary_payload)
     _write_json(run_dir / "config.json", config_payload)
 
-    if retrieval_records:
-        rows = [asdict(record) for record in retrieval_records]
+    for name, records in (
+        ("retrieval.scores.jsonl", retrieval_records),
+        ("generation.scores.jsonl", generation_records),
+    ):
+        if not records:
+            continue
+        rows = [asdict(record) for record in records]
         for row in rows:
-            guard_payload("retrieval.scores.jsonl", row)
-        _write_jsonl(run_dir / "retrieval.scores.jsonl", rows)
+            guard_payload(name, row)
+        _write_jsonl(run_dir / name, rows)
 
     # 失败清单只落 `failures.md`（M0-02 §7.1 的目录布局里没有 failures.jsonl）。
     # 逐条内容仍是「指针 + 阶段 + 指标快照」，渲染时由 `_render_failures_markdown` 限制。
@@ -123,13 +133,44 @@ def _render_summary_markdown(config: EvalRunConfig, summary: Mapping[str, Any]) 
         f"- embedding：{config.embedding_provider} / `{config.embedding_model}`"
         f"（{config.embedding_dim} 维）",
         f"- rerank：{config.rerank_provider} / `{config.rerank_model}`",
-        f"- 题目数：{summary.get('question_count', 0)}",
-        "",
     ]
+    if config.answer_provider != NOT_EXERCISED:
+        lines.append(
+            f"- 回答：{config.answer_provider} / `{config.answer_model}`"
+            f"（prompt `{config.prompt_version}`）"
+        )
+    lines.extend([f"- 题目数：{summary.get('question_count', 0)}", ""])
     if config.trust_note:
         lines.extend([f"> **可信度**：{config.trust_note}", ""])
 
-    lines.extend(["## 指标", ""])
+    if "evidence_total" in summary:
+        lines.extend(_render_retrieval_section(summary))
+    if isinstance(generation := summary.get("generation"), dict):
+        lines.extend(_render_generation_section(generation))
+        lines.extend(_render_generation_breakdown(generation))
+
+    for dimension in ("per_difficulty", "per_type", "per_level"):
+        breakdown = summary.get(dimension)
+        if not breakdown:
+            continue
+        lines.extend([f"## 按{_DIMENSION_LABEL[dimension]}分列", ""])
+        lines.append("| 分组 | 题数 | 证据总数 | evidence_recall | leak |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for key, values in breakdown.items():
+            # 缺列记 `?` 而不是崩：分母是后补的口径，早于它产出的 summary 没有这一列。
+            denominator = values.get("evidence_total")
+            lines.append(
+                f"| `{key}` | {values['questions']} | {_fmt_denominator(denominator)} "
+                f"| {fmt_ratio(values.get('evidence_recall'), denominator)} "
+                f"| {values['leak']} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _render_retrieval_section(summary: Mapping[str, Any]) -> list[str]:
+    """检索层：两个数 + 分母说明。只写计数与比率，不写任何题面或正文。"""
+    lines = ["## 指标", ""]
     evidence_denominator = summary.get("evidence_total")
     for key in ("evidence_recall", "evidence_total", "evidence_mapped", "leak"):
         if key not in summary:
@@ -155,24 +196,56 @@ def _render_summary_markdown(config: EvalRunConfig, summary: Mapping[str, Any]) 
             "",
         ]
     )
+    return lines
 
-    for dimension in ("per_difficulty", "per_type", "per_level"):
+
+def _render_generation_section(summary: Mapping[str, Any]) -> list[str]:
+    """答案层：引用越界率 + 拒答正确性。同样只写计数与比率。"""
+    denominator = summary.get("citation_in_set_denominator")
+    refusal_denominator = summary.get("refusal_denominator")
+    lines = [
+        "## 答案层",
+        "",
+        f"- `answered`：{_fmt(summary.get('answered'))} / {_fmt(summary.get('question_count'))}"
+        f"（`generation_failed` {_fmt(summary.get('generation_failed'))}）",
+        f"- `citation_in_set`：{fmt_ratio(summary.get('citation_in_set'), denominator)}"
+        f"（分母 {_fmt_denominator(denominator)} = 真答出来的题）",
+        f"- `answered_without_citation`：{_fmt(summary.get('answered_without_citation'))}",
+        f"- `citation_out_of_range_total`：{_fmt(summary.get('citation_out_of_range_total'))}"
+        f"；`citation_malformed_total`：{_fmt(summary.get('citation_malformed_total'))}",
+        f"- `refusal_correct`：{fmt_ratio(summary.get('refusal_correct'), refusal_denominator)}"
+        f"（分母 {_fmt_denominator(refusal_denominator)} 道该拒答的题）",
+        f"- `refusal_false_positive`：{_fmt(summary.get('refusal_false_positive'))}",
+        "",
+        "（`citation_in_set` 的分母**不含**拒答与生成失败的题：它们没有引用可判，"
+        "算通过会虚高、算失败又不对——所以分母单列，缩水多少一眼可见。"
+        "`answered_without_citation` 必须与 `citation_in_set` 并读：集合判定对空集天然安全，"
+        "一个从不标注引用的回答会带着 `1.0000` 通过。`refusal_false_positive` 同理，"
+        "它挡住「见谁都拒答」这个能拿满 `refusal_correct` 的退化解。）",
+        "",
+    ]
+    return lines
+
+
+def _render_generation_breakdown(summary: Mapping[str, Any]) -> list[str]:
+    """答案层的分列。检索层那套列名（证据总数 / leak）在这里没有对应量。"""
+    lines: list[str] = []
+    for dimension in ("per_difficulty", "per_type"):
         breakdown = summary.get(dimension)
         if not breakdown:
             continue
-        lines.extend([f"## 按{_DIMENSION_LABEL[dimension]}分列", ""])
-        lines.append("| 分组 | 题数 | 证据总数 | evidence_recall | leak |")
+        lines.extend([f"## 答案层 · 按{_DIMENSION_LABEL[dimension]}分列", ""])
+        lines.append("| 分组 | 题数 | answered | citation_in_set | 生成失败 |")
         lines.append("| --- | --- | --- | --- | --- |")
         for key, values in breakdown.items():
-            # 缺列记 `?` 而不是崩：分母是后补的口径，早于它产出的 summary 没有这一列。
-            denominator = values.get("evidence_total")
+            denominator = values.get("citation_in_set_denominator")
             lines.append(
-                f"| `{key}` | {values['questions']} | {_fmt_denominator(denominator)} "
-                f"| {fmt_ratio(values.get('evidence_recall'), denominator)} "
-                f"| {values['leak']} |"
+                f"| `{key}` | {values['questions']} | {values['answered']} "
+                f"| {fmt_ratio(values.get('citation_in_set'), denominator)} "
+                f"| {values['generation_failed']} |"
             )
         lines.append("")
-    return "\n".join(lines)
+    return lines
 
 
 _DIMENSION_LABEL = {

@@ -30,8 +30,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "services" / "rag" / "src"))
 
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-
+from omniread.application.query_service import AnsweringRunner  # noqa: E402
+from omniread.infrastructure.db.context import PgContextSource  # noqa: E402
 from omniread.infrastructure.db.session import create_engine_from_env  # noqa: E402
 from omniread.infrastructure.objectstore.corpus import (  # noqa: E402
     build_checksums,
@@ -42,15 +42,23 @@ from omniread.infrastructure.providers.ali import (  # noqa: E402
     AliEmbeddingAdapter,
     AliRerankAdapter,
 )
+from omniread.infrastructure.providers.base import ChatModel  # noqa: E402
 from omniread.infrastructure.providers.fake import (  # noqa: E402
+    FakeChatModel,
     FakeEmbeddingModel,
     FakeRerankModel,
 )
+from omniread.infrastructure.providers.glm import GlmChatAdapter  # noqa: E402
+from omniread.pipelines.answering import answer_prompt_version  # noqa: E402
 from omniread.pipelines.chunking import M0_PLACEHOLDER_V1  # noqa: E402
 from omniread.pipelines.evaluation import (  # noqa: E402
+    FAKE_ANSWER_TRUST_NOTE,
     FAKE_TRUST_NOTE,
+    GenerationScoreRecord,
+    RecordedRetrieval,
     fmt_ratio,
     load_golden_questions,
+    run_generation_eval,
     run_retrieval_eval,
     write_eval_run_dir,
 )
@@ -71,6 +79,7 @@ from omniread.pipelines.params import (  # noqa: E402
 from omniread.pipelines.retrieval.dense import PgVectorDenseIndex  # noqa: E402
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline  # noqa: E402
 from omniread.pipelines.retrieval.store import PgChunkStore  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 # 基线 run 的固定 id：后续 run 的回归门禁按它取基线值（M0-04 §6）。
 BASELINE_RUN_ID = "2026-09-20-m0-baseline"
@@ -117,6 +126,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=None,
         help="只跑前 N 题。用于先拿真 provider 验链路（每题 2 次请求），再放开全量",
+    )
+    parser.add_argument(
+        "--only",
+        default="",
+        help=(
+            "只跑题号含这些子串的题，逗号分隔（如 spoiler 或 alias-001,cross-002）。"
+            "用来先小批验证：答案层的拒答标记是模型行为，跑满 86 题之前先拿十几题看它认不认"
+        ),
+    )
+    parser.add_argument(
+        "--answer-layer",
+        action="store_true",
+        help=(
+            "同一个 run 里接着跑答案层（M1-2）：逐题让问答链作答，判定引用越界与"
+            "拒答正确性。每题多 1 次回答模型调用；检索结果回放上面那一遍，不再重跑"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -169,6 +194,18 @@ def build_pipeline(
     return pipeline, provider, embedder.model, reranker.model
 
 
+def build_chat(args: argparse.Namespace) -> tuple[ChatModel, str]:
+    """装配回答模型；返回 (模型, provider 名)。
+
+    跟着 `--fake-providers` 走而不是另立开关：一次 run 要么整体离线（假 embedding /
+    rerank / 回答），要么整体真实。混着来会产出一个「检索数不可信、答案数也不可信」
+    却看起来正常的 run，而 `trust_note` 只能写一句话。
+    """
+    if args.fake_providers:
+        return FakeChatModel(), "fake"
+    return GlmChatAdapter(), "glm"
+
+
 def load_mapping_lookup(runs_dir: Path, mapping_run: str) -> dict[str, str | None]:
     """读映射 run 的 `mappings.jsonl`，折成 evidence_hash → chunk_key。
 
@@ -200,6 +237,10 @@ async def main_async(args: argparse.Namespace) -> int:
     manifest_hash = str(build_checksums(corpus)["corpus_manifest_hash"])
 
     questions = load_golden_questions(args.golden_dir)
+    if needles := [part.strip() for part in args.only.split(",") if part.strip()]:
+        questions = [q for q in questions if any(n in q["id"] for n in needles)]
+        if not questions:
+            raise SystemExit(f"--only {args.only!r} 没匹配到任何题")
     if args.limit is not None:
         questions = questions[: args.limit]
     mapping_lookup = load_mapping_lookup(args.runs_dir, args.mapping_run)
@@ -231,13 +272,54 @@ async def main_async(args: argparse.Namespace) -> int:
         neighbor_expand=args.neighbor_expand,
     )
 
+    config = result.config
+    summary = dict(result.summary)
+    failures = list(result.failures)
+    generation_records: tuple[GenerationScoreRecord, ...] = ()
+    generation_summary: dict[str, object] | None = None
+
+    if args.answer_layer:
+        # 检索结果回放上面那一遍（`RecordedRetrieval`），不重跑：同一次 run 里两层
+        # 必须看同一份装配集，而 provider 那侧不保证两次采样一致。
+        chat, answer_provider = build_chat(args)
+        runner = AnsweringRunner(
+            retrieval=RecordedRetrieval(result.outcomes),
+            context=PgContextSource(sessionmaker(create_engine_from_env(), expire_on_commit=False)),
+            chat=chat,
+            answer_provider=answer_provider,
+        )
+        generation_result = await run_generation_eval(
+            questions=questions,
+            runner=runner,
+            answer_provider=answer_provider,
+            answer_model=chat.model,
+            book_id=args.book_id,
+            neighbor_expand=args.neighbor_expand,
+        )
+        generation_records = generation_result.records
+        generation_summary = generation_result.summary
+        summary["generation"] = generation_summary
+        failures.extend(generation_result.failures)
+        config = replace(
+            config,
+            kind="full",
+            phase="retrieval+generation",
+            answer_provider=answer_provider,
+            answer_model=chat.model,
+            prompt_version=answer_prompt_version(),
+            trust_note=(
+                f"{FAKE_TRUST_NOTE} {FAKE_ANSWER_TRUST_NOTE}" if args.fake_providers else ""
+            ),
+        )
+
     run_dir = args.runs_dir / args.run_id
     write_eval_run_dir(
         run_dir,
-        config=result.config,
+        config=config,
         retrieval_records=result.records,
-        summary=result.summary,
-        failures=result.failures,
+        generation_records=generation_records,
+        summary=summary,
+        failures=failures,
     )
 
     print(f"run_id   : {args.run_id}（{'假 provider' if args.fake_providers else '真实 provider'}）")
@@ -263,8 +345,34 @@ async def main_async(args: argparse.Namespace) -> int:
             f"evidence_recall {fmt_ratio(values['evidence_recall'], values['evidence_total'])} "
             f"leak {values['leak']}"
         )
+    if generation_summary is not None:
+        print()
+        print("答案层（M1-2，确定性判定，不调模型判断）：")
+        for label, key, denominator_key in (
+            ("answered", "answered", "question_count"),
+            ("citation_in_set", "citation_in_set", "citation_in_set_denominator"),
+            ("refusal_correct", "refusal_correct", "refusal_denominator"),
+        ):
+            print(
+                f"  {label:26s} "
+                f"{fmt_ratio(generation_summary[key], generation_summary[denominator_key])}"
+                f"（分母 {generation_summary[denominator_key]}）"
+            )
+        for label in (
+            "answered_without_citation",
+            "refusal_false_positive",
+            "citation_out_of_range_total",
+            "citation_malformed_total",
+            "generation_failed",
+        ):
+            print(f"  {label:26s} {generation_summary[label]}")
+        print(
+            "  （`citation_in_set` 分母不含拒答与生成失败的题；"
+            "`answered_without_citation` 必须与它并读——空集天然满足集合判定。）"
+        )
+
     print()
-    print(f"失败样本 {len(result.failures)} 条；计数 {result.summary['failure_counts']}")
+    print(f"失败样本 {len(failures)} 条；计数 {result.summary['failure_counts']}")
 
     problems = check_run_dir(run_dir)
     if problems:

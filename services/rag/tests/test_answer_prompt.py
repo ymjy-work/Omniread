@@ -18,6 +18,7 @@ from omniread.pipelines.answering import (
     prompt_version,
     read_answer_template,
 )
+from omniread.pipelines.answering.refusal import REFUSAL_MARKER
 
 PASSAGES = [
     ContextPassage(chapter_index=17, text="政近在机场对艾莉说了那番话。"),
@@ -32,7 +33,9 @@ def test_template_file_carries_the_required_disciplines() -> None:
     assert "禁止使用材料之外的任何知识" in prompt.system
     assert "[C17]" in prompt.system
     assert "不得写成 Markdown 链接" in prompt.system
-    assert "没有找到能回答这个问题的内容" in prompt.system
+    # 拒答走结构化标记，不靠模型自述那句话——话术由服务端填（M0-02 §8.3）。
+    # 标记的另一半真相源是 `refusal.REFUSAL_MARKER`，两边对不上就是口径分叉的开始。
+    assert REFUSAL_MARKER in prompt.system
 
 
 def test_prompt_version_is_the_short_hash_of_the_template_text() -> None:

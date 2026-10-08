@@ -1,7 +1,8 @@
 """回答与引用（M0-5）：prompt 组装、GLM 流式生成、`[C{chapter_index}]` 引用。
 
 引用是纯文本且服务端不改写模型输出，见 M0-01 §6.4。
-回答 prompt 全文在 `prompts/answer.md`，组装与版本规则见 `prompt.py`。
+回答 prompt 全文在 `prompts/answer.md`，组装与版本规则见 `prompt.py`；
+模型级拒答标记见 `refusal.py`。
 """
 
 from __future__ import annotations
@@ -18,9 +19,20 @@ from omniread.pipelines.answering.prompt import (
     read_answer_template,
     render_context,
 )
+from omniread.pipelines.answering.refusal import (
+    PREFIX_ANSWER,
+    PREFIX_PENDING,
+    PREFIX_REFUSAL,
+    REFUSAL_MARKER,
+    scan_prefix,
+)
 
 __all__ = [
+    "PREFIX_ANSWER",
+    "PREFIX_PENDING",
+    "PREFIX_REFUSAL",
     "PROMPT_VERSION_LENGTH",
+    "REFUSAL_MARKER",
     "AnswerPrompt",
     "ContextPassage",
     "answer_prompt_version",
@@ -30,5 +42,6 @@ __all__ = [
     "prompt_version",
     "read_answer_template",
     "render_context",
+    "scan_prefix",
 ]
 

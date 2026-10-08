@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from omniread.domain.models import QueryRequest, RealmLevel
 from omniread.pipelines.evaluation.artifacts import EvalRunConfig
@@ -31,6 +32,7 @@ from omniread.pipelines.evaluation.metrics import (
 )
 from omniread.pipelines.evaluation.types import RetrievalScoreRecord
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline
+from omniread.pipelines.retrieval.types import RetrievalOutcome
 
 _NON_QUESTION_FILES = frozenset({"schema.json", "example.json"})
 
@@ -52,6 +54,27 @@ class RetrievalEvalResult:
     records: tuple[RetrievalScoreRecord, ...]
     summary: dict[str, object]
     failures: tuple[dict[str, object], ...]
+    #: 逐题的原始结果，按请求索引。答案层接着跑时**回放这一份**，
+    #: 不再重跑一遍检索——同一次 run 里两层的输入必须是同一份装配集，
+    #: 否则 `citation_in_set` 的允许引用范围与检索层的数字来自两次采样。
+    outcomes: Mapping[QueryRequest, RetrievalOutcome] = field(default_factory=dict)
+
+
+def build_query_request(
+    question: Mapping[str, Any], *, book_id: int, neighbor_expand: bool = True
+) -> QueryRequest:
+    """把一道 Golden 题折成 `QueryRequest`。
+
+    检索层与答案层两条评测都从这里取请求，不各写一份——两边对「题面怎么变成
+    `level` / `progress` / `neighbor_expand`」的理解一旦分叉，两次 run 就不可比了。
+    """
+    return QueryRequest(
+        book_id=book_id,
+        question=question["question"],
+        level=RealmLevel(question["level"]),
+        progress=question.get("progress"),
+        neighbor_expand=neighbor_expand,
+    )
 
 
 def load_golden_questions(golden_dir: Path) -> list[dict]:
@@ -102,15 +125,13 @@ async def run_retrieval_eval(
     `docs/M1-装配瓶颈测评方案.md` 第三节）。它会随 `retrieval_params` 记进 config.json。
     """
     records: list[RetrievalScoreRecord] = []
+    outcomes: dict[QueryRequest, RetrievalOutcome] = {}
     for question in questions:
-        request = QueryRequest(
-            book_id=book_id,
-            question=question["question"],
-            level=RealmLevel(question["level"]),
-            progress=question.get("progress"),
-            neighbor_expand=neighbor_expand,
+        request = build_query_request(
+            question, book_id=book_id, neighbor_expand=neighbor_expand
         )
         outcome = await pipeline.retrieve(request)
+        outcomes[request] = outcome
         records.append(score_question(question, outcome, mapping_lookup))
 
     config = EvalRunConfig(
@@ -139,6 +160,7 @@ async def run_retrieval_eval(
         records=tuple(records),
         summary=summary,
         failures=failure_rows(records),
+        outcomes=outcomes,
     )
 
 
@@ -205,6 +227,7 @@ __all__ = [
     "FAKE_TRUST_NOTE",
     "EvalError",
     "RetrievalEvalResult",
+    "build_query_request",
     "failure_rows",
     "load_golden_questions",
     "matched_keys_from_records",

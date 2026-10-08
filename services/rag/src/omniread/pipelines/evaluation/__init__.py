@@ -11,6 +11,20 @@ from omniread.pipelines.evaluation.artifacts import (
     fmt_ratio,
     write_eval_run_dir,
 )
+from omniread.pipelines.evaluation.generation import (
+    AnswerOutcome,
+    aggregate_generation,
+    fold_answer,
+    generation_failure_rows,
+    score_answer,
+)
+from omniread.pipelines.evaluation.generation_runner import (
+    FAKE_ANSWER_TRUST_NOTE,
+    GenerationEvalResult,
+    RecordedRetrieval,
+    eval_request_id,
+    run_generation_eval,
+)
 from omniread.pipelines.evaluation.metrics import (
     aggregate,
     matched_keys_from_records,
@@ -21,24 +35,46 @@ from omniread.pipelines.evaluation.runner import (
     FAKE_TRUST_NOTE,
     EvalError,
     RetrievalEvalResult,
+    build_query_request,
     failure_rows,
     load_golden_questions,
     run_retrieval_eval,
 )
-from omniread.pipelines.evaluation.types import RetrievalScoreRecord
+from omniread.pipelines.evaluation.types import (
+    STATUS_ANSWERED,
+    STATUS_GENERATION_FAILED,
+    STATUS_INSUFFICIENT_EVIDENCE,
+    GenerationScoreRecord,
+    RetrievalScoreRecord,
+)
 
 __all__ = [
+    "FAKE_ANSWER_TRUST_NOTE",
     "FAKE_TRUST_NOTE",
+    "STATUS_ANSWERED",
+    "STATUS_GENERATION_FAILED",
+    "STATUS_INSUFFICIENT_EVIDENCE",
+    "AnswerOutcome",
     "EvalError",
     "EvalRunConfig",
+    "GenerationEvalResult",
+    "GenerationScoreRecord",
+    "RecordedRetrieval",
     "RetrievalEvalResult",
     "RetrievalScoreRecord",
     "aggregate",
+    "aggregate_generation",
+    "build_query_request",
+    "eval_request_id",
     "failure_rows",
     "fmt_ratio",
+    "fold_answer",
+    "generation_failure_rows",
     "load_golden_questions",
     "matched_keys_from_records",
+    "run_generation_eval",
     "run_retrieval_eval",
+    "score_answer",
     "score_question",
     "summarize_counts",
     "write_eval_run_dir",

@@ -18,20 +18,7 @@ from helpers import REQUEST_ID, parse_sse_frames
 from omniread.api.adapters import JsonResponseAdapter, SseResponseAdapter
 from omniread.application.query_service import REFUSAL_ANSWER, AnsweringRunner
 from omniread.domain.errors import RagProviderError, RagTimeout, RagUnavailable
-from omniread.domain.events import (
-    AnswerStatus,
-    EventName,
-    RagEvent,
-    answer_delta,
-    citation_ready,
-    context_assembled,
-    generation_started,
-    query_done,
-    query_started,
-    realm_resolved,
-    rerank_completed,
-    retrieval_completed,
-)
+from omniread.domain.events import AnswerStatus, EventName, RagEvent
 from omniread.domain.models import ContextChunk, QueryRequest, RealmLevel
 from omniread.infrastructure.providers.base import ChatChunk, ChatMessage, ChatOptions
 from omniread.infrastructure.providers.errors import (
@@ -39,13 +26,12 @@ from omniread.infrastructure.providers.errors import (
     ProviderTimeoutError,
 )
 from omniread.infrastructure.providers.fake import FakeChatModel
+from omniread.pipelines.answering import REFUSAL_MARKER
 from omniread.pipelines.assembly import AssembledChunk
 from omniread.pipelines.retrieval.query import RealmBounds
 from omniread.pipelines.retrieval.types import RetrievalOutcome, StageHit
 
 REALM = RealmBounds(lo=1, hi=193)
-USAGE = {"answer_provider": "fake", "answer_model": "fake-chat", "latency_ms": 7}
-CONTEXT_CHAPTERS = [{"chapter_index": 17, "chapter_title": "第3话 主仆逆转的释义似乎因人而异"}]
 
 
 def _key(chapter: int, index: int = 0) -> str:
@@ -304,43 +290,31 @@ async def test_refusal_in_json_route_is_200_with_fixed_answer(image_root) -> Non
     assert body["context_chapters"] == []
 
 
-class NonEmptyRefusalRunner:
-    """按 M0-02 §8.3 的「模型级拒答」形状产出事件流：有上下文但状态为拒答。
+def _model_level_refusal_case() -> AnsweringRunner:
+    """模型级拒答（M0-02 §8.3）：有上下文，但模型按模板要求以标记开头作答。
 
-    M0 不引入结构化标记，这条路径不由 `AnsweringRunner` 产生；这里只验证契约字段
-    （非空 `context_chapters`）经两个适配器原样透传。
+    `chunk_size=5` 让标记 `[INSUFFICIENT]` 必然被切成多个分片——跨块的判定是这条
+    路径最容易写错的地方（只对单块判就会漏）。
     """
-
-    async def run(self, request: QueryRequest, request_id: str) -> AsyncIterator[RagEvent]:
-        yield query_started(
-            request_id=request_id, book_id=1, level="full", progress=None
-        )
-        yield realm_resolved(lo=1, hi=193)
-        yield retrieval_completed(
-            dense_count=1, bm25_count=1, fused_count=1, fused_top=[{"chunk_key": _key(17)}]
-        )
-        yield rerank_completed(
-            input_count=1, output_count=1, ranked=[{"chunk_key": _key(17), "score": 0.9}]
-        )
-        yield context_assembled(
-            chunks=[{"chunk_key": _key(17), "chapter_index": 17, "source": "hit"}],
-            token_estimate=100,
-            dropped=[],
-        )
-        yield generation_started(
-            answer_provider="fake", answer_model="fake-chat", prompt_version="deadbeef"
-        )
-        yield answer_delta(text=REFUSAL_ANSWER)
-        yield citation_ready(context_chapters=CONTEXT_CHAPTERS)
-        yield query_done(
-            status=AnswerStatus.INSUFFICIENT_EVIDENCE,
-            context_chapters=CONTEXT_CHAPTERS,
-            usage=USAGE,
-        )
+    assembled = [_assembled(_key(17), 17)]
+    runner, _ = _runner(
+        outcome=_outcome(assembled),
+        chunks=[_context(17, _key(17))],
+        chat=FakeChatModel(answer=REFUSAL_MARKER, chunk_size=5),
+    )
+    return runner
 
 
-def test_non_empty_context_chapters_survive_refusal_encoding(image_root) -> None:
-    client: TestClient = build_client_with_runner(image_root, NonEmptyRefusalRunner())
+def test_model_level_refusal_replaces_the_answer_and_keeps_context_chapters(
+    image_root,
+) -> None:
+    """模型级拒答经两个适配器表达同一件事：固定话术 + **非空** `context_chapters`。
+
+    §8.3 正是用 `context_chapters` 空不空区分「检索为空」与「模型答不了」，
+    所以这条路径不能把章号清掉。
+    """
+    expected = [{"chapter_index": 17, "chapter_title": "第17章 标题"}]
+    client: TestClient = build_client_with_runner(image_root, _model_level_refusal_case())
 
     body = client.post(
         "/internal/v1/rag/query",
@@ -355,11 +329,84 @@ def test_non_empty_context_chapters_survive_refusal_encoding(image_root) -> None
     frames = parse_sse_frames(stream.text)
 
     assert body["status"] == "insufficient_evidence"
-    assert body["context_chapters"] == CONTEXT_CHAPTERS
+    assert body["answer"] == REFUSAL_ANSWER
+    assert body["context_chapters"] == expected
     citation = json.loads(next(data for event, data in frames if event == "citation_ready"))
     done = json.loads(next(data for event, data in frames if event == "query_done"))
-    assert citation["context_chapters"] == CONTEXT_CHAPTERS
-    assert done["context_chapters"] == CONTEXT_CHAPTERS
+    assert citation["context_chapters"] == expected
+    assert done["context_chapters"] == expected
+    # 标记本身绝不能出现在响应里：它只在服务端内部表示「这条要换成拒答话术」。
+    deltas = [json.loads(data)["text"] for event, data in frames if event == "answer_delta"]
+    assert "".join(deltas) == REFUSAL_ANSWER
+
+
+# ---- 模型级拒答标记（M1-2）------------------------------------------------
+
+
+def _marker_chat(answer: str, *, chunk_size: int = 4) -> AnsweringRunner:
+    runner, _ = _runner(
+        outcome=_outcome([_assembled(_key(17), 17)]),
+        chunks=[_context(17, _key(17))],
+        chat=FakeChatModel(answer=answer, chunk_size=chunk_size),
+    )
+    return runner
+
+
+async def _answer_text_and_status(runner: AnsweringRunner) -> tuple[str, str]:
+    events = await _events(runner)
+    done = next(event for event in events if event.name is EventName.QUERY_DONE)
+    text = "".join(
+        event.payload["text"] for event in events if event.name is EventName.ANSWER_DELTA
+    )
+    return text, done.payload["status"]
+
+
+async def test_marker_split_across_chunks_is_detected() -> None:
+    # 标记被切成 5 个分片（chunk_size=5）：判定必须能跨块拼接，只看单块会漏。
+    assert len(REFUSAL_MARKER) > 5
+
+    text, status = await _answer_text_and_status(_marker_chat(REFUSAL_MARKER, chunk_size=5))
+
+    assert status == "insufficient_evidence"
+    assert text == REFUSAL_ANSWER
+    assert REFUSAL_MARKER not in text
+
+
+async def test_marker_after_leading_whitespace_is_still_a_refusal() -> None:
+    text, status = await _answer_text_and_status(
+        _marker_chat(f"\n\n  {REFUSAL_MARKER}", chunk_size=3)
+    )
+
+    assert status == "insufficient_evidence"
+    assert text == REFUSAL_ANSWER
+
+
+async def test_marker_in_the_middle_is_not_a_refusal_and_is_not_removed() -> None:
+    # 只认开头，且不改写模型输出（M0-04 §4）：中段的标记与越界引用同一条口径，原样保留。
+    answer = f"材料里没有直接说明，[C17] 但这句提到了 {REFUSAL_MARKER} 这个词。"
+
+    text, status = await _answer_text_and_status(_marker_chat(answer, chunk_size=3))
+
+    assert status == "answered"
+    assert text == answer
+
+
+async def test_stream_ending_mid_marker_is_not_a_refusal() -> None:
+    # 模型吐了半截标记就断流：不是拒答，压着的文本必须照常吐出去（不能吞字）。
+    text, status = await _answer_text_and_status(_marker_chat("[INSUF", chunk_size=2))
+
+    assert status == "answered"
+    assert text == "[INSUF"
+
+
+async def test_non_refusal_answer_still_streams_after_the_scan_window() -> None:
+    # 判定窗口一结束就转入直通：整段回答必须逐字完整，不因为缓冲而丢字或重复。
+    answer = "政近是因为家族安排离开的 [C17]。"
+
+    text, status = await _answer_text_and_status(_marker_chat(answer, chunk_size=1))
+
+    assert status == "answered"
+    assert text == answer
 
 
 # ---- provider 故障不降级成拒答 --------------------------------------------

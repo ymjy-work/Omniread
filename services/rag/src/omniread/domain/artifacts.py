@@ -33,6 +33,7 @@ ALLOWED_RUN_FILES = frozenset(
         "summary.json",
         "summary.md",
         "retrieval.scores.jsonl",
+        "generation.scores.jsonl",
         "mappings.jsonl",
         "mapping_failures.jsonl",
         "failures.md",
