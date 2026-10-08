@@ -52,14 +52,21 @@ class RetrievalParams:
 M0_PARAMS = RetrievalParams()
 
 
-def retrieval_params_record(params: RetrievalParams = M0_PARAMS) -> dict[str, object]:
+def retrieval_params_record(
+    params: RetrievalParams = M0_PARAMS, *, neighbor_expand: bool = True
+) -> dict[str, object]:
     """写进 `rag_runs.retrieval_params` 的记录。
 
-    含 `normalizer_id`：归一化口径是全链路的一环，换口径就是换基线，
-    不记进 run 记录就没法解释两次 run 的差异。
+    两个键不在 `RetrievalParams` 里，但同样是「改了就换基线」的旋钮：
+
+    - `normalizer_id`：归一化口径是全链路的一环，换口径就是换基线；
+    - `neighbor_expand`：邻块补位开关（`QueryRequest` 的字段）。它决定最终装配集里
+      有没有邻居段——一次关掉它的实验 run 必须自证，否则它的 `config.json` 与开着的那次
+      一模一样，两次 run 的差异就无处可查。
     """
     record: dict[str, object] = asdict(params)
     record["normalizer_id"] = NORMALIZER_ID
+    record["neighbor_expand"] = neighbor_expand
     return record
 
 

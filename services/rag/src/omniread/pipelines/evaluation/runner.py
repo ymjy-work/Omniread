@@ -93,8 +93,14 @@ async def run_retrieval_eval(
     retrieval_params: Mapping[str, object],
     book_id: int = 1,
     trust_note: str = "",
+    neighbor_expand: bool = True,
 ) -> RetrievalEvalResult:
-    """逐题跑检索链并打分。题目顺序即 Golden 的 id 序，结果与顺序无关。"""
+    """逐题跑检索链并打分。题目顺序即 Golden 的 id 序，结果与顺序无关。
+
+    `neighbor_expand` 是 `QueryRequest` 的既有字段、默认开。关掉它只改装配会不会补邻块，
+    不改任何上限——用来把「邻块占用名额」与「每章上限」两种效应分开（见
+    `docs/M1-装配瓶颈测评方案.md` 第三节）。它会随 `retrieval_params` 记进 config.json。
+    """
     records: list[RetrievalScoreRecord] = []
     for question in questions:
         request = QueryRequest(
@@ -102,6 +108,7 @@ async def run_retrieval_eval(
             question=question["question"],
             level=RealmLevel(question["level"]),
             progress=question.get("progress"),
+            neighbor_expand=neighbor_expand,
         )
         outcome = await pipeline.retrieve(request)
         records.append(score_question(question, outcome, mapping_lookup))

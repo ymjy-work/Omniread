@@ -95,6 +95,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--write-db", action="store_true", help="把 run 记录写进 rag_runs")
     parser.add_argument(
+        "--no-neighbor",
+        dest="neighbor_expand",
+        action="store_false",
+        help=(
+            "关掉邻块补位（QueryRequest.neighbor_expand，默认开）。只影响装配补不补邻块，"
+            "不改任何上限；会随 retrieval_params 记进 config.json"
+        ),
+    )
+    parser.add_argument(
         "--set",
         dest="overrides",
         default="",
@@ -216,9 +225,10 @@ async def main_async(args: argparse.Namespace) -> int:
         embedding_dim=EMBEDDING_DIM,
         rerank_provider="dashscope" if provider == "ali" else "fake",
         rerank_model=rerank_model,
-        retrieval_params=retrieval_params_record(params),
+        retrieval_params=retrieval_params_record(params, neighbor_expand=args.neighbor_expand),
         book_id=args.book_id,
         trust_note=FAKE_TRUST_NOTE if args.fake_providers else "",
+        neighbor_expand=args.neighbor_expand,
     )
 
     run_dir = args.runs_dir / args.run_id
