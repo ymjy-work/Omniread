@@ -10,8 +10,13 @@ name: CI
 #
 # **不进入公共 CI 的**（M0-03 §5）：真实语料、密钥、真实模型调用。
 #
-# **这套配置从未在远端跑过**——本仓库没有 remote。它是照着 `verify-all.sh --ci` 的本地
-# 运行结果写的；首次接上远端时，版本号（JDK / Node / uv）可能要按 runner 的实际可用镜像调。
+# 远端在 GitHub Actions 上跑（公开仓库 `ymjy-work/Omniread`）。JDK 与 Node 由本文件钉住，
+# 但 **Python 由 uv 在 runner 上自选**：本机 3.13.13，runner 实际拉到 3.14.8——
+# 本地绿不代表远端绿的一处来源。
+#
+# 远端既没有 `asset/`，也没有 `eval/golden` 的题面文件（两者都不入库）。第 2 步跑的是
+# **全量** pytest，所以凡读这两条路径的新用例都必须自带 skipif：否则本地一路绿灯，
+# 远端整条 CI 变红。
 
 on:
   push:

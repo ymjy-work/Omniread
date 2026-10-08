@@ -11,6 +11,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from omniread.domain.text import evidence_hash
 from omniread.pipelines.mapping.artifacts import MappingRecord
 from omniread.pipelines.mapping.store import build_mapping_rows
@@ -18,6 +20,9 @@ from omniread.pipelines.mapping.store import build_mapping_rows
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _GOLDEN = _REPO_ROOT / "eval" / "golden"
 _SKIP = {"schema.json", "example.json"}
+# 题面文件含原著摘录、不入库，入库的只有 schema.json——所以「目录存在」不等于「题面在」，
+# 判断本机有没有 Golden 要看有没有非 _SKIP 的 json。
+_HAS_QUESTIONS = any(p.name not in _SKIP for p in _GOLDEN.glob("*.json"))
 
 CHUNKING_VERSION = "m0-placeholder-v1"
 TOKENIZER_ID = "tokenizers:test"
@@ -101,10 +106,13 @@ class TestDedupe:
         }
 
 
+@pytest.mark.skipif(not _HAS_QUESTIONS, reason="本机无 Golden 题面（题面不入库），跳过")
 class TestAgainstRealGolden:
     """用真实 Golden 钉住重复规模：357 条 evidence 只对应 347 个唯一 hash。
 
-    只读 `eval/golden`（进 git），不需要语料。
+    只读 `eval/golden` 的题面文件（不入库，仅本机与有备份的环境有），不需要语料。
+    没有题面时必须整类跳过：`_records()` 会返回空列表，下面比较去重后规模的用例会
+    以 `assert 0 == 357` 失败，而另一条唯一性用例在空输入上恒真、静默通过。
     """
 
     def _records(self) -> list[MappingRecord]:
