@@ -24,6 +24,7 @@ import argparse
 import asyncio
 import json
 import sys
+from collections.abc import Sequence
 from dataclasses import fields, replace
 from pathlib import Path
 
@@ -54,6 +55,7 @@ from omniread.pipelines.chunking import M0_PLACEHOLDER_V1  # noqa: E402
 from omniread.pipelines.evaluation import (  # noqa: E402
     FAKE_ANSWER_TRUST_NOTE,
     FAKE_TRUST_NOTE,
+    AnswerOutcome,
     GenerationScoreRecord,
     RecordedRetrieval,
     fmt_ratio,
@@ -136,6 +138,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--answers-to",
+        type=Path,
+        default=None,
+        help=(
+            "把逐题回答原文写到这个路径（jsonl）。**必须落在 run 目录之外**——"
+            "run 目录进 git，回答原文只落 temp/（M0-02 §7.1）。"
+            "人工抽检与「拒答标记没被认出来」的排查都要看它"
+        ),
+    )
+    parser.add_argument(
         "--answer-layer",
         action="store_true",
         help=(
@@ -204,6 +216,53 @@ def build_chat(args: argparse.Namespace) -> tuple[ChatModel, str]:
     if args.fake_providers:
         return FakeChatModel(), "fake"
     return GlmChatAdapter(), "glm"
+
+
+def _report_progress(index: int, total: int, question_id: str) -> None:
+    """逐题回显到 **stderr** 并立刻 flush。
+
+    两个细节都是被一次 86 题的真跑逼出来的：stdout 是最后要读的报告，进度混进去会把它
+    搅乱；而不管哪个流，**不 flush 就等于没有**——输出会攒在缓冲区里，人看到的是
+    「半小时没有任何动静」。
+    """
+    print(f"  [{index}/{total}] {question_id}", file=sys.stderr, flush=True)
+
+
+def _write_answers(
+    path: Path,
+    *,
+    runs_dir: Path,
+    questions: Sequence[dict],
+    outcomes: Sequence[AnswerOutcome],
+) -> None:
+    """把逐题回答原文写成复核件；**拒绝写进 run 目录**。
+
+    与 `attribute_eval.py` 同一道闸门：run 目录进 git，`ALLOWED_RUN_FILES` 是硬白名单，
+    回答原文一旦落进去就是整段正文入库。所以这里不靠「记得别写错」，而是直接拒绝。
+    """
+    resolved = path.resolve()
+    runs_root = runs_dir.resolve()
+    if resolved == runs_root or runs_root in resolved.parents:
+        raise SystemExit(
+            f"不能把回答原文写进 run 目录：{path}\n"
+            "  run 目录只准出现 ALLOWED_RUN_FILES 里的文件，且回答原文只落 temp/。"
+        )
+
+    rows = [
+        {
+            "question_id": str(question["id"]),
+            "status": outcome.status,
+            "context_chapters": list(outcome.chapters),
+            "answer": outcome.text,
+        }
+        for question, outcome in zip(questions, outcomes, strict=True)
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def load_mapping_lookup(runs_dir: Path, mapping_run: str) -> dict[str, str | None]:
@@ -295,11 +354,19 @@ async def main_async(args: argparse.Namespace) -> int:
             answer_model=chat.model,
             book_id=args.book_id,
             neighbor_expand=args.neighbor_expand,
+            on_progress=_report_progress,
         )
         generation_records = generation_result.records
         generation_summary = generation_result.summary
         summary["generation"] = generation_summary
         failures.extend(generation_result.failures)
+        if args.answers_to is not None:
+            _write_answers(
+                args.answers_to,
+                runs_dir=args.runs_dir,
+                questions=questions,
+                outcomes=generation_result.outcomes,
+            )
         config = replace(
             config,
             kind="full",

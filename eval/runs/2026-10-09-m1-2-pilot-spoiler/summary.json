@@ -1,0 +1,78 @@
+{
+  "evidence_mapped": 1.0,
+  "evidence_recall": 0.7297297297297297,
+  "evidence_total": 37,
+  "failure_counts": {
+    "mapped_but_dropped": 7
+  },
+  "generation": {
+    "answered": 2,
+    "answered_without_citation": 0,
+    "citation_in_set": 1.0,
+    "citation_in_set_denominator": 2,
+    "citation_malformed_total": 0,
+    "citation_out_of_range_total": 0,
+    "generation_failed": 0,
+    "per_difficulty": {
+      "hard": {
+        "answered": 0,
+        "citation_in_set": 0.0,
+        "citation_in_set_denominator": 0,
+        "generation_failed": 0,
+        "questions": 4
+      },
+      "medium": {
+        "answered": 2,
+        "citation_in_set": 1.0,
+        "citation_in_set_denominator": 2,
+        "generation_failed": 0,
+        "questions": 10
+      }
+    },
+    "per_type": {
+      "spoiler": {
+        "answered": 2,
+        "citation_in_set": 1.0,
+        "citation_in_set_denominator": 2,
+        "generation_failed": 0,
+        "questions": 14
+      }
+    },
+    "question_count": 14,
+    "refusal_correct": 0.8571428571428571,
+    "refusal_denominator": 14,
+    "refusal_false_positive": 0
+  },
+  "leak": 0,
+  "per_difficulty": {
+    "hard": {
+      "evidence_recall": 0.8181818181818182,
+      "evidence_total": 11,
+      "leak": 0,
+      "questions": 4
+    },
+    "medium": {
+      "evidence_recall": 0.6923076923076923,
+      "evidence_total": 26,
+      "leak": 0,
+      "questions": 10
+    }
+  },
+  "per_level": {
+    "past": {
+      "evidence_recall": 0.7297297297297297,
+      "evidence_total": 37,
+      "leak": 0,
+      "questions": 14
+    }
+  },
+  "per_type": {
+    "spoiler": {
+      "evidence_recall": 0.7297297297297297,
+      "evidence_total": 37,
+      "leak": 0,
+      "questions": 14
+    }
+  },
+  "question_count": 14
+}

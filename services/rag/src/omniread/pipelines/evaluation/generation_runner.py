@@ -14,13 +14,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from omniread.application.query_service import AnsweringRunner
 from omniread.domain.models import QueryRequest
 from omniread.pipelines.answering.prompt import answer_prompt_version
 from omniread.pipelines.evaluation.generation import (
+    AnswerOutcome,
     aggregate_generation,
     fold_answer,
     generation_failure_rows,
@@ -43,6 +44,10 @@ class GenerationEvalResult:
     records: tuple[GenerationScoreRecord, ...]
     summary: dict[str, object]
     failures: tuple[dict[str, object], ...]
+    #: 逐题回答原文，**只给复核件用**（`M0-02` §7.1：回答原文只落 `temp/`）。
+    #: 它不进任何逐题记录——`GenerationScoreRecord` 里没有放正文的位置是有意的。
+    #: 人工抽检与「标记没被认出来」的排查都要看它，所以留着；写盘由调用方决定。
+    outcomes: tuple[AnswerOutcome, ...] = ()
 
 
 def eval_request_id(question_id: str) -> str:
@@ -83,23 +88,35 @@ async def run_generation_eval(
     book_id: int = 1,
     neighbor_expand: bool = True,
     prompt_version: str | None = None,
+    on_progress: Callable[[int, int, str], None] | None = None,
 ) -> GenerationEvalResult:
     """逐题跑问答链并打分。题目顺序即 Golden 的 id 序，结果与顺序无关。
 
     `prompt_version` 默认取当前模板的版本；可以显式传，好让一次重算能复现当时的取值。
+
+    `on_progress(序号, 总数, question_id)` 每题的**调用前**回调一次。这里不直接 print：
+    库代码不该决定往哪写，而且 `run_eval.py` 的 stdout 是给人读的报告、进度属于 stderr。
+    加它是被一次 86 题的真跑逼出来的——那条链跑四十分钟，没有逐题回显就分不出
+    「在跑」与「吊在某个请求上」，只能去数数据库事务。
     """
     version = prompt_version or answer_prompt_version()
     records: list[GenerationScoreRecord] = []
-    for question in questions:
+    outcomes: list[AnswerOutcome] = []
+    total = len(questions)
+    for index, question in enumerate(questions, start=1):
+        if on_progress is not None:
+            on_progress(index, total, str(question["id"]))
         request = build_query_request(
             question, book_id=book_id, neighbor_expand=neighbor_expand
         )
         request_id = eval_request_id(str(question["id"]))
         events = [event async for event in runner.run(request, request_id)]
+        answer = fold_answer(events)
+        outcomes.append(answer)
         records.append(
             score_answer(
                 question,
-                fold_answer(events),
+                answer,
                 answer_provider=answer_provider,
                 answer_model=answer_model,
                 prompt_version=version,
@@ -110,6 +127,7 @@ async def run_generation_eval(
         records=tuple(records),
         summary=aggregate_generation(records),
         failures=generation_failure_rows(records),
+        outcomes=tuple(outcomes),
     )
 
 
