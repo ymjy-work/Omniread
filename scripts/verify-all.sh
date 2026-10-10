@@ -120,6 +120,30 @@ if [ "$SMOKE" -eq 1 ]; then
     else
       bad "smoke" "实测 health=$smoke_health books=$smoke_books internal=$smoke_internal；期望 200 / 401 / 200"
     fi
+
+    # 账户 CLI 走一遍：它只在手动用过时验证过，而「手动验过一次」不等于「以后还成立」。
+    # 用临时库，不碰 var/omniread.db（那是开发库，往里面塞账户会留痕）。
+    step 6b "账户 CLI：create → list → disable（临时库）"
+    admin_db="$RUN_DIR/admin-smoke.db"
+    rm -f "$admin_db" "$admin_db-wal" "$admin_db-shm"
+    admin_rc=0
+    OMNIREAD_DB_FILE="$admin_db" OMNIREAD_ADMIN_PASSWORD=smoke-only-not-a-credential \
+      bash "$ROOT/scripts/account.sh" create smoke-user > "$RUN_DIR/admin-smoke.log" 2>&1 || admin_rc=1
+    # 重复发放必须失败（它不覆盖已有账户），失败才算对。
+    OMNIREAD_DB_FILE="$admin_db" OMNIREAD_ADMIN_PASSWORD=smoke-only-not-a-credential \
+      bash "$ROOT/scripts/account.sh" create smoke-user >> "$RUN_DIR/admin-smoke.log" 2>&1 && admin_rc=2
+    OMNIREAD_DB_FILE="$admin_db" bash "$ROOT/scripts/account.sh" list >> "$RUN_DIR/admin-smoke.log" 2>&1 \
+      || admin_rc=3
+    OMNIREAD_DB_FILE="$admin_db" bash "$ROOT/scripts/account.sh" disable smoke-user >> "$RUN_DIR/admin-smoke.log" 2>&1 \
+      || admin_rc=4
+    rm -f "$admin_db" "$admin_db-wal" "$admin_db-shm"
+    case "$admin_rc" in
+      0) ok "account-cli（create 成功 / 重复发放被拒 / list 成功 / disable 成功）" ;;
+      1) bad "account-cli" "create 该成功却失败了；看 $RUN_DIR/admin-smoke.log" ;;
+      2) bad "account-cli" "重复发放同一个账户**成功了**，而它应当被拒——覆盖已有账户后症状是「口令没生效」；看 $RUN_DIR/admin-smoke.log" ;;
+      3) bad "account-cli" "list 失败了；看 $RUN_DIR/admin-smoke.log" ;;
+      4) bad "account-cli" "disable 失败了；看 $RUN_DIR/admin-smoke.log" ;;
+    esac
   else
     bad "smoke" "temp/run/rag.log 与 temp/run/backend.log；起不来的常见原因是端口被占（加 --force）"
   fi
