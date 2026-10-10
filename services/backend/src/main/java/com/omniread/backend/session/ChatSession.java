@@ -29,6 +29,8 @@ public class ChatSession {
      * 查出来的「待摘要区间」看着正常却少了内容。
      */
     private Long summaryUpto;
+    /** 这份摘要出自哪一版摘要模板；与 summary / summary_upto 同一次更新。 */
+    private String summaryPromptVersion;
     private String createdAt;
     private String lastActiveAt;
 
@@ -102,6 +104,14 @@ public class ChatSession {
 
     public void setSummaryUpto(Long summaryUpto) {
         this.summaryUpto = summaryUpto;
+    }
+
+    public String getSummaryPromptVersion() {
+        return summaryPromptVersion;
+    }
+
+    public void setSummaryPromptVersion(String summaryPromptVersion) {
+        this.summaryPromptVersion = summaryPromptVersion;
     }
 
     public String getCreatedAt() {

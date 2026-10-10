@@ -26,7 +26,7 @@ public class SchemaInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(SchemaInitializer.class);
 
     /** 代码认识的表结构版本。改了 {@code schema.sql} 就把它加一。 */
-    static final int SCHEMA_VERSION = 1;
+    static final int SCHEMA_VERSION = 2;
 
     private static final String SCHEMA_RESOURCE = "db/schema.sql";
 
@@ -56,12 +56,26 @@ public class SchemaInitializer implements ApplicationRunner {
                     "库的表结构版本（" + current + "）比代码认识的（" + SCHEMA_VERSION + "）新："
                             + "这份代码配不上这个库，换回新版本再启动");
         }
-        if (current < SCHEMA_VERSION) {
+        if (current > 0 && current < SCHEMA_VERSION) {
+            // 本项目没有迁移框架（选型见 java-依赖与选型.md §三：五张表、单实例，
+            // 引 Flyway 要多一个依赖与一套配置）。代价就落在这里：**加了列不会自己生效**，
+            // 因为 DDL 全是 CREATE TABLE IF NOT EXISTS——表已存在就整条跳过，
+            // 于是新列静默不存在，直到某次查询才报「no such column」。
+            //
+            // 所以旧版本的库直接拒绝，并把要做的事写清楚。预部署期删库重建没有代价；
+            // 等真上线了，这里就该换成真正的迁移。
+            throw new IllegalStateException(
+                    "库的表结构版本是 " + current + "，代码是 " + SCHEMA_VERSION
+                            + "：本项目没有迁移框架，改了 schema.sql 不会自动应用到旧库。"
+                            + "删掉库文件重建即可（预部署期没有需要保留的数据）："
+                            + "本机默认在 services/backend/var/omniread.db（相对进程工作目录）");
+        }
+        if (current == 0) {
             jdbcTemplate.update(
-                    "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (?, ?)",
+                    "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                     SCHEMA_VERSION,
                     Instant.now().toString());
-            log.info("表结构已就绪：版本 {} -> {}", current, SCHEMA_VERSION);
+            log.info("表结构已就绪：版本 0 -> {}", SCHEMA_VERSION);
         }
     }
 }

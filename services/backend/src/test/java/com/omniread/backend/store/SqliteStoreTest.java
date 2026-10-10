@@ -100,6 +100,30 @@ class SqliteStoreTest {
     }
 
     @Test
+    @DisplayName("库的表结构比代码旧时也拒绝——没有迁移框架，加列不会自己生效")
+    void refusesWhenDatabaseIsOlderThanCode() {
+        Integer original = jdbcTemplate.queryForObject(
+                "SELECT MAX(version) FROM schema_version", Integer.class);
+        try {
+            // 模拟一个旧库：版本记成 1，而代码认识 2。
+            jdbcTemplate.update("DELETE FROM schema_version");
+            jdbcTemplate.update(
+                    "INSERT INTO schema_version (version, applied_at) VALUES (1, ?)",
+                    Instant.now().toString());
+
+            assertThatThrownBy(() -> schemaInitializer.run(null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("没有迁移框架")
+                    .hasMessageContaining("删掉库文件重建");
+        } finally {
+            jdbcTemplate.update("DELETE FROM schema_version");
+            jdbcTemplate.update(
+                    "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                    original, Instant.now().toString());
+        }
+    }
+
+    @Test
     @DisplayName("库的表结构比代码新时拒绝继续，而不是硬跑")
     void refusesWhenDatabaseIsNewerThanCode() {
         Integer original = jdbcTemplate.queryForObject(
@@ -286,11 +310,14 @@ class SqliteStoreTest {
         ChatSession session = newSession(user.getId(), "past");
         ChatMessage first = chatMessageStore.append(session.getId(), "user", "问", 1, null);
 
-        chatSessionMapper.updateSummary(session.getId(), "这段对话在问一件事", first.getId());
+        chatSessionMapper.updateSummary(
+                session.getId(), "这段对话在问一件事", first.getId(), "summarize-deadbeef");
 
         ChatSession reloaded = chatSessionMapper.findById(session.getId());
         assertThat(reloaded.getSummary()).isEqualTo("这段对话在问一件事");
         assertThat(reloaded.getSummaryUpto()).isEqualTo(first.getId());
+        // 三样一次更新：摘要在库里长期存着，模板改过后要能分辨它出自哪一版。
+        assertThat(reloaded.getSummaryPromptVersion()).isEqualTo("summarize-deadbeef");
     }
 
     // ── 夹具 ──

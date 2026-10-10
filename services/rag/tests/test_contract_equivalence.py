@@ -15,10 +15,34 @@ from typing import Any
 import pytest
 import yaml
 
-# 仅外部契约有：进度端点在 Java 侧持久化，Python 不暴露（M0-01 §1）。
-EXTERNAL_ONLY = {"Progress", "ProgressWrite"}
-# 仅内部契约有：检索逐阶段明细只给评测 runner。
-INTERNAL_ONLY = {"RetrievalOnlyResponse", "ScoredChunks"}
+# 仅外部契约有：进度端点在 Java 侧持久化，Python 不暴露（M0-01 §1）；
+# 以及账户与会话——用户数据全在 Java 侧，Python 不感知账户（多轮会话落地方案 §一）。
+EXTERNAL_ONLY = {
+    "Progress",
+    "ProgressWrite",
+    "LoginRequest",
+    "CurrentUser",
+    # 会话管理：Python 不存会话，它只收一个消息数组。
+    "ChatMessage",
+    "ChatSessionSummary",
+    "SessionDetail",
+    "SessionList",
+    "SessionCreateRequest",
+    "ForkRequest",
+    # 共有核心 + 网关专有字段（session_id / message_id 是 Java 分配的，Python 不知道）。
+    "SessionQueryRequest",
+    "SessionQueryResponse",
+}
+# 仅内部契约有：检索逐阶段明细只给评测 runner；
+# 以及多轮上下文——history / summary 由 Java 组装好再传，外部没有这两个概念。
+INTERNAL_ONLY = {
+    "RetrievalOnlyResponse",
+    "ScoredChunks",
+    "HistoryMessage",
+    "InternalQueryRequest",
+    "SummarizeRequest",
+    "SummarizeResponse",
+}
 
 # 说明文字与文档字段不参与结构比较。
 _IGNORED_KEYS = frozenset(

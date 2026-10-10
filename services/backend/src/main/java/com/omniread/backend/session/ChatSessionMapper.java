@@ -27,7 +27,8 @@ public interface ChatSessionMapper {
     int updateSummary(
             @Param("id") String id,
             @Param("summary") String summary,
-            @Param("summaryUpto") Long summaryUpto);
+            @Param("summaryUpto") Long summaryUpto,
+            @Param("summaryPromptVersion") String summaryPromptVersion);
 
     int touch(@Param("id") String id, @Param("lastActiveAt") String lastActiveAt);
 

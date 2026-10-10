@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   forked_at_seq  INTEGER,                          -- 从父会话第几轮分叉
   summary        TEXT,
   summary_upto   INTEGER,                          -- 摘要覆盖到哪条 message.id；与 summary 同一次更新
+  -- 这份摘要出自哪一版摘要模板。摘要会长期留在会话里，模板改了之后，
+  -- 库里的老摘要得能分辨出来自哪一版——同 rag_runs.prompt_version 的口径。
+  -- 与 summary / summary_upto 同一次更新，三者的「版本」应当一致。
+  summary_prompt_version TEXT,
   created_at     TEXT NOT NULL,
   last_active_at TEXT NOT NULL
 );

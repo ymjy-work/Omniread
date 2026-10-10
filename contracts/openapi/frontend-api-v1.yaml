@@ -30,8 +30,19 @@ servers:
 
 tags:
   - name: meta
+  - name: auth
   - name: catalog
+  - name: session
   - name: rag
+
+# 全局要求登录：除下面显式写了 `security: []` 的两个操作（健康检查、登录）之外，
+# 所有操作都要带这个 cookie，未登录一律 401。
+#
+# 声明成全局而不是逐个操作写：**漏写一个就是漏一个口子**，而漏掉的那一个在契约上
+# 看起来跟别的没区别。反过来，免鉴权的操作必须显式写 `security: []`——
+# 那是一个需要解释的例外，不该是默认。
+security:
+  - sessionCookie: []
 
 paths:
   /api/v1/health:
@@ -42,6 +53,8 @@ paths:
       description: |
         只报 Java 自身存活。不探 Python、不探 provider —— 组件可用性由 M0-0 的
         环境就绪检查覆盖，健康检查不该有外部成本与抖动。
+      # 免鉴权：健康检查不鉴权：它是给运维与容器探针用的，要求登录会让「服务活着但登录坏了」变成一次探针失败。
+      security: []
       responses:
         "200":
           description: 进程存活
@@ -56,6 +69,8 @@ paths:
       operationId: listBooks
       summary: 书列表
       responses:
+        "401":
+          $ref: "#/components/responses/Error"
         "200":
           description: OK
           content:
@@ -74,6 +89,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/BookId"
       responses:
+        "401":
+          $ref: "#/components/responses/Error"
         "200":
           description: OK
           content:
@@ -92,6 +109,8 @@ paths:
         - $ref: "#/components/parameters/BookId"
         - $ref: "#/components/parameters/ChapterIndex"
       responses:
+        "401":
+          $ref: "#/components/responses/Error"
         "200":
           description: OK
           content:
@@ -120,6 +139,8 @@ paths:
           schema: { type: string }
           example: 01_第1卷/007.jpg
       responses:
+        "401":
+          $ref: "#/components/responses/Error"
         "200":
           description: 图片字节
           content:
@@ -134,10 +155,12 @@ paths:
     get:
       tags: [catalog]
       operationId: getProgress
-      summary: 读取单机阅读进度
+      summary: 读取当前账户的阅读进度
       parameters:
         - $ref: "#/components/parameters/BookId"
       responses:
+        "401":
+          $ref: "#/components/responses/Error"
         "200":
           description: OK
           content:
@@ -149,7 +172,7 @@ paths:
     put:
       tags: [catalog]
       operationId: putProgress
-      summary: 写入单机阅读进度
+      summary: 写入当前账户的阅读进度
       parameters:
         - $ref: "#/components/parameters/BookId"
       requestBody:
@@ -159,6 +182,8 @@ paths:
             schema:
               $ref: "#/components/schemas/ProgressWrite"
       responses:
+        "401":
+          $ref: "#/components/responses/Error"
         "200":
           description: OK
           content:
@@ -174,22 +199,30 @@ paths:
     post:
       tags: [rag]
       operationId: query
-      summary: 单轮问答（JSON 同步）
-      description: 供评测 runner 与脚本使用；前端走 `/api/v1/query/stream`。
+      summary: 一轮问答（JSON 同步）
+      description: 供脚本使用；前端走 `/api/v1/query/stream`。两者除编码方式外行为一致。
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/QueryRequest"
+              $ref: "#/components/schemas/SessionQueryRequest"
       responses:
         "200":
           description: 作答或拒答（两者都是正常业务结果，拒答仍为 200）
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/QueryResponse"
+                $ref: "#/components/schemas/SessionQueryResponse"
         "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
           $ref: "#/components/responses/Error"
         "502":
           $ref: "#/components/responses/Error"
@@ -202,19 +235,20 @@ paths:
     post:
       tags: [rag]
       operationId: queryStream
-      summary: 单轮问答（SSE 事件流）
+      summary: 一轮问答（SSE 事件流）
       description: |
         供前端的流式渲染。事件顺序与内部契约完全一致：
 
         ```
-        query_started → realm_resolved → retrieval_completed → rerank_completed
-        → context_assembled → generation_started → answer_delta* → citation_ready
-        → query_done | query_error
+        query_started → realm_resolved → rewrite_completed? → retrieval_completed
+        → rerank_completed → context_assembled → generation_started → answer_delta*
+        → citation_ready → query_done | query_error
         ```
 
         前端消费点：`answer_delta` 逐字上屏；`realm_resolved` /
         `retrieval_completed` / `rerank_completed` 渲染「思考 · 检索依据」面板；
-        `citation_ready` 定角标。
+        `rewrite_completed` 回显「我理解你在问的是……」；`citation_ready` 定角标。
+        `query_done` 的 `session_id` / `message_id` 同 JSON 响应（见 SessionQueryResponse）。
 
         成功终止帧 `data: [DONE]`；异常为 `event: error` + `data: {request_id, code, message}`
         后关闭连接（帧已开始发时 HTTP 状态无法再改，失败只能用终止帧表达）。
@@ -226,7 +260,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/QueryRequest"
+              $ref: "#/components/schemas/SessionQueryRequest"
       responses:
         "200":
           description: SSE 帧流
@@ -234,9 +268,242 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/EventStream"
+        # 帧开始发之前失败的是普通 HTTP 状态码，与 JSON 路径同一套。
+        # 只有「帧已经在发」之后的失败才走 `event: error` 终止帧——那时状态码已经发出去了，
+        # 改不了。所以这两个列表不是重复，是覆盖不同的时间段。
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: 登录
+      description: |
+        账户由开发者发放，**不开放注册**（`docs/m1/用户管理需求.md` §一）。
+        成功后种下会话 cookie（HttpOnly + Secure + SameSite=Strict），响应体只回账户信息，
+        **不回 token**——token 只在 cookie 里，前端拿不到也就不可能把它写进 localStorage。
+
+        失败一律 401，不区分「没有这个账户」与「口令不对」：区分开等于送一个枚举账户名的接口。
+        同一来源 IP 15 分钟内失败 5 次即锁定，返回 429。
+      # 免鉴权：登录不鉴权（显然是）：它是拿到 cookie 的那一步。这是全局 security 之外仅有的两个例外之一。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: |
+            登录成功。**会话 cookie 在这一帧的 `Set-Cookie` 里**，响应体不含 token。
+          headers:
+            Set-Cookie:
+              description: |
+                形如 `omniread_session=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=<到 expires_at 的秒数>`。
+                浏览器到期时间与库里的 `expires_at` 取同一个值——两处各算一次必然漂移，
+                而漂移的表现是「cookie 还在但服务端已经判过期」。
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: 退出
+      description: |
+        删掉服务端那一条登录会话行，并清 cookie。
+
+        **未登录时返回 401，不是「总是 204」**：`docs/m1/用户管理需求.md` §三 定的规则是
+        「未登录 `/api/v1/*` 一律 401（健康检查与登录除外）」，logout 不在例外名单里；
+        部署验收也写着「未登录请求 `/api/v1/*` 均返回 401，**逐个验证**」。
+        做成幂等的 204 会让这条规则出现一个说不清的例外，而例外是审计时的盲区。
+
+        对前端的实际影响为零：会话已过期时前端本来就要按 401 走「跳登录页」那条路，
+        而「已经登出」与「从未登录」在前端是同一个处置。
+      responses:
+        "204":
+          description: 已退出（该登录会话行已删除）
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      operationId: currentUser
+      summary: 当前账户
+      description: |
+        前端启动时用它判断登录态。**未登录返回 401**——不用 200 + null：
+        那样前端会把「没登录」与「登录了但账户信息缺字段」混成一种情况处理。
+      responses:
+        "200":
+          description: 已登录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions:
+    get:
+      tags: [session]
+      operationId: listSessions
+      summary: 我的会话列表
+      description: 只返回调用者自己的会话，按最近活跃倒序。**别人的会话不会出现在这里，也取不到**（见 `{session_id}` 的 403）。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionList"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [session]
+      operationId: createSession
+      summary: 新建会话
+      description: |
+        新会话是空的，档位在此定下并**在会话内固定**——切档位不就地改，
+        走 `POST /api/v1/sessions/{session_id}/fork`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCreateRequest"
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionSummary"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}:
+    get:
+      tags: [session]
+      operationId: getSession
+      summary: 会话详情（含消息）
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [session]
+      operationId: deleteSession
+      summary: 删除会话
+      description: 连同它的消息一起删（用户主动删自己的会话）。别人的会话删不掉，返回 403。
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: 已删除
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/fork:
+    post:
+      tags: [session]
+      operationId: forkSession
+      summary: 切档位分叉
+      description: |
+        会话内档位固定，所以切档位不是就地改而是**新建一个分叉**：
+        复制父会话截至 `at_seq` 的消息进新会话，父会话的档位与消息一律不动。
+
+        前端在用户切档位时**必须先弹确认**（既然叫分叉，就得让人知道旧会话还在），
+        确认后才调这里。
+
+        复制式而不是引用式：实现最简单，且删除时父子互不影响。
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForkRequest"
+      responses:
+        "201":
+          description: 已分叉
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionSummary"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
 
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: omniread_session
+      description: |
+        不透明登录 token 的 cookie。**HttpOnly**，所以前端读不到它——这正是要的：
+        读不到就不可能把它写进 localStorage、也不会随 XSS 被带走。
+
+        另外两个属性：`Secure`（明文 HTTP 下登录会静默失效，部署必须有 HTTPS）、
+        `SameSite=Strict`（CSRF 的第一道防线；配合「写操作要求自定义请求头」，
+        两条都在才不必引 Spring Security 全家桶）。
+
+        服务端**只存它的哈希**，原文只在这个 cookie 里；所以库被读走也拿不到能登录的凭据。
   parameters:
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema: { type: string }
     BookId:
       name: book_id
       in: path
@@ -356,8 +623,166 @@ components:
       properties:
         max_seq: { type: integer, format: int32, minimum: 1 }
 
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+
+    CurrentUser:
+      type: object
+      description: |
+        刻意不含账户 id：前端用不到，而发出去就会变成事实上的契约的一部分。
+        账户名在本系统内唯一，够用了。
+      required: [username, expires_at]
+      properties:
+        username: { type: string }
+        expires_at:
+          type: string
+          format: date-time
+          description: 登录会话的到期时刻。前端据此做本地登出与提示，不必自己算 8 小时。
+
+    SessionCreateRequest:
+      type: object
+      required: [book_id, level]
+      properties:
+        book_id: { type: integer, format: int32 }
+        level:
+          type: string
+          enum: [past, full]
+
+    ForkRequest:
+      type: object
+      required: [level]
+      properties:
+        level:
+          type: string
+          enum: [past, full]
+          description: |
+            分叉后的新档位。**必须与原会话不同**：相同即 `400` + `RAG_INVALID_REQUEST`。
+            不静默返回一个原会话的副本——那会让前端以为切档位成功了，
+            而用户看到的「新会话」其实还在旧档位上，症状是下一轮回答照旧带着旧档位的边界。
+        at_seq:
+          type: integer
+          format: int32
+          nullable: true
+          minimum: 1
+          description: |
+            复制到哪条消息为止（含）。缺省为父会话当前最后一条——即「继承到当前点」。
+
+            **服务端负责把它规整成一个合法的分叉点，不因此报错**：
+
+            - **向下对齐到最近的完整轮**——一轮是一问一答。落在 assistant 消息上就用它；
+              落在 user 消息上就退到它的前一条 assistant。半轮会让新会话以一条没有回答的
+              user 消息结尾，而下一轮再追加一条 user 时，prompt 里就出现连续两条 user，
+              模型容易被带偏。
+            - **越界夹到最大值**——比最后一轮还大就取最后一轮。前端在「一边拉取消息一边
+              点分叉」时必然偶尔算大，而那不该是一次报错。
+            - 小于 1（或缺失）由 `minimum` 与缺省值处理。
+
+            **为什么不让前端保证只传完整轮**：那要求前端知道「轮」是怎么定义的
+            （一问一答怎么配对、残缺形状怎么办），而那是服务端的排版知识；
+            把这个规则复制到前端，两边迟早分叉——分叉之后的表现是新会话凭空少一段上下文，
+            而它看起来完全正常。服务端一句话解决，前端不必懂。
+
+    ChatSessionSummary:
+      type: object
+      description: 会话的列表项。不含消息，列表不为每条会话搬运全文。
+      required: [id, book_id, title, level, created_at, last_active_at]
+      properties:
+        id: { type: string }
+        book_id: { type: integer, format: int32 }
+        title:
+          type: string
+          description: 首轮生成；还没问过时是占位标题。
+        level:
+          type: string
+          enum: [past, full]
+        forked_from:
+          type: string
+          nullable: true
+          description: 分叉来源会话 id；不是分叉则为 null。列表里当普通会话显示并标注来源，不做树形 UI。
+        created_at: { type: string, format: date-time }
+        last_active_at: { type: string, format: date-time }
+
+    RewriteOutcome:
+      type: object
+      description: |
+        一次查询改写的结果。**「跑没跑」「改没改」「改成了什么」是三件事**，
+        用一个布尔加一个可能为空的字符串表达时，「没跑」与「跑了但判定无需改动」
+        会挤在同一个取值上——那是两种不同的处置（前者要查为什么没跑，后者是正常结果）。
+
+        逐字段的取值在下面写死，不留解释空间。
+      required: [status, original, effective]
+      properties:
+        status:
+          type: string
+          enum: [rewritten, unchanged, skipped, failed]
+          description: |
+            - `rewritten` —— 改写了，`effective` 与 `original` 不同
+            - `unchanged` —— 改写跑了，模型判定原问题已能独立成句，`effective == original`
+            - `skipped`   —— **没跑**（未开启改写，或会话没有历史可供消解指代）
+            - `failed`    —— 跑了但失败（provider 故障、超时、输出不可用），已降级用原问题，
+              `effective == original`。**不静默吞掉**：降级是允许的，但要留痕
+        original:
+          type: string
+          description: 用户这一轮实际问的那句。
+        effective:
+          type: string
+          description: |
+            **实际用于检索与回答的问题**。无论哪种状态都有值，不会是空串——
+            `skipped` 与 `failed` 时它也等于 `original`，不写 null：
+            消费方只该看这一个字段来决定「拿什么去检索」，多一个「可能为 null」的
+            分叉就多一处要判的边界。
+
+    ChatMessage:
+      type: object
+      description: |
+        会话里的一条消息。**不带 meta**：那一列是内部诊断用的（改写前后、模型与 prompt 版本），
+        下发出去就会变成前端依赖的事实契约，而那三样东西随时可能变。
+      required: [id, seq, role, content, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        seq:
+          type: integer
+          format: int32
+          description: 会话内序号，从 1 起。前端用它排序与定位「从哪里重新生成」。
+        role:
+          type: string
+          enum: [user, assistant]
+        content: { type: string }
+        created_at: { type: string, format: date-time }
+
+    SessionDetail:
+      allOf:
+        - $ref: "#/components/schemas/ChatSessionSummary"
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatMessage"
+
+    SessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatSessionSummary"
+
     QueryRequest:
       type: object
+      description: |
+        两侧**共有**的那部分：问的是哪本书、问题、档位、进度、检索开关。
+
+        多轮改造之后这个 schema 不再是「请求的全部」——外部在它之上加 `session_id`
+        （网关概念），内部加 `history` / `summary`（Java 组装出来的上下文）。
+        两侧各自包一层（`SessionQueryRequest` / `InternalQueryRequest`），
+        共有的留在这里继续受 `test_contract_equivalence.py` 守。
       required: [book_id, question, level]
       properties:
         book_id: { type: integer, format: int32 }
@@ -376,20 +801,49 @@ components:
         options:
           $ref: "#/components/schemas/QueryOptions"
 
+    SessionQueryRequest:
+      description: |
+        外部专有：在共有核心上补 `session_id`。会话决定本轮带哪些历史、用哪个档位，
+        所以它是外部的必填项——缺省时由服务端猜，会让「这轮为什么没带上文」变成一件只能猜的事。
+        新建会话走 `POST /api/v1/sessions`。
+      allOf:
+        - $ref: "#/components/schemas/QueryRequest"
+        - type: object
+          required: [session_id]
+          properties:
+            session_id:
+              type: string
+              description: |
+                本轮的对话会话。
+
+                **`book_id` 与 `level` 与会话冗余，这是刻意的**：会话已经决定了这两样，
+                但请求里那一份不是摆设——它是**一致性断言**。与会话不符时返回
+                `409` + `RAG_SESSION_MISMATCH`，**不静默采用会话的值**。
+
+                为什么不用「请求里干脆不带」：那样前端会在切换会话与切换档位之间
+                悄悄串味（用户以为切了档位，实际还在旧会话的 `past` 上），
+                而串味的症状是「这轮回答怎么把后面的剧情说出来了」——一条只能靠猜的报错。
+                多带两个字段换来一次立刻可见的 409，值。
+
+                `level` 与会话不符时也应先走 `fork`：**会话内档位固定，不就地改**。
+
     QueryOptions:
       type: object
       properties:
         rewrite:
           type: boolean
-          default: false
-          description: M0 不实现模型改写，字段保留但不接模型
+          default: true
+          description: |
+            是否做查询改写。有历史时才有意义——没有历史就没有可消解的指代，
+            那种情况下 Java 会跳过这一步，不发 `rewrite_completed`。
+            关掉它只是省一次模型调用，检索与回答照常。
         neighbor_expand:
           type: boolean
           default: true
 
     QueryResponse:
       type: object
-      required: [request_id, status, answer, context_chapters, usage]
+      required: [request_id, status, answer, context_chapters, usage, rewritten_query]
       properties:
         request_id: { type: string, pattern: "^req_[0-9a-f]{32}$" }
         status:
@@ -409,6 +863,53 @@ components:
             $ref: "#/components/schemas/ContextChapter"
         usage:
           $ref: "#/components/schemas/Usage"
+        rewritten_query:
+          type: string
+          nullable: true
+          description: |
+            **实际用于检索与回答的问题**（`RewriteOutcome.effective`）。
+            前端用它做「我理解你在问的是……」的回显，原问题仍在请求里、也留在会话记录里。
+
+            取值规则写死，不留解释空间：
+
+            | 改写那一步 | 本字段 |
+            | --- | --- |
+            | `rewritten`（改了） | 改写后的问题 |
+            | `unchanged`（跑了但判定无需改动） | **等于请求里的 `question`，非 null** |
+            | `failed`（跑了但失败，已降级） | **等于请求里的 `question`，非 null** |
+            | `skipped`（没跑：未开启或无历史） | **null**，此时用请求里的 `question` |
+
+            即：**null ⟺ 改写这一步根本没跑**。回显的判据也是这个——只有非 null 且与
+            `question` 不同才值得显示「我理解你在问的是……」，否则是在复述用户刚打的字。
+
+            更细的区分（`unchanged` / `failed` / `skipped`）走 `rewrite_completed` 事件，
+            见 `RewriteOutcome`。
+
+    SessionQueryResponse:
+      description: |
+        外部专有：在共享的 `QueryResponse` 之上补两个**只有网关知道**的字段。
+
+        为什么用 `allOf` 而不是直接给 `QueryResponse` 加字段：`QueryResponse` 是两份契约
+        共有的 schema，两份必须结构一致（`test_contract_equivalence.py` 守着）。而
+        `session_id` / `message_id` 是 Java 分配的，Python 根本不知道，塞进共享 schema
+        只会让内部契约出现两个填不上的字段。所以共有的留在共有里，外部的包一层。
+
+        外部契约不参与代码生成（生成器只吃内部契约、且只出 model），所以这层包装
+        没有生成器兼容性风险。
+      allOf:
+        - $ref: "#/components/schemas/QueryResponse"
+        - type: object
+          required: [session_id, message_id]
+          properties:
+            session_id:
+              type: string
+              description: 本轮所属会话；与请求里的一致，回显出来供 SSE 消费方在末帧拿到。
+            message_id:
+              type: integer
+              format: int64
+              description: |
+                刚落库的 assistant 消息 id。前端拿它做锚点（比如「从这里重新生成」），
+                也是排查时把一次回答对回库里那一行的唯一凭据。
 
     ContextChapter:
       type: object
@@ -437,7 +938,55 @@ components:
         request_id: { type: string, pattern: "^req_[0-9a-f]{32}$" }
         code:
           type: string
-          enum: [RAG_INVALID_REALM, RAG_PROVIDER_ERROR, RAG_UNAVAILABLE, RAG_TIMEOUT]
+          description: |
+            前端只按它分支。**这套码是两侧的并集，不是每一侧都会产生全部**：
+
+            | code | 谁产生 | HTTP |
+            | --- | --- | --- |
+            | `RAG_INVALID_REALM` | 两侧 | 400 |
+            | `RAG_INVALID_REQUEST` | 仅网关 | 400 |
+            | `RAG_UNAUTHENTICATED` | 仅网关 | 401 |
+            | `RAG_FORBIDDEN` | 仅网关 | 403 |
+            | `RAG_NOT_FOUND` | 仅网关 | 404 |
+            | `RAG_SESSION_MISMATCH` | 仅网关 | 409 |
+            | `RAG_RATE_LIMITED` | 仅网关 | 429 |
+            | `RAG_DAILY_QUOTA_EXCEEDED` | 仅网关 | 429 |
+            | `RAG_CONCURRENT_QUERY` | 仅网关 | 429 |
+            | `RAG_LOGIN_LOCKED` | 仅网关 | 429 |
+            | `RAG_PROVIDER_ERROR` | 两侧 | 502 |
+            | `RAG_UNAVAILABLE` | 两侧 | 503 |
+            | `RAG_TIMEOUT` | 两侧 | 504 |
+
+            四个 429 分开而不是合成一个 `RAG_RATE_LIMITED`：它们的**处置不同**——
+            分钟限流等一下重试、日额度要等明天、并发要等上一个回答结束、登录锁要换 IP。
+            合成一个，前端就只能显示一句笼统的「太频繁」。
+
+            **为什么内部契约也列了只属于网关的码**：`ErrorBody` 是两份契约共有的 schema，
+            而 `code` 是闭枚举——枚举没法用 `allOf` 做并集（两个 enum 相交，结果是空集）。
+            要么两侧列同一套，要么把这个 schema 拆成两个。选了前者，并把「谁产生哪个」
+            写在这里——结构一致由测试守，语义差别由这张表守。
+
+            `RAG_INVALID_REALM` 与 `RAG_INVALID_REQUEST` 都是 400，分开是因为处置不同：
+            前者是「问题超出你声明的进度」，前端该提示用户改档位或改进度；
+            后者是请求本身不合法（登录体缺字段、`book_id` 不存在、分叉到同档位……），
+            前端该修自己。**其余情形一律用 `RAG_INVALID_REQUEST`，不再逐种加码**——
+            多一个码就多一条前端分支，而它们的处置完全一样。
+
+            **机器可判定的唯一字段；客户端不得字符串匹配 `message`。**
+          enum:
+            - RAG_INVALID_REALM
+            - RAG_INVALID_REQUEST
+            - RAG_UNAUTHENTICATED
+            - RAG_FORBIDDEN
+            - RAG_NOT_FOUND
+            - RAG_SESSION_MISMATCH
+            - RAG_RATE_LIMITED
+            - RAG_DAILY_QUOTA_EXCEEDED
+            - RAG_CONCURRENT_QUERY
+            - RAG_LOGIN_LOCKED
+            - RAG_PROVIDER_ERROR
+            - RAG_UNAVAILABLE
+            - RAG_TIMEOUT
         message:
           type: string
           description: 短、人类可读；不得含密钥、堆栈、文件路径、provider 原始响应体或章节正文
@@ -448,14 +997,19 @@ components:
         SSE 事件流（顺序见 operation 描述）。各事件的负载：
         - query_started: request_id, book_id, level, progress
         - realm_resolved: lo, hi
+        - rewrite_completed: status, original, effective（形状见 `RewriteOutcome`）
         - retrieval_completed: dense_count, bm25_count, fused_count, fused_top[]
         - rerank_completed: input_count, output_count, ranked[]
         - context_assembled: chunks[], token_estimate, dropped[]
         - generation_started: answer_provider, answer_model, prompt_version
         - answer_delta: text
         - citation_ready: context_chapters[]
-        - query_done: status, context_chapters, usage
+        - query_done: request_id, status, context_chapters, usage, **session_id, message_id**
         - query_error: request_id, code, message
+
+        `query_done` 比内部契约多两个字段（`session_id` / `message_id`）：那两个是 Java
+        分配的，Python 不知道它们，所以只在网关这一侧补上——与 `SessionQueryResponse`
+        多出来的是同两个字段，JSON 与 SSE 两条路径在这里必须一致。
 
         `context_assembled.chunks[]` 即**最终进入 prompt 的集合**（realm re-check
         与 token budget 均已结算），被裁项走 `dropped[]`。
@@ -465,6 +1019,7 @@ components:
           enum:
             - query_started
             - realm_resolved
+            - rewrite_completed
             - retrieval_completed
             - rerank_completed
             - context_assembled

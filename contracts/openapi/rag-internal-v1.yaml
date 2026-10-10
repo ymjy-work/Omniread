@@ -133,7 +133,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/QueryRequest"
+              $ref: "#/components/schemas/InternalQueryRequest"
       responses:
         "200":
           description: 作答或拒答（两者都是正常业务结果）
@@ -155,9 +155,11 @@ paths:
         `text/event-stream`。事件顺序：
 
         ```
-        query_started → realm_resolved → retrieval_completed → rerank_completed
-        → context_assembled → generation_started → answer_delta* → citation_ready
-        → query_done | query_error
+        query_started → realm_resolved → rewrite_completed? → retrieval_completed
+        → rerank_completed → context_assembled → generation_started → answer_delta*
+        → citation_ready → query_done | query_error
+
+        `rewrite_completed` 带问号：只在真的做了改写时才出现（见 EventStream）。
         ```
 
         成功终止帧 `data: [DONE]`；异常为 `event: error` + `data: {request_id, code, message}`
@@ -169,7 +171,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/QueryRequest"
+              $ref: "#/components/schemas/InternalQueryRequest"
       responses:
         "200":
           description: SSE 帧流
@@ -177,6 +179,40 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/EventStream"
+
+  /internal/v1/summarize:
+    post:
+      tags: [rag]
+      operationId: internalSummarize
+      summary: 会话摘要（一次独立的模型调用）
+      description: |
+        由 Java 在后台按阈值触发，**不在用户请求的链路上**——摘要慢几秒不影响等待。
+
+        Java 先判「会话消息总量 > summarize_threshold_tokens」，满足才调这里，
+        并把「`summary_upto` 之后、倒数第 `keep_recent_on_summarize` 轮之前」的消息
+        连同旧摘要一起传进来。返回后 Java 在**一个事务里**同时更新 `summary` 与 `summary_upto`；
+        失败则两个都不动，下次可重试且不会重复压缩。
+
+        摘要不计入提问轮数配额：它是阈值触发的，不是用户动作。
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SummarizeRequest"
+      responses:
+        "200":
+          description: 摘要成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SummarizeResponse"
+        "502":
+          $ref: "#/components/responses/Error"
+        "504":
+          $ref: "#/components/responses/Error"
 
   /internal/v1/rag/retrieval-only:
     post:
@@ -319,6 +355,17 @@ components:
 
     QueryRequest:
       type: object
+      description: |
+        两侧**共有**的那部分：问的是哪本书、问题、档位、进度、检索开关。
+
+        多轮改造之后这个 schema 不再是「请求的全部」——外部会在它之上加 `session_id`
+        （网关概念），内部会加 `history` / `summary`（Java 组装出来的上下文）。
+        所以两侧各自包一层（`SessionQueryRequest` / `InternalQueryRequest`），
+        共有的留在这里继续受 `test_contract_equivalence.py` 守。
+
+        **别把 `history` / `session_id` 搬进来**：前者 Python 才认、后者 Java 才认，
+        塞进共有 schema 只会让两侧各出现一个填不上的字段，而「填不上」这件事
+        在契约上是看不出来的。
       required: [book_id, question, level]
       properties:
         book_id: { type: integer, format: int32 }
@@ -337,20 +384,88 @@ components:
         options:
           $ref: "#/components/schemas/QueryOptions"
 
+    InternalQueryRequest:
+      description: |
+        内部专有：外部请求 + Java 组装出来的上下文。
+        `history` / `summary` 的裁剪规则只在 Java 一侧实现，Python 不重复判断。
+      allOf:
+        - $ref: "#/components/schemas/QueryRequest"
+        - type: object
+          properties:
+            history:
+              type: array
+              description: |
+                近轮对话原文，**不含本轮**，按时间升序。由 Java 按预算裁好再传。
+                不带时就是单轮问答，行为与 M0 一致。
+              items:
+                $ref: "#/components/schemas/HistoryMessage"
+            summary:
+              type: string
+              nullable: true
+              description: |
+                会话摘要，由 Java 维护并单独传，**不占 history 的预算**。
+                没有摘要时为 null（不要传空串：空串与「没有摘要」在 prompt 里该渲染成不同的东西）。
+
+    RewriteOutcome:
+      type: object
+      description: |
+        一次查询改写的结果。**「跑没跑」「改没改」「改成了什么」是三件事**，
+        用一个布尔加一个可能为空的字符串表达时，「没跑」与「跑了但判定无需改动」
+        会挤在同一个取值上——那是两种不同的处置（前者要查为什么没跑，后者是正常结果）。
+
+        逐字段的取值在下面写死，不留解释空间。
+      required: [status, original, effective]
+      properties:
+        status:
+          type: string
+          enum: [rewritten, unchanged, skipped, failed]
+          description: |
+            - `rewritten` —— 改写了，`effective` 与 `original` 不同
+            - `unchanged` —— 改写跑了，模型判定原问题已能独立成句，`effective == original`
+            - `skipped`   —— **没跑**（未开启改写，或会话没有历史可供消解指代）
+            - `failed`    —— 跑了但失败（provider 故障、超时、输出不可用），已降级用原问题，
+              `effective == original`。**不静默吞掉**：降级是允许的，但要留痕
+        original:
+          type: string
+          description: 用户这一轮实际问的那句。
+        effective:
+          type: string
+          description: |
+            **实际用于检索与回答的问题**。无论哪种状态都有值，不会是空串——
+            `skipped` 与 `failed` 时它也等于 `original`，不写 null：
+            消费方只该看这一个字段来决定「拿什么去检索」，多一个「可能为 null」的
+            分叉就多一处要判的边界。
+
+    HistoryMessage:
+      type: object
+      description: 一条历史消息。形状刻意比外部的 `ChatMessage` 窄——Python 不需要 id / seq。
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 8000
+
     QueryOptions:
       type: object
       properties:
         rewrite:
           type: boolean
-          default: false
-          description: M0 不实现模型改写，字段保留但不接模型
+          default: true
+          description: |
+            是否做查询改写。有历史时才有意义——没有历史就没有可消解的指代，
+            那种情况下 Java 会跳过这一步，不发 `rewrite_completed`。
+            关掉它只是省一次模型调用，检索与回答照常。
         neighbor_expand:
           type: boolean
           default: true
 
     QueryResponse:
       type: object
-      required: [request_id, status, answer, context_chapters, usage]
+      required: [request_id, status, answer, context_chapters, usage, rewritten_query]
       properties:
         request_id: { type: string, pattern: "^req_[0-9a-f]{32}$" }
         status:
@@ -369,6 +484,44 @@ components:
             $ref: "#/components/schemas/ContextChapter"
         usage:
           $ref: "#/components/schemas/Usage"
+        rewritten_query:
+          type: string
+          nullable: true
+          description: |
+            改写后的独立问题；**没有改写时为 null**（未开启、无历史、或改写失败降级）。
+            检索与回答用的是它，原问题留在调用方。字段总是存在而不只是「有改写时才有」：
+            消费方要能区分「没改写」与「字段没下发」，两者对排查是不同的事。
+
+    SummarizeRequest:
+      type: object
+      description: |
+        `messages` 是**待压缩的那一段**，不是整个会话——Java 已经按 `summary_upto` 与
+        `keep_recent_on_summarize` 划好了区间。Python 不判断区间，只做压缩。
+      required: [messages]
+      properties:
+        previous_summary:
+          type: string
+          nullable: true
+          description: 上一次的摘要；首次摘要时为 null。新摘要要把它一起吸收进去。
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/HistoryMessage"
+
+    SummarizeResponse:
+      type: object
+      required: [summary, prompt_version]
+      properties:
+        summary:
+          type: string
+          minLength: 1
+        prompt_version:
+          type: string
+          description: |
+            摘要模板内容的 sha256 短串，随模板自动变化。带上它是为了让 Java 能记下
+            「这份摘要是哪版模板产的」——摘要会长期留在会话里，模板改了之后，
+            库里的老摘要得能分辨出来自哪一版（同 `rag_runs.prompt_version` 的口径）。
 
     ContextChapter:
       type: object
@@ -395,8 +548,55 @@ components:
         request_id: { type: string, pattern: "^req_[0-9a-f]{32}$" }
         code:
           type: string
-          enum: [RAG_INVALID_REALM, RAG_PROVIDER_ERROR, RAG_UNAVAILABLE, RAG_TIMEOUT]
-          description: 机器可判定的唯一字段；客户端不得字符串匹配 message
+          description: |
+            前端只按它分支。**这套码是两侧的并集，不是每一侧都会产生全部**：
+
+            | code | 谁产生 | HTTP |
+            | --- | --- | --- |
+            | `RAG_INVALID_REALM` | 两侧 | 400 |
+            | `RAG_INVALID_REQUEST` | 仅网关 | 400 |
+            | `RAG_UNAUTHENTICATED` | 仅网关 | 401 |
+            | `RAG_FORBIDDEN` | 仅网关 | 403 |
+            | `RAG_NOT_FOUND` | 仅网关 | 404 |
+            | `RAG_SESSION_MISMATCH` | 仅网关 | 409 |
+            | `RAG_RATE_LIMITED` | 仅网关 | 429 |
+            | `RAG_DAILY_QUOTA_EXCEEDED` | 仅网关 | 429 |
+            | `RAG_CONCURRENT_QUERY` | 仅网关 | 429 |
+            | `RAG_LOGIN_LOCKED` | 仅网关 | 429 |
+            | `RAG_PROVIDER_ERROR` | 两侧 | 502 |
+            | `RAG_UNAVAILABLE` | 两侧 | 503 |
+            | `RAG_TIMEOUT` | 两侧 | 504 |
+
+            四个 429 分开而不是合成一个 `RAG_RATE_LIMITED`：它们的**处置不同**——
+            分钟限流等一下重试、日额度要等明天、并发要等上一个回答结束、登录锁要换 IP。
+            合成一个，前端就只能显示一句笼统的「太频繁」。
+
+            **为什么内部契约也列了只属于网关的码**：`ErrorBody` 是两份契约共有的 schema，
+            而 `code` 是闭枚举——枚举没法用 `allOf` 做并集（两个 enum 相交，结果是空集）。
+            要么两侧列同一套，要么把这个 schema 拆成两个。选了前者，并把「谁产生哪个」
+            写在这里——结构一致由测试守，语义差别由这张表守。
+
+            `RAG_INVALID_REALM` 与 `RAG_INVALID_REQUEST` 都是 400，分开是因为处置不同：
+            前者是「问题超出你声明的进度」，前端该提示用户改档位或改进度；
+            后者是请求本身不合法（登录体缺字段、`book_id` 不存在、分叉到同档位……），
+            前端该修自己。**其余情形一律用 `RAG_INVALID_REQUEST`，不再逐种加码**——
+            多一个码就多一条前端分支，而它们的处置完全一样。
+
+            **机器可判定的唯一字段；客户端不得字符串匹配 `message`。**
+          enum:
+            - RAG_INVALID_REALM
+            - RAG_INVALID_REQUEST
+            - RAG_UNAUTHENTICATED
+            - RAG_FORBIDDEN
+            - RAG_NOT_FOUND
+            - RAG_SESSION_MISMATCH
+            - RAG_RATE_LIMITED
+            - RAG_DAILY_QUOTA_EXCEEDED
+            - RAG_CONCURRENT_QUERY
+            - RAG_LOGIN_LOCKED
+            - RAG_PROVIDER_ERROR
+            - RAG_UNAVAILABLE
+            - RAG_TIMEOUT
         message:
           type: string
           description: 短、人类可读；不得含密钥、堆栈、文件路径、provider 原始响应体或章节正文
@@ -407,6 +607,7 @@ components:
         SSE 事件流（顺序见 operation 描述）。各事件的负载见下：
         - query_started: request_id, book_id, level, progress
         - realm_resolved: lo, hi
+        - rewrite_completed: status, original, effective（形状见 `RewriteOutcome`）
         - retrieval_completed: dense_count, bm25_count, fused_count, fused_top[]
         - rerank_completed: input_count, output_count, ranked[]
         - context_assembled: chunks[], token_estimate, dropped[]
@@ -416,6 +617,11 @@ components:
         - query_done: status, context_chapters, usage
         - query_error: request_id, code, message
 
+        `rewrite_completed` 的发送规则：**有帧 ⟺ 改写这一步真的跑了**。
+        `status=skipped`（未开启改写、或会话没有历史可消解指代）不发帧；
+        `rewritten` / `unchanged` / `failed` 都发——**包括 `failed`**，
+        它是「跑了但降级」，与「没跑」是两件事，静默降级会让改写坏了很久都没人知道。
+
         `context_assembled.chunks[]` 即**最终进入 prompt 的集合**（realm re-check
         与 token budget 均已结算），被裁项走 `dropped[]`。
       properties:
@@ -424,6 +630,7 @@ components:
           enum:
             - query_started
             - realm_resolved
+            - rewrite_completed
             - retrieval_completed
             - rerank_completed
             - context_assembled

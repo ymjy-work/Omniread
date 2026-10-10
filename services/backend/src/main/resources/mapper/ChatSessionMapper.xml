@@ -5,9 +5,11 @@
 
   <insert id="insert">
     INSERT INTO chat_sessions (id, user_id, book_id, title, level, forked_from, forked_at_seq,
-                               summary, summary_upto, created_at, last_active_at)
+                               summary, summary_upto, summary_prompt_version,
+                               created_at, last_active_at)
     VALUES (#{id}, #{userId}, #{bookId}, #{title}, #{level}, #{forkedFrom}, #{forkedAtSeq},
-            #{summary}, #{summaryUpto}, #{createdAt}, #{lastActiveAt})
+            #{summary}, #{summaryUpto}, #{summaryPromptVersion},
+            #{createdAt}, #{lastActiveAt})
   </insert>
 
   <select id="findById" resultType="com.omniread.backend.session.ChatSession">
@@ -26,7 +28,9 @@
   <!-- summary 与 summary_upto 同一条 UPDATE：分开写会让下次摘要重复或漏段。 -->
   <update id="updateSummary">
     UPDATE chat_sessions
-    SET summary = #{summary}, summary_upto = #{summaryUpto}
+    SET summary = #{summary},
+        summary_upto = #{summaryUpto},
+        summary_prompt_version = #{summaryPromptVersion}
     WHERE id = #{id}
   </update>
 
