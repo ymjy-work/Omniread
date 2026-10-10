@@ -24,6 +24,13 @@ omniread:
     # 账户 / 会话 / 进度 / 配额都落这一个 SQLite 文件（多轮会话落地方案 §一）。
     # 连接参数（WAL / busy_timeout / foreign_keys）由 StoreConfig 拼进 URL，不在这里。
     file: ${OMNIREAD_DB_FILE:var/omniread.db}
+  auth:
+    # 登录 cookie 的 Secure 属性（docs/m1/用户管理需求.md §三）。默认开，缺省即安全：
+    # 只有在本机用 http 调试、且浏览器不把 localhost 当可信来源时才关，
+    # 而关掉之后 cookie 走明文，**不能进部署环境**。cookie 名不在这里——它由契约钉死。
+    cookie-secure: ${OMNIREAD_AUTH_COOKIE_SECURE:true}
+    # 登录态有效期；方案定的是 8 小时，到点重新登录（不做滑动续期）。
+    session-ttl: ${OMNIREAD_AUTH_TTL:8h}
   progress:
     # 旧的单机单份进度文件。**已由 user_progress 表取代**，保留配置只是为了迁移期
     # 还能读到旧值；多账户下这份文件会被共享，不能再用。

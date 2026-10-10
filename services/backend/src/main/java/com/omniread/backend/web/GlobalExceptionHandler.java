@@ -31,12 +31,22 @@ public class GlobalExceptionHandler {
         return errorBody(failure.code(), failure.httpStatus(), failure.getMessage(), request);
     }
 
-    /** 入参非法一律 RAG_INVALID_REALM / 400：契约只有这一个 400 码。 */
+    /**
+     * 请求体 / 参数不符合形状（缺字段、类型不对、超长）一律 RAG_INVALID_REQUEST / 400。
+     *
+     * 这些是「前端该修自己」那一类：请求根本没描述清楚要做什么。RAG_INVALID_REALM 留给
+     * 另一种 400 —— 「问题超出你声明的进度」，它的处置是提示用户改档位或改进度。
+     * 两者同为 400，而前端只按 code 分支，混在一起就分不出该提示谁。
+     *
+     * 边界值（如进度 0 与 194）**不走这里**：它们由 {@code RealmValidator} 统一判，
+     * 免得同一个字段的上下界各返回一个码。
+     */
     @ExceptionHandler({MethodArgumentNotValidException.class, HandlerMethodValidationException.class,
             ConstraintViolationException.class, HttpMessageNotReadableException.class,
             MissingRequestValueException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ErrorBody> handleInvalidInput(Exception failure, HttpServletRequest request) {
-        return errorBody(ErrorCode.RAG_INVALID_REALM, ErrorCode.RAG_INVALID_REALM.httpStatus(), describe(failure), request);
+        return errorBody(
+                ErrorCode.RAG_INVALID_REQUEST, ErrorCode.RAG_INVALID_REQUEST.httpStatus(), describe(failure), request);
     }
 
     private String describe(Exception failure) {

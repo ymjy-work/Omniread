@@ -1,5 +1,6 @@
 package com.omniread.backend.config;
 
+import com.omniread.backend.web.AuthInterceptor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,13 +10,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
 
 /**
- * 前端静态资源托管。
+ * 前端静态资源托管 + 登录门的注册点。
  *
  * 前端与后端同源，所以没有 CORS 配置：构建产物由本进程直接发。
  * 前端数据一律经 /api/v1，静态资源不参与任何转发。
@@ -32,9 +34,28 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final Path dist;
 
-    public WebMvcConfig(@Value("${omniread.web.dist-dir}") String distDir) {
+    private final AuthInterceptor authInterceptor;
+
+    public WebMvcConfig(
+            @Value("${omniread.web.dist-dir}") String distDir, AuthInterceptor authInterceptor) {
         this.distDir = distDir;
         this.dist = resolveDistDir(distDir);
+        this.authInterceptor = authInterceptor;
+    }
+
+    /**
+     * 登录门挂在 `/api/v1/**` 上，例外只有两个：健康检查（存活探针不该要凭据，
+     * 否则「服务活着但没人能登」与「服务死了」在监控上长得一样）与登录本身
+     * （它是拿到 cookie 的那一步）。
+     *
+     * <p>**例外集中写在这里**，不散到控制器上：一眼能看全「哪些路径不需要登录」，
+     * 新加路径时也不会因为忘了挂而漏出一个入口。
+     */
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(authInterceptor)
+                .addPathPatterns("/api/v1/**")
+                .excludePathPatterns("/api/v1/health", "/api/v1/auth/login");
     }
 
     @Override

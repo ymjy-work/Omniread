@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,12 +17,27 @@ import org.springframework.http.HttpStatus;
 class ErrorCodeTest {
 
     @Test
-    @DisplayName("四个 code 各自的 HTTP 状态：400 / 502 / 503 / 504")
+    @DisplayName("每个 code 的 HTTP 状态：同码同状态，四个 429 不合成一个")
     void httpStatusMapping() {
         assertThat(ErrorCode.RAG_INVALID_REALM.httpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ErrorCode.RAG_INVALID_REQUEST.httpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ErrorCode.RAG_UNAUTHENTICATED.httpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(ErrorCode.RAG_FORBIDDEN.httpStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(ErrorCode.RAG_NOT_FOUND.httpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(ErrorCode.RAG_SESSION_MISMATCH.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.RAG_PROVIDER_ERROR.httpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
         assertThat(ErrorCode.RAG_UNAVAILABLE.httpStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(ErrorCode.RAG_TIMEOUT.httpStatus()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+
+        // 四个 429 是同一状态、不同处置：分钟限流等一下、日额度等明天、并发等上一个回答结束、
+        // 登录锁换 IP。前端按 code 分支，所以它们必须是四个不同的码。
+        assertThat(List.of(
+                        ErrorCode.RAG_RATE_LIMITED,
+                        ErrorCode.RAG_DAILY_QUOTA_EXCEEDED,
+                        ErrorCode.RAG_CONCURRENT_QUERY,
+                        ErrorCode.RAG_LOGIN_LOCKED))
+                .allSatisfy(code -> assertThat(code.httpStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS))
+                .doesNotHaveDuplicates();
     }
 
     @Test

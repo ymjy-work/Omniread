@@ -141,3 +141,20 @@ def test_shared_schema_is_structurally_equivalent(name: str) -> None:
 def test_single_sided_schemas_match_registered_lists() -> None:
     assert set(EXTERNAL_SCHEMAS) - set(INTERNAL_SCHEMAS) == EXTERNAL_ONLY
     assert set(INTERNAL_SCHEMAS) - set(EXTERNAL_SCHEMAS) == INTERNAL_ONLY
+
+
+def test_produced_error_codes_are_declared_in_the_contract() -> None:
+    """本服务发得出的 `code` 必须都在契约的闭枚举里。
+
+    契约是唯一真相源，两侧列的是同一套并集。多出一个契约没有的码**不会当场报错**：
+    `error_from_wire` 对未知 code 一律降级成不可用（那是给对端越界用的防御），
+    所以症状是某条错误路径上悄悄返回了契约外的 code，而不是一条失败的测试。
+    Java 那一侧有对称的一条（`ErrorCodeContractTest`）。
+    """
+    from omniread.domain.errors import ErrorCode
+
+    declared = set(INTERNAL_SCHEMAS["ErrorBody"]["properties"]["code"]["enum"])
+    produced = {code.value for code in ErrorCode}
+    undeclared = sorted(produced - declared)
+
+    assert not undeclared, f"契约的 ErrorBody.code 里没有这些码：{undeclared}"

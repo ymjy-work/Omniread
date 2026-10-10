@@ -106,11 +106,20 @@ if [ "$SMOKE" -eq 1 ]; then
   if bash "$ROOT/scripts/dev-up.sh" --no-infra --local-images; then
     sleep 1
     echo "  --- 探活 ---"
-    curl -s -o /dev/null -w '  GET /api/v1/health -> %{http_code}\n' http://127.0.0.1:8080/api/v1/health
-    curl -s -o /dev/null -w '  GET /api/v1/books  -> %{http_code}\n' http://127.0.0.1:8080/api/v1/books
-    curl -s -o /dev/null -w '  GET /internal/v1/health -> %{http_code}\n' http://127.0.0.1:8000/internal/v1/health
+    # 三个码都收下来再判，而不是把期望写进 ok 的文案里：文案说 200 而实测 401 时，
+    # 那一步照样会绿——一条只打印不断言的「断言」比没有更容易骗人。
+    smoke_health=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/health)
+    smoke_books=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/books)
+    smoke_internal=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/internal/v1/health)
+    echo "  GET /api/v1/health      -> $smoke_health"
+    echo "  GET /api/v1/books       -> $smoke_books（未登录，应当是 401）"
+    echo "  GET /internal/v1/health -> $smoke_internal"
     bash "$ROOT/scripts/dev-down.sh"
-    ok "smoke（断言：health=200 / books=200 / 内部 health=200）"
+    if [ "$smoke_health" = "200" ] && [ "$smoke_books" = "401" ] && [ "$smoke_internal" = "200" ]; then
+      ok "smoke（断言：health=200 / 未登录的 books=401 / 内部 health=200）"
+    else
+      bad "smoke" "实测 health=$smoke_health books=$smoke_books internal=$smoke_internal；期望 200 / 401 / 200"
+    fi
   else
     bad "smoke" "temp/run/rag.log 与 temp/run/backend.log；起不来的常见原因是端口被占（加 --force）"
   fi

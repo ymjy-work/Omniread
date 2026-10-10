@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   title          TEXT NOT NULL,                    -- 首轮生成
   level          TEXT NOT NULL DEFAULT 'past',     -- **会话内固定**：切档位走分叉，不就地改
   forked_from    TEXT REFERENCES chat_sessions(id) ON DELETE SET NULL,
-  forked_at_seq  INTEGER,                          -- 从父会话第几轮分叉
+  -- 从父会话复制到哪条消息为止：存的是**消息 seq，不是轮号**。
+  -- 外部契约的 ForkRequest.at_seq 就是这个口径（「复制到哪条消息为止（含）」）。
+  -- 写成轮号也能自洽，但两者只差一个数，拿错了不会报错——只会让分叉少带一段上下文。
+  forked_at_seq  INTEGER,
   summary        TEXT,
   summary_upto   INTEGER,                          -- 摘要覆盖到哪条 message.id；与 summary 同一次更新
   -- 这份摘要出自哪一版摘要模板。摘要会长期留在会话里，模板改了之后，

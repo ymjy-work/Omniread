@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.DatabasePopulatorUtils;
@@ -19,8 +21,13 @@ import org.springframework.stereotype.Component;
  * {@code CREATE TABLE IF NOT EXISTS} 够用。代价是**表结构的变更要靠人记住改 {@code schema.sql}**，
  * 所以这里加一道反向闸门：**库里的版本比代码新就拒绝启动**——那是「代码比库旧」，
  * 继续跑只会以难以定位的方式写坏数据，不如当场停下。
+ *
+ * <p>**建表必须是第一个 {@code ApplicationRunner}**：后面任何一个在启动阶段查库的组件
+ * 都排在它之后才行。平级的 runner 之间没有顺序保证，实测踩过一次——清理登录会话的组件
+ * 先跑，报的是 `no such table: auth_sessions`，看起来像 mapper 的 namespace 写错了。
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class SchemaInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SchemaInitializer.class);
