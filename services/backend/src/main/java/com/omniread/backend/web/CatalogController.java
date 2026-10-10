@@ -6,9 +6,10 @@ import com.omniread.backend.contract.model.ChapterList;
 import com.omniread.backend.gateway.RagGatewayClient;
 import com.omniread.backend.gateway.RagStream;
 import com.omniread.backend.orchestration.BookCatalog;
-import com.omniread.backend.progress.FileProgressStore;
 import com.omniread.backend.progress.Progress;
 import com.omniread.backend.progress.ProgressWrite;
+import com.omniread.backend.progress.UserProgressStore;
+import com.omniread.backend.user.AuthenticatedUser;
 import com.omniread.backend.validation.RealmValidator;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -17,14 +18,16 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 书目录来自 Python，阅读进度落在 Java 本地文件（M0-01 §1：Python 不保存用户进度）。
+ * 书目录来自 Python；阅读进度按账户落在 Java 的 SQLite 里（M0-01 §1：Python 不保存用户进度）。
  *
  * 目录端点只做协议转发；进度端点是真正的读写，边界校验留在这一层。
+ * 进度**必须带账户**：它是「读到哪」这件事的一部分，缺了 user_id 就退化成所有人共享一份。
  */
 @RestController
 @RequestMapping("/api/v1/books")
@@ -32,9 +35,9 @@ public class CatalogController {
 
     private final RagGatewayClient gateway;
     private final BookCatalog bookCatalog;
-    private final FileProgressStore progressStore;
+    private final UserProgressStore progressStore;
 
-    public CatalogController(RagGatewayClient gateway, BookCatalog bookCatalog, FileProgressStore progressStore) {
+    public CatalogController(RagGatewayClient gateway, BookCatalog bookCatalog, UserProgressStore progressStore) {
         this.gateway = gateway;
         this.bookCatalog = bookCatalog;
         this.progressStore = progressStore;
@@ -77,14 +80,18 @@ public class CatalogController {
     }
 
     @GetMapping("/{bookId}/progress")
-    public Progress getProgress(@PathVariable int bookId) {
-        return progressStore.read(bookId);
+    public Progress getProgress(
+            @PathVariable int bookId, @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
+        return progressStore.read(user.id(), bookId);
     }
 
     @PutMapping("/{bookId}/progress")
-    public Progress putProgress(@PathVariable int bookId, @RequestBody @Valid ProgressWrite body) {
+    public Progress putProgress(
+            @PathVariable int bookId,
+            @RequestBody @Valid ProgressWrite body,
+            @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
         // 越界与否取决于该书的 chapter_count，只能由 Java 判（M0-01 §7）。
         RealmValidator.validateProgress(body.maxSeq(), bookCatalog.chapterCount(bookId));
-        return progressStore.write(bookId, body.maxSeq());
+        return progressStore.write(user.id(), bookId, body.maxSeq());
     }
 }

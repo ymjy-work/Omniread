@@ -1,8 +1,10 @@
 package com.omniread.backend.user;
 
 /**
- * 「某账户读到某本书第几章」。替换原来的单份 `var/progress.json`——那份是单机单份，
- * 多账户会共享（`docs/m1/deploy-plan.md` §三.5）。
+ * 「某账户读到某本书第几章」。
+ *
+ * <p>**必须带 `user_id`**：不带的话所有人共享一份「读到哪」，一个人翻到第 100 章、
+ * 另一个人刷新就跟着变，而两边都不会报错。
  *
  * <p>复合主键 `(user_id, book_id)`，没有自增列。
  */

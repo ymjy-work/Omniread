@@ -31,10 +31,6 @@ omniread:
     cookie-secure: ${OMNIREAD_AUTH_COOKIE_SECURE:true}
     # 登录态有效期；方案定的是 8 小时，到点重新登录（不做滑动续期）。
     session-ttl: ${OMNIREAD_AUTH_TTL:8h}
-  progress:
-    # 旧的单机单份进度文件。**已由 user_progress 表取代**，保留配置只是为了迁移期
-    # 还能读到旧值；多账户下这份文件会被共享，不能再用。
-    file: ${OMNIREAD_PROGRESS_FILE:var/progress.json}
   rag:
     # Python RAG 服务地址。Java 是唯一调用方，前端不直连（M0-00 §4）。
     base-url: ${OMNIREAD_RAG_BASE_URL:http://127.0.0.1:8000}

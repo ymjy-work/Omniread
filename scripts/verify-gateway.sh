@@ -23,7 +23,6 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$ROOT/temp/gateway-e2e"
 IMAGES_ROOT="$RUN_DIR/images"
-PROGRESS_FILE="$RUN_DIR/progress.json"
 JAR="$ROOT/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar"
 RAG_PY_DIR="$ROOT/services/rag"
 # uv 优先走 PATH；本机装了 uv 但不在 PATH 时回落到 WinGet 安装目录。
@@ -149,7 +148,6 @@ start_java() {
     cd "$ROOT" && exec env \
       OMNIREAD_RAG_BASE_URL="http://127.0.0.1:8000" \
       OMNIREAD_WEB_DIST="web/dist" \
-      OMNIREAD_PROGRESS_FILE="$PROGRESS_FILE" \
       java -jar "$JAR"
   ) > "$RUN_DIR/logs/backend.log" 2>&1 &
   echo $! > "$RUN_DIR/logs/backend.pid"

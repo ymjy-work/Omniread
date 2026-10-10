@@ -4,7 +4,7 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-/** 按账户的阅读进度。替换原来那份单机单份的 `var/progress.json`。 */
+/** 按账户的阅读进度：一个账户一本书一行。 */
 @Mapper
 public interface UserProgressMapper {
 

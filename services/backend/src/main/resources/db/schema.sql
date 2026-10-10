@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   last_seen_at TEXT
 );
 
--- 替换原来的单份 var/progress.json（单机单份，多账户会共享，见 deploy-plan §三.5）。
+-- 按账户的阅读进度：一个账户一本书一行。不带 user_id 的话所有人共享一份「读到哪」，
+-- 一个人翻页另一个人跟着变，而两边都不会报错。
 CREATE TABLE IF NOT EXISTS user_progress (
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   book_id  INTEGER NOT NULL,
