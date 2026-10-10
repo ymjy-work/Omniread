@@ -12,7 +12,9 @@ package com.omniread.backend.session;
  */
 public class ChatMessage {
 
+    /** 消息的两个角色，与契约的 `role` 枚举逐字一致（库里存的就是这两个字符串）。 */
     public static final String ROLE_USER = "user";
+
     public static final String ROLE_ASSISTANT = "assistant";
 
     private Long id;

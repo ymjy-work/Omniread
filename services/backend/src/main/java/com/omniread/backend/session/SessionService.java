@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 对话会话的增删查。**每个入口都带 `userId`**，没有「不带账户」的重载——
@@ -84,6 +85,98 @@ public class SessionService {
     public void delete(long userId, String sessionId) {
         requireOwned(userId, sessionId);
         sessionMapper.deleteForUser(sessionId, userId);
+    }
+
+    /**
+     * 切档位分叉：新建一个会话，**复制**父会话截至 `atSeq` 的消息进去。
+     *
+     * <p>复制式而不是引用式：实现最简单，且删除时父子互不影响（引用式要么级联删掉父，
+     * 要么留下悬空引用）。
+     *
+     * <p>父会话的档位与消息**一律不动**——用户看到的是「新开了一条」，原会话还在列表里。
+     * 档位必须与原会话不同：相同即 400，不静默返回一个副本。后端悄悄接受的话，前端会以为
+     * 切档位成功了，而用户看到的「新会话」其实还在旧档位上，症状是下一轮回答照旧带着旧边界。
+     */
+    @Transactional
+    public ChatSessionSummary fork(long userId, String parentId, String newLevel, Integer atSeq) {
+        ChatSession parent = requireOwned(userId, parentId);
+        if (parent.getLevel().equals(newLevel)) {
+            throw new RagException(
+                    ErrorCode.RAG_INVALID_REQUEST,
+                    "分叉后的档位必须与原会话不同（原会话已是 " + newLevel + "）");
+        }
+
+        List<ChatMessage> history = messageMapper.findBySession(parentId);
+        int forkAtSeq = alignToCompleteTurn(history, atSeq);
+
+        Instant now = Instant.now();
+        ChatSession fork = new ChatSession();
+        fork.setId(UUID.randomUUID().toString());
+        fork.setUserId(userId);
+        fork.setBookId(parent.getBookId());
+        // 标题跟着父会话走：它是由首轮生成的那句话概括的，而首轮一定被复制进来了。
+        fork.setTitle(parent.getTitle());
+        fork.setLevel(newLevel);
+        fork.setForkedFrom(parentId);
+        fork.setForkedAtSeq(forkAtSeq);
+        fork.setCreatedAt(now.toString());
+        fork.setLastActiveAt(now.toString());
+        sessionMapper.insert(fork);
+
+        copyMessagesUpTo(history, fork.getId(), forkAtSeq);
+        return ChatSessionSummary.of(fork);
+    }
+
+    /**
+     * 把 `atSeq` 规整成一个**合法的分叉点**（含），规整而不是报错。
+     *
+     * <p>- 缺省（null）取最后一条；- 比最后一条还大就夹到最大值；- 落在 `user` 消息上
+     * 就退到它前一条 `assistant`（半轮会让新会话以一条没有回答的 user 结尾，
+     * 而下一轮再追加一条 user 时 prompt 里就出现连续两条 user，模型容易被带偏）；
+     * - 前面没有 `assistant` 就退到 0（复制 0 条，得到一个空会话）。
+     *
+     * <p>纯函数，输入按 `seq` 升序（`findBySession` 就是这么返回的），所以它能单测。
+     */
+    static int alignToCompleteTurn(List<ChatMessage> history, Integer atSeq) {
+        if (history.isEmpty()) {
+            return 0;
+        }
+        int lastSeq = history.get(history.size() - 1).getSeq();
+        int candidate = atSeq == null ? lastSeq : Math.min(atSeq, lastSeq);
+        // 从后往前：跨过比 candidate 靠后的，停在第一条 `assistant` 上。
+        // 若 candidate 正好是 user，这一步自然退到它的前一条 assistant。
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessage message = history.get(i);
+            if (message.getSeq() <= candidate && ChatMessage.ROLE_ASSISTANT.equals(message.getRole())) {
+                return message.getSeq();
+            }
+        }
+        return 0;
+    }
+
+    /** 复制前 `upToSeq` 条进新会话。入参是已经取好的列表，不再查一次库（同一事务里读两遍没必要）。 */
+    private void copyMessagesUpTo(List<ChatMessage> history, String forkId, int upToSeq) {
+        if (upToSeq <= 0) {
+            return;
+        }
+        int seq = 0;
+        for (ChatMessage message : history) {
+            if (message.getSeq() > upToSeq) {
+                break;
+            }
+            ChatMessage copy = new ChatMessage();
+            copy.setSessionId(forkId);
+            // 在新会话里从 1 重新编号：新会话自己的消息必须自成一个 1..n 的序列，
+            // 否则下一轮的取号（MAX(seq)+1）会从一个空档开始。
+            copy.setSeq(++seq);
+            copy.setRole(message.getRole());
+            copy.setContent(message.getContent());
+            copy.setTokenCount(message.getTokenCount());
+            // 时间戳沿用原来那条：这两条消息是那时候说的，不是分叉的时候说的。
+            copy.setCreatedAt(message.getCreatedAt());
+            copy.setMeta(message.getMeta());
+            messageMapper.insert(copy);
+        }
     }
 
     /**

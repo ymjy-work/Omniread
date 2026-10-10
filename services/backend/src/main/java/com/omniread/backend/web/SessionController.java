@@ -1,6 +1,7 @@
 package com.omniread.backend.web;
 
 import com.omniread.backend.session.ChatSessionSummary;
+import com.omniread.backend.session.ForkRequest;
 import com.omniread.backend.session.SessionCreateRequest;
 import com.omniread.backend.session.SessionDetail;
 import com.omniread.backend.session.SessionList;
@@ -63,5 +64,18 @@ public class SessionController {
             @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
         sessionService.delete(user.id(), sessionId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 切档位分叉。前端在用户切档位时**必须先弹确认**（既然叫分叉，就得让人知道旧会话还在），
+     * 确认后才调这里——把这一步藏起来会让用户以为档位是就地切的，而旧会话其实还在。
+     */
+    @PostMapping("/{sessionId}/fork")
+    public ResponseEntity<ChatSessionSummary> fork(
+            @PathVariable String sessionId,
+            @RequestBody @Valid ForkRequest body,
+            @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
+        ChatSessionSummary forked = sessionService.fork(user.id(), sessionId, body.level(), body.atSeq());
+        return ResponseEntity.status(HttpStatus.CREATED).body(forked);
     }
 }
