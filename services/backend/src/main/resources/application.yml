@@ -13,6 +13,13 @@ mybatis:
     map-underscore-to-camel-case: true
 
 omniread:
+  context:
+    # 多轮上下文预算（多轮会话落地方案 §三）。四个数互相牵制：
+    # 调大 historyBudgetTokens 就推迟了摘要触发，分开看会以为是两件独立的事。
+    history-budget-tokens: ${OMNIREAD_HISTORY_BUDGET:1500}
+    min-recent-turns: ${OMNIREAD_MIN_RECENT_TURNS:1}
+    summarize-threshold-tokens: ${OMNIREAD_SUMMARIZE_THRESHOLD:4000}
+    keep-recent-on-summarize: ${OMNIREAD_KEEP_RECENT_ON_SUMMARIZE:4}
   store:
     # 账户 / 会话 / 进度 / 配额都落这一个 SQLite 文件（多轮会话落地方案 §一）。
     # 连接参数（WAL / busy_timeout / foreign_keys）由 StoreConfig 拼进 URL，不在这里。

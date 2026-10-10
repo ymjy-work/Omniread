@@ -25,7 +25,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * 而真实的 SQLite 使用场景（WAL、多连接）本来也基于文件。连接参数与生产一致
  * （{@code journal_mode=WAL} / {@code busy_timeout} / {@code foreign_keys}）。
  */
-@SpringBootTest(properties = {"mybatis.mapper-locations=classpath:mapper/*.xml"})
+@SpringBootTest
 class SqliteMyBatisSmokeTest {
 
     private static final Path DB_PATH = createDbPath();
@@ -40,15 +40,17 @@ class SqliteMyBatisSmokeTest {
         }
     }
 
+    /**
+     * 换库的唯一途径是 {@code omniread.store.file}——{@code spring.datasource.url} 不生效
+     * （{@code StoreConfig} 自己定义了 DataSource，Boot 的自动配置退让，而且现在会显式报错）。
+     *
+     * <p>这条曾经写错过：配了 {@code spring.datasource.url} 的用例被静默忽略，
+     * 落回默认的 {@code var/omniread.db}，而 Maven 的工作目录是 {@code services/backend}，
+     * 于是它一直往那个共用的库里写，表现是断言的行数逐次上涨。
+     */
     @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add(
-                "spring.datasource.url",
-                () -> "jdbc:sqlite:" + DB_PATH
-                        + "?journal_mode=WAL&busy_timeout=5000&foreign_keys=on");
-        registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
-        // SQLite 是单写者：WAL 之后读可以并发，写仍然只有一条路。
-        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
+    static void storeFile(DynamicPropertyRegistry registry) {
+        registry.add("omniread.store.file", DB_PATH::toString);
     }
 
     @Autowired
@@ -58,6 +60,9 @@ class SqliteMyBatisSmokeTest {
     @DisplayName("MyBatis 4.1.0 的自动配置与 Boot 4.1.1 合得来：建表 → 插入 → 查回")
     void mybatisStarterWorksWithBoot() {
         mapper.createTable();
+        // 临时库、刚建表，应当是空的。这条先断言，是为了让「表里有别人的数据」与
+        // 「insert 多插了」在失败信息里分得开——它们看起来都是「行数不对」。
+        assertThat(mapper.findAll()).as("刚建表的临时库应当是空的").isEmpty();
 
         SmokeNote first = new SmokeNote(null, "第一条", "2026-10-10T00:00:00Z");
         SmokeNote second = new SmokeNote(null, "第二条", "2026-10-10T00:00:01Z");

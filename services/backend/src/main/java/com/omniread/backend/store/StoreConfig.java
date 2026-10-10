@@ -10,6 +10,7 @@ import javax.sql.DataSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * 本机 SQLite 的连接装配。
@@ -33,8 +34,36 @@ public class StoreConfig {
     /** SQLite 是单写者：WAL 之后读可以并发，写仍然只有一条路。池子开大只增加写冲突。 */
     private static final int MAX_POOL_SIZE = 5;
 
+    private final Environment environment;
+
+    public StoreConfig(Environment environment) {
+        this.environment = environment;
+    }
+
+    /**
+     * 有人写了 {@code spring.datasource.*} 就直接失败。
+     *
+     * <p>本类自己定义 {@code DataSource}，Boot 的 {@code DataSourceAutoConfiguration} 因此退让，
+     * 那些属性<b>一个都不生效</b>。问题是它们不生效得**毫无声响**：配的人以为换了库，
+     * 实际还写着原来那个文件。这不是假设——测试里就踩过一次，配了
+     * {@code spring.datasource.url} 的用例一直在往默认库里写，表现是断言的行数莫名其妙地涨。
+     *
+     * <p>配置项只有 {@code omniread.store.file} 一个，写错了就该当场知道。
+     */
+    private void rejectInertDatasourceProperties() {
+        for (String key : new String[] {"spring.datasource.url", "spring.datasource.driver-class-name"}) {
+            if (environment.containsProperty(key)) {
+                throw new IllegalStateException(
+                        key + " 不会生效：本项目的库由 omniread.store.file 指定，"
+                                + "DataSource 由 StoreConfig 装配（Boot 的自动配置已退让）。"
+                                + "要换库请改 omniread.store.file。");
+            }
+        }
+    }
+
     @Bean
     public DataSource dataSource(StoreProperties properties) {
+        rejectInertDatasourceProperties();
         Path file = Path.of(properties.file()).toAbsolutePath();
         Path parent = file.getParent();
         if (parent != null) {
