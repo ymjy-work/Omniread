@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  冒烟 mapper：只验证「XML 里的语句能被接口调到、自增主键能被回填」。
+  namespace 必须与方法所在接口的全限定名逐字一致。
+-->
+<mapper namespace="com.omniread.backend.store.smoke.SmokeNoteMapper">
+
+  <update id="createTable">
+    CREATE TABLE IF NOT EXISTS smoke_note (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      body       TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  </update>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO smoke_note (body, created_at) VALUES (#{body}, #{createdAt})
+  </insert>
+
+  <select id="findById" resultType="com.omniread.backend.store.smoke.SmokeNote">
+    SELECT id, body, created_at AS createdAt FROM smoke_note WHERE id = #{id}
+  </select>
+
+  <select id="findAll" resultType="com.omniread.backend.store.smoke.SmokeNote">
+    SELECT id, body, created_at AS createdAt FROM smoke_note ORDER BY id
+  </select>
+
+</mapper>

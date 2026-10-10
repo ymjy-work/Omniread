@@ -29,6 +29,17 @@
     <resilience4j.version>2.4.0</resilience4j.version>
     <openapi-generator.version>7.25.0</openapi-generator.version>
     <build-helper.version>3.6.0</build-helper.version>
+    <!--
+      两个新依赖都钉版本：都不由 Spring Boot BOM 管。
+      sqlite-jdbc 是纯 Java 单 jar，没有旁路服务，CI 不必加容器。
+    -->
+    <sqlite-jdbc.version>3.53.4.0</sqlite-jdbc.version>
+    <!--
+      MyBatis 的 Boot 4 starter。它很新，兼容性是实测项而不是假设项——
+      见 tests 里那条 SQLite 冒烟；不通过就换 mybatis-plus-spring-boot4-starter。
+      它自带 spring-boot-starter-jdbc（连 HikariCP 一起），不要重复声明。
+    -->
+    <mybatis-spring-boot.version>4.1.0</mybatis-spring-boot.version>
   </properties>
 
   <dependencies>
@@ -44,6 +55,25 @@
       <groupId>io.github.resilience4j</groupId>
       <artifactId>resilience4j-spring-boot4</artifactId>
       <version>${resilience4j.version}</version>
+    </dependency>
+    <!--
+      账户 / 会话 / 进度 / 配额都落本机 SQLite（单机单实例）。
+      MyBatis 而不是 JPA：只有五张表、无复杂查询，而 Hibernate 对 SQLite 没有官方方言。
+    -->
+    <dependency>
+      <groupId>org.mybatis.spring.boot</groupId>
+      <artifactId>mybatis-spring-boot-starter</artifactId>
+      <version>${mybatis-spring-boot.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.xerial</groupId>
+      <artifactId>sqlite-jdbc</artifactId>
+      <version>${sqlite-jdbc.version}</version>
+    </dependency>
+    <!-- 只借 BCrypt 的哈希实现，不引 Spring Security 全家桶（没有过滤器链要配）。 -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-crypto</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

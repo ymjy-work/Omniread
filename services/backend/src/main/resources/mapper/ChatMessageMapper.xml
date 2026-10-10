@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omniread.backend.session.ChatMessageMapper">
+
+  <!-- id 自增回填；seq 由 ChatMessageStore 取号后显式传入。 -->
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO chat_messages (session_id, seq, role, content, token_count, created_at, meta)
+    VALUES (#{sessionId}, #{seq}, #{role}, #{content}, #{tokenCount}, #{createdAt}, #{meta})
+  </insert>
+
+  <!-- 空会话返回 NULL，由调用方按 0 处理——用 COALESCE 藏在这里会让「没有消息」与
+       「最大 seq 是 0」两种情形分不开（后者不该存在，但分不开就查不出来）。 -->
+  <select id="maxSeq" resultType="java.lang.Integer">
+    SELECT MAX(seq) FROM chat_messages WHERE session_id = #{sessionId}
+  </select>
+
+  <select id="findBySession" resultType="com.omniread.backend.session.ChatMessage">
+    SELECT * FROM chat_messages WHERE session_id = #{sessionId} ORDER BY seq
+  </select>
+
+  <select id="findBySessionUpTo" resultType="com.omniread.backend.session.ChatMessage">
+    SELECT * FROM chat_messages
+    WHERE session_id = #{sessionId} AND seq &lt;= #{uptoSeq}
+    ORDER BY seq
+  </select>
+
+  <!-- 摘要取段：id 之后（旧摘要覆盖到哪）、seq 之前（最近几轮留原文不进摘要）。
+       两个条件都可为空，各自为空时该侧不设限。 -->
+  <select id="findBySessionBetween" resultType="com.omniread.backend.session.ChatMessage">
+    SELECT * FROM chat_messages
+    WHERE session_id = #{sessionId}
+    <if test="afterId != null">AND id &gt; #{afterId}</if>
+    <if test="beforeSeq != null">AND seq &lt; #{beforeSeq}</if>
+    ORDER BY seq
+  </select>
+
+  <select id="countBySession" resultType="int">
+    SELECT COUNT(*) FROM chat_messages WHERE session_id = #{sessionId}
+  </select>
+
+  <delete id="deleteBySession">
+    DELETE FROM chat_messages WHERE session_id = #{sessionId}
+  </delete>
+
+</mapper>

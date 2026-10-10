@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omniread.backend.session.ChatSessionMapper">
+
+  <insert id="insert">
+    INSERT INTO chat_sessions (id, user_id, book_id, title, level, forked_from, forked_at_seq,
+                               summary, summary_upto, created_at, last_active_at)
+    VALUES (#{id}, #{userId}, #{bookId}, #{title}, #{level}, #{forkedFrom}, #{forkedAtSeq},
+            #{summary}, #{summaryUpto}, #{createdAt}, #{lastActiveAt})
+  </insert>
+
+  <select id="findById" resultType="com.omniread.backend.session.ChatSession">
+    SELECT * FROM chat_sessions WHERE id = #{id}
+  </select>
+
+  <!-- 把 user_id 放进 WHERE：越权查询自然返回空，上层不必先查出来再比对。 -->
+  <select id="findByIdForUser" resultType="com.omniread.backend.session.ChatSession">
+    SELECT * FROM chat_sessions WHERE id = #{id} AND user_id = #{userId}
+  </select>
+
+  <select id="findByUserId" resultType="com.omniread.backend.session.ChatSession">
+    SELECT * FROM chat_sessions WHERE user_id = #{userId} ORDER BY last_active_at DESC
+  </select>
+
+  <!-- summary 与 summary_upto 同一条 UPDATE：分开写会让下次摘要重复或漏段。 -->
+  <update id="updateSummary">
+    UPDATE chat_sessions
+    SET summary = #{summary}, summary_upto = #{summaryUpto}
+    WHERE id = #{id}
+  </update>
+
+  <update id="touch">
+    UPDATE chat_sessions SET last_active_at = #{lastActiveAt} WHERE id = #{id}
+  </update>
+
+  <update id="updateTitle">
+    UPDATE chat_sessions SET title = #{title} WHERE id = #{id}
+  </update>
+
+  <delete id="deleteForUser">
+    DELETE FROM chat_sessions WHERE id = #{id} AND user_id = #{userId}
+  </delete>
+
+  <!-- 消息由外键 ON DELETE CASCADE 带走；这条依赖连接串里的 foreign_keys=on。 -->
+  <delete id="deleteByUserId">
+    DELETE FROM chat_sessions WHERE user_id = #{userId}
+  </delete>
+
+</mapper>

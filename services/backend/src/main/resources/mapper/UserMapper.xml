@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  列名 snake_case → 属性 camelCase 由 mybatis.configuration.map-underscore-to-camel-case 统一处理，
+  所以这里写裸列名而不逐列加 AS 别名：别名散在十几个语句里，改一列要改十几处。
+-->
+<mapper namespace="com.omniread.backend.user.UserMapper">
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO users (username, password_hash, status, created_at, last_login_at)
+    VALUES (#{username}, #{passwordHash}, #{status}, #{createdAt}, #{lastLoginAt})
+  </insert>
+
+  <select id="findById" resultType="com.omniread.backend.user.User">
+    SELECT * FROM users WHERE id = #{id}
+  </select>
+
+  <select id="findByUsername" resultType="com.omniread.backend.user.User">
+    SELECT * FROM users WHERE username = #{username}
+  </select>
+
+  <select id="findAll" resultType="com.omniread.backend.user.User">
+    SELECT * FROM users ORDER BY id
+  </select>
+
+  <update id="updateStatus">
+    UPDATE users SET status = #{status} WHERE id = #{id}
+  </update>
+
+  <update id="updateLastLogin">
+    UPDATE users SET last_login_at = #{lastLoginAt} WHERE id = #{id}
+  </update>
+
+</mapper>

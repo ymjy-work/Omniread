@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omniread.backend.user.AuthSessionMapper">
+
+  <insert id="insert">
+    INSERT INTO auth_sessions (token_hash, user_id, created_at, expires_at, last_seen_at)
+    VALUES (#{tokenHash}, #{userId}, #{createdAt}, #{expiresAt}, #{lastSeenAt})
+  </insert>
+
+  <!-- 主键查询：每个受保护请求都要走一次，不能是全表扫描。 -->
+  <select id="findByTokenHash" resultType="com.omniread.backend.user.AuthSession">
+    SELECT * FROM auth_sessions WHERE token_hash = #{tokenHash}
+  </select>
+
+  <delete id="deleteByTokenHash">
+    DELETE FROM auth_sessions WHERE token_hash = #{tokenHash}
+  </delete>
+
+  <!-- D15 的「停用即失效」：一条 DELETE 吊销该账户的全部登录会话。 -->
+  <delete id="deleteByUserId">
+    DELETE FROM auth_sessions WHERE user_id = #{userId}
+  </delete>
+
+  <delete id="deleteExpired">
+    DELETE FROM auth_sessions WHERE expires_at &lt;= #{now}
+  </delete>
+
+  <update id="touch">
+    UPDATE auth_sessions SET last_seen_at = #{lastSeenAt} WHERE token_hash = #{tokenHash}
+  </update>
+
+</mapper>
