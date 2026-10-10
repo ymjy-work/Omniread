@@ -5,7 +5,7 @@ import com.omniread.backend.contract.model.BookList;
 import com.omniread.backend.contract.model.ChapterDetail;
 import com.omniread.backend.contract.model.ChapterList;
 import com.omniread.backend.contract.model.ErrorBody;
-import com.omniread.backend.contract.model.QueryRequest;
+import com.omniread.backend.contract.model.InternalQueryRequest;
 import com.omniread.backend.contract.model.QueryResponse;
 import com.omniread.backend.error.ErrorCode;
 import com.omniread.backend.error.RagException;
@@ -61,8 +61,13 @@ public class RagGatewayClient {
         return guard(() -> openStream(restClient.get().uri(imageUri(bookId, relativePath))));
     }
 
-    /** 单轮问答：request_id 走请求头透传，请求体与外部契约 §8.1 完全一致。 */
-    public QueryResponse query(QueryRequest body, String requestId) {
+    /**
+     * 问答（同步 JSON）：request_id 走请求头透传。
+     *
+     * <p>请求体是 `InternalQueryRequest` 而不是共有核心：**多轮之后 Java 送的不再是
+     * 「外部请求原样转发」**，它自己组装了 `history` / `summary` 才发出去。
+     */
+    public QueryResponse query(InternalQueryRequest body, String requestId) {
         return call(restClient.post()
                 .uri(uri("/internal/v1/rag/query"))
                 .header(RequestIds.HEADER, requestId)
@@ -71,7 +76,7 @@ public class RagGatewayClient {
     }
 
     /** SSE 帧流：不解析、不重组，字节级透传（事件语义由 Python 侧适配器负责）。 */
-    public RagStream openQueryStream(QueryRequest body, String requestId) {
+    public RagStream openQueryStream(InternalQueryRequest body, String requestId) {
         return guard(() -> openStream(restClient.post()
                 .uri(uri("/internal/v1/rag/query-stream"))
                 .header(RequestIds.HEADER, requestId)

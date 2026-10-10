@@ -180,12 +180,23 @@ public class SessionService {
     }
 
     /**
+     * 刷新会话的最近活跃时间。列表按它倒序，所以「继续上次」靠的就是这一下——
+     * 不刷的话，用户接着聊的那个会话会一直沉在列表底部，而列表本身看不出任何异常。
+     */
+    public void touch(String sessionId) {
+        sessionMapper.touch(sessionId, Instant.now().toString());
+    }
+
+    /**
      * 取出属于该账户的会话，否则抛。
      *
      * <p>先按 id 取、再比 `user_id`，而不是直接 `findByIdForUser` 了事：后者分不出
      * 「没有这个会话」与「是别人的会话」，而这两种要分别给 404 与 403。
+     *
+     * <p>public 是因为问答那一轮也要它：那里要拿会话的 `level` 与 `summary`，
+     * 而「取之前先验归属」这件事不该在第二个地方再实现一遍。
      */
-    private ChatSession requireOwned(long userId, String sessionId) {
+    public ChatSession requireOwned(long userId, String sessionId) {
         ChatSession session = sessionMapper.findById(sessionId);
         if (session == null) {
             throw new RagException(ErrorCode.RAG_NOT_FOUND, "会话不存在");

@@ -1,4 +1,4 @@
-package com.omniread.backend.web;
+package com.omniread.backend.orchestration;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;

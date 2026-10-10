@@ -1,9 +1,11 @@
 package com.omniread.backend.web;
 
-import com.omniread.backend.contract.model.QueryRequest;
-import com.omniread.backend.contract.model.QueryResponse;
 import com.omniread.backend.gateway.RagStream;
+import com.omniread.backend.orchestration.AnswerStreamRecorder;
 import com.omniread.backend.orchestration.QueryOrchestrator;
+import com.omniread.backend.orchestration.SessionQueryRequest;
+import com.omniread.backend.orchestration.SessionQueryResponse;
+import com.omniread.backend.user.AuthenticatedUser;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -32,26 +34,39 @@ public class QueryController {
     }
 
     @PostMapping
-    public QueryResponse query(@RequestBody @Valid QueryRequest request,
-            @RequestAttribute(RequestIds.ATTRIBUTE) String requestId) {
-        return orchestrator.query(request, requestId);
+    public SessionQueryResponse query(@RequestBody @Valid SessionQueryRequest request,
+            @RequestAttribute(RequestIds.ATTRIBUTE) String requestId,
+            @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
+        return orchestrator.query(request, user.id(), requestId);
     }
 
     /**
-     * SSE 透传：Java 不解析事件、不重组帧，Python 适配器怎么写就怎么到浏览器。
+     * SSE：逐帧转发，同时把这一轮折叠成一条落库的回答。
      *
-     * 直接写响应流而不是返回 StreamingResponseBody：后者把 flush 攒到任务结束，
+     * <p>M0 是纯字节透传（「Java 不解析事件」）；多轮之后必须解析——回答正文只出现在
+     * `answer_delta` 里，不攒起来落库的就是一条空消息，而它看起来只是「回答很短」。
+     * 除终止帧外仍旧逐帧即刷，只有 `query_done` 那一刻等一次落库（它要带 `message_id`）。
+     *
+     * <p>直接写响应流而不是返回 StreamingResponseBody：后者把 flush 攒到任务结束，
      * 首字节要等整条流跑完才到客户端。代价是整段流占用一个请求线程，M0 单机可接受。
      */
     @PostMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public void stream(@RequestBody @Valid QueryRequest request,
+    public void stream(@RequestBody @Valid SessionQueryRequest request,
             @RequestAttribute(RequestIds.ATTRIBUTE) String requestId,
+            @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user,
             HttpServletResponse response) throws IOException {
-        RagStream upstream = orchestrator.stream(request, requestId);
+        QueryOrchestrator.PreparedQuery prepared = orchestrator.prepare(request, user.id());
+        orchestrator.recordQuestion(prepared.session(), request.getQuestion());
+
+        RagStream upstream = orchestrator.openStream(prepared, request, requestId);
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        Streams.forwardSse(upstream, requestId, response.getOutputStream());
+        SseRelay.relay(
+                upstream,
+                requestId,
+                response.getOutputStream(),
+                new AnswerStreamRecorder(orchestrator, prepared.session()));
     }
 }

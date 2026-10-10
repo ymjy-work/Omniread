@@ -1,4 +1,4 @@
-package com.omniread.backend.web;
+package com.omniread.backend.orchestration;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.omniread.backend.contract.model.QueryRequest;
@@ -15,14 +15,21 @@ import jakarta.validation.constraints.NotNull;
  */
 public class SessionQueryRequest extends QueryRequest {
 
-    @JsonProperty("session_id")
     @NotNull
     private String sessionId;
 
+    /**
+     * `@JsonProperty` 落在**读写方法**上而不是字段上——生成的那份 `QueryRequest` 就是这么
+     * 标的，而两边不一致时 Jackson 会把 `session_id` 与 `sessionId` 当成两个属性：
+     * 传进来的 `session_id` 没人接（字段留空），校验注解随即报 400，
+     * 而报错信息说的是「sessionId 不能为空」——看起来像前端没传。
+     */
+    @JsonProperty("session_id")
     public String getSessionId() {
         return sessionId;
     }
 
+    @JsonProperty("session_id")
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
     }
