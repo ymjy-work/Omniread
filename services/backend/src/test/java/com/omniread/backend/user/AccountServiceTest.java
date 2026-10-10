@@ -57,6 +57,8 @@ class AccountServiceTest {
     @Autowired
     private ChatMessageStore chatMessageStore;
     @Autowired
+    private UserProgressMapper userProgressMapper;
+    @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private static String unique(String prefix) {
@@ -134,8 +136,8 @@ class AccountServiceTest {
     }
 
     @Test
-    @DisplayName("停用会清空该账户的会话与消息，不留原文片段")
-    void disablingPurgesChatContent() {
+    @DisplayName("停用即清理：会话 / 消息 / 进度一样不留，账户行留 disabled")
+    void disablingPurgesEverythingTheAccountOwns() {
         User user = accountService.create(unique("dave"), "pw-123456");
         String sessionId = UUID.randomUUID().toString();
         ChatSession chat = new ChatSession();
@@ -150,11 +152,23 @@ class AccountServiceTest {
         chatMessageStore.append(sessionId, "user", "用户问的原文", 5, null);
         chatMessageStore.append(sessionId, "assistant", "模型答的原文", 5, null);
 
+        UserProgress progress = new UserProgress();
+        progress.setUserId(user.getId());
+        progress.setBookId(1);
+        progress.setProgress(42);
+        userProgressMapper.upsert(progress);
+        assertThat(userProgressMapper.find(user.getId(), 1)).isNotNull();
+
         accountService.disableAndPurge(user.getId());
 
         assertThat(chatSessionMapper.findById(sessionId)).isNull();
         Integer remaining = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM chat_messages WHERE session_id = ?", Integer.class, sessionId);
         assertThat(remaining).as("消息由外键 ON DELETE CASCADE 带走").isZero();
+        // 进度也要清：它是「某账户读到哪」，账户都不用了，留着就是一份没人认领的阅读记录。
+        assertThat(userProgressMapper.find(user.getId(), 1)).isNull();
+        assertThat(userMapper.findById(user.getId()).getStatus())
+                .as("账户行保留为 disabled——这一行不含任何内容")
+                .isEqualTo(User.STATUS_DISABLED);
     }
 }

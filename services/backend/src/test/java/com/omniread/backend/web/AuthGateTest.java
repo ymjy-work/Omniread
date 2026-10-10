@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -110,8 +112,8 @@ class AuthGateTest {
     }
 
     @Test
-    @DisplayName("逐个验证：注册表里每个 /api/v1 的 GET 都真的在门内")
-    void everyRegisteredGetIsBehindTheGate() throws Exception {
+    @DisplayName("逐个验证：注册表里每个 /api/v1 的每条方法都真的在门内")
+    void everyRegisteredRouteIsBehindTheGate() throws Exception {
         // 手写路径清单的用例只覆盖它列出来的那几条：新加一个控制器、或者把某个端点挪到
         // 另一个前缀下，被漏掉的那条不会红。这里改成从注册表枚举——**新端点自动进入覆盖**。
         RequestMappingHandlerMapping mapping = context.getBean(RequestMappingHandlerMapping.class);
@@ -120,21 +122,26 @@ class AuthGateTest {
 
         for (RequestMappingInfo info : mapping.getHandlerMethods().keySet()) {
             Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
-            if (!methods.isEmpty() && !methods.contains(RequestMethod.GET)) {
-                continue;
+            if (methods.isEmpty()) {
+                methods = Set.of(RequestMethod.GET);
             }
             for (String pattern : info.getPatternValues()) {
                 if (!pattern.startsWith("/api/v1/") || exempt.contains(pattern)) {
                     continue;
                 }
-                mvc.perform(get(concretize(pattern))).andExpect(status().isUnauthorized());
-                checked.add(pattern);
+                for (RequestMethod method : methods) {
+                    // 既不带 cookie 也不带 CSRF 头：拦下它的必须是登录门（401），
+                    // 而不是 CSRF 判定（403）或参数校验（400）——顺序反了这里就红。
+                    mvc.perform(request(HttpMethod.valueOf(method.name()), concretize(pattern)))
+                            .andExpect(status().isUnauthorized());
+                    checked.add(method + " " + pattern);
+                }
             }
         }
 
         assertThat(checked)
-                .as("一条 /api/v1 的 GET 都没枚举到，说明这条用例已经退化成了空跑")
-                .hasSizeGreaterThanOrEqualTo(3)
+                .as("一条 /api/v1 的路由都没枚举到，说明这条用例已经退化成了空跑")
+                .hasSizeGreaterThanOrEqualTo(8)
                 .doesNotContainAnyElementsOf(exempt);
     }
 
