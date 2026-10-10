@@ -49,7 +49,7 @@ from omniread.domain.events import (
     retrieval_completed,
 )
 from omniread.domain.models import ContextChunk, QueryRequest
-from omniread.infrastructure.providers.base import ChatModel
+from omniread.infrastructure.providers.base import ChatMessage, ChatModel
 from omniread.infrastructure.providers.errors import ProviderError, to_rag_error
 from omniread.pipelines.answering.prompt import (
     AnswerPrompt,
@@ -202,7 +202,14 @@ class AnsweringRunner:
             for chunk in chunks
         ]
         messages = build_answer_messages(
-            request.question, passages, prompt=self._prompt
+            request.question,
+            passages,
+            prompt=self._prompt,
+            summary=request.summary,
+            history=[
+                ChatMessage(role=message.role, content=message.content)
+                for message in request.history
+            ],
         )
         # 首部先压住不吐：模型级拒答的判据是「回答以 `[INSUFFICIENT]` 开头」，
         # 不缓冲就会把标记本身发给客户端。压住的量有上界（标记 + 前导空白），

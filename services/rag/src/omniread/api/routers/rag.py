@@ -6,6 +6,7 @@ Accept 解析的边界情况。三条路径共用同一份内部事件流，只�
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -17,7 +18,7 @@ from omniread.api.adapters import JsonResponseAdapter, SseResponseAdapter
 from omniread.api.deps import get_query_runner, get_retrieval, request_id_of
 from omniread.application.ports import QueryRunner, RetrievalService
 from omniread.domain.errors import RagUnavailable
-from omniread.domain.models import QueryRequest, RealmLevel
+from omniread.domain.models import HistoryMessage, QueryRequest, RealmLevel
 from omniread.infrastructure.providers.errors import ProviderError, to_rag_error
 from omniread.pipelines.retrieval.types import RetrievalOutcome, StageHit
 
@@ -41,6 +42,22 @@ def _to_domain(payload: schemas.QueryRequest) -> QueryRequest:
     )
 
 
+def _with_context(request: QueryRequest, payload: schemas.InternalQueryRequest) -> QueryRequest:
+    """把 Java 组装好的上下文并进来。
+
+    只有两条**问答**路径走这里。`/rag/retrieval-only` 用的仍然是不带上下文的共享
+    `QueryRequest`（契约里那一条路径的请求体就是它）——评测跑的是单轮，不该被会话状态污染。
+    """
+    return replace(
+        request,
+        history=tuple(
+            HistoryMessage(role=message.role, content=message.content)
+            for message in (payload.history or ())
+        ),
+        summary=payload.summary,
+    )
+
+
 @router.post(
     "/rag/query",
     response_model=schemas.QueryResponse,
@@ -48,13 +65,14 @@ def _to_domain(payload: schemas.QueryRequest) -> QueryRequest:
     responses=_PROVIDER_ERRORS,
 )
 async def rag_query(
-    payload: schemas.QueryRequest,
+    payload: schemas.InternalQueryRequest,
     request: Request,
     runner: QueryRunner = Depends(get_query_runner),
 ) -> schemas.QueryResponse:
     request_id = request_id_of(request)
     return await JsonResponseAdapter.fold(
-        runner.run(_to_domain(payload), request_id), request_id=request_id
+        runner.run(_with_context(_to_domain(payload), payload), request_id),
+        request_id=request_id,
     )
 
 
@@ -69,13 +87,14 @@ async def rag_query(
     },
 )
 async def rag_query_stream(
-    payload: schemas.QueryRequest,
+    payload: schemas.InternalQueryRequest,
     request: Request,
     runner: QueryRunner = Depends(get_query_runner),
 ) -> StreamingResponse:
     request_id = request_id_of(request)
     frames = SseResponseAdapter.stream(
-        runner.run(_to_domain(payload), request_id), request_id=request_id
+        runner.run(_with_context(_to_domain(payload), payload), request_id),
+        request_id=request_id,
     )
     return StreamingResponse(
         frames,

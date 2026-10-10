@@ -62,16 +62,40 @@ class ChapterDetail(BaseModel):
 
 
 class QueryOptions(BaseModel):
-    rewrite: bool = False
+    # 默认 true：多轮改造之后「有历史就消解指代」是常态（与内部契约的默认值一致）。
+    # 真正决定改写跑不跑的是**有没有历史**——没有历史时 Python 自己落进 skipped、
+    # 不发 rewrite_completed（契约 EventStream：有帧 ⟺ 真的跑了）。
+    rewrite: bool = True
     neighbor_expand: bool = True
 
 
 class QueryRequest(BaseModel):
+    """两侧**共有**的那部分。`/rag/retrieval-only` 用的就是它，不带任何会话上下文。"""
+
     book_id: int
     question: str = Field(min_length=1, max_length=2000)
     level: Literal["past", "full"]
     progress: int | None = Field(default=None, ge=1, le=193)
     options: QueryOptions | None = None
+
+
+class HistoryMessage(BaseModel):
+    """一条历史对话消息。形状刻意比外部的 `ChatMessage` 窄——Python 不需要 id / seq。"""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=8000)
+
+
+class InternalQueryRequest(QueryRequest):
+    """内部专有：共有核心 + Java 组装出来的上下文。
+
+    **必须是显式字段**。pydantic 默认 `extra="ignore"`，所以少了这两个字段时
+    对端发过来的 `history` / `summary` 会被**静默丢掉**——不报 400、日志里也没有痕迹，
+    表现只是「多轮怎么不连贯」。填不满的字段不会自己喊。
+    """
+
+    history: list[HistoryMessage] | None = None
+    summary: str | None = None
 
 
 class ContextChapter(BaseModel):

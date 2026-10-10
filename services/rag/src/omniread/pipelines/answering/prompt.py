@@ -80,12 +80,32 @@ class AnswerPrompt:
         ).replace("{{QUESTION}}", question)
 
     def build_messages(
-        self, question: str, passages: Sequence[ContextPassage]
+        self,
+        question: str,
+        passages: Sequence[ContextPassage],
+        *,
+        summary: str | None = None,
+        history: Sequence[ChatMessage] = (),
     ) -> list[ChatMessage]:
-        return [
-            ChatMessage(role="system", content=self.system),
-            ChatMessage(role="user", content=self.render_user(question, passages)),
-        ]
+        """按固定顺序组装：system → 会话摘要 → 近轮对话 → 本轮装配集 + 当前问题。
+
+        **摘要与历史是数据，不是新的格式文本**：这里一个字节的固定文本都没加，
+        所以 `prompt_version` 不变——它只吃模板与渲染格式常量。反过来说，
+        哪天想加一句「【会话摘要】」这样的段头，就必须同时把它并进
+        `prompt_version` 的输入（判据是「是否改变模型可见文本」），否则两份不同的
+        prompt 会在 run 记录里并列成同一个版本，而两边都不会报错。
+
+        没有历史也没有摘要时（单轮），返回值与「只有 system / user 两段」**逐字节相同**
+        ——86 题评测走的正是这条路，所以 M1-2 的基线仍然可比。
+        """
+        messages = [ChatMessage(role="system", content=self.system)]
+        if summary:
+            messages.append(ChatMessage(role="system", content=summary))
+        messages.extend(history)
+        messages.append(
+            ChatMessage(role="user", content=self.render_user(question, passages))
+        )
+        return messages
 
 
 def prompt_version(template_text: str) -> str:
@@ -143,9 +163,13 @@ def build_answer_messages(
     passages: Sequence[ContextPassage],
     *,
     prompt: AnswerPrompt | None = None,
+    summary: str | None = None,
+    history: Sequence[ChatMessage] = (),
 ) -> list[ChatMessage]:
-    """组装送给回答模型的 system / user 两条消息。"""
-    return (prompt or load_answer_prompt()).build_messages(question, passages)
+    """组装送给回答模型的消息（单轮时仍是 system / user 两条）。"""
+    return (prompt or load_answer_prompt()).build_messages(
+        question, passages, summary=summary, history=history
+    )
 
 
 def _extract_section(text: str, name: str) -> str:
