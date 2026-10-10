@@ -10,21 +10,22 @@
 
 ### 1.1 套件文件
 
-套件是**四件套**。这四个文件必须放在**同一个目录**（下称「数据集目录」），缺一个都无法自校验：
+完整套件是**四件套**，必须放在**同一个目录**（下称「数据集目录」），缺一个都无法自校验：
 
-| 文件 | 作用 |
-| --- | --- |
-| `README.md` | 本文，出题规范 |
-| `schema.json` | 单题结构定义（JSON Schema draft 2020-12） |
-| `validate_golden.py` | 校验器，只用 Python 标准库，无需安装依赖 |
-| `example.json` | 一道完整示例题；校验器把它当辅助文件跳过，不参与数据集统计 |
+| 文件 | 作用 | 随仓库发布 |
+| --- | --- | --- |
+| `README.md` | 本文，出题规范 | 是 |
+| `schema.json` | 单题结构定义（JSON Schema draft 2020-12） | 是 |
+| `validate_golden.py` | 校验器，只用 Python 标准库，无需安装依赖 | 是（在 `scripts/`） |
+| `example.json` | 一道完整示例题；校验器把它当辅助文件跳过，不参与数据集统计 | **否** |
 
-拿到套件后，先把四个文件放进同一个空目录，再开始出题。从本仓库取件的命令：
+**`example.json` 不随仓库发布**：它含原著短摘录，与题面同理。clone 之后手上只有前三件，
+自备一道示例题即可，不影响出题与校验。从本仓库取件的命令：
 
 ```bash
 # 在仓库根目录执行；<数据集目录> 换成你的目标目录
 mkdir -p <数据集目录>
-cp eval/golden/README.md eval/golden/schema.json eval/golden/example.json <数据集目录>/
+cp eval/golden/README.md eval/golden/schema.json <数据集目录>/
 cp scripts/validate_golden.py <数据集目录>/
 ```
 
@@ -108,7 +109,7 @@ schema_version / id / type / difficulty / book_id / question
   "progress": 5,
   "must_cite_groups": [
     [
-      {"chapter_id": "book:1:chapter:2", "content": "「抱歉，艾莉，化学参考书可以借我看吗？」"}
+      {"chapter_id": "book:1:chapter:2", "content": "……语料原文片段……"}
     ]
   ],
   "expect_refusal": false
@@ -138,8 +139,9 @@ schema_version / id / type / difficulty / book_id / question
 上面 `content` 里的「……语料原文片段……」是**占位符，必须换成从语料复制的真实原文片段**（规则见 §4）；
 照抄占位符不构成有效证据。这个模板的 id 只是示例，出题时换成你自己的、数据集内唯一的 id。
 
-目录里的 `example.json` 是一道跨第 34 章与第 45 章的真实示例，可直接参考；它的 id 是 `cross-001`，
-作为辅助文件被校验器跳过，不参与 id 唯一性检查与数量统计。
+本地数据集目录里的 `example.json` 是一道跨第 34 章与第 45 章的真实示例，可直接参考；它的 id 是
+`cross-001`，作为辅助文件被校验器跳过，不参与 id 唯一性检查与数量统计。
+**它不随仓库发布**（含原文片段），所以 clone 之后没有这道示例可看——上面两个模板就是全部示例。
 
 ## 3. 六桶判据
 
@@ -239,7 +241,11 @@ schema_version / id / type / difficulty / book_id / question
 - **整本语料不得进入数据集目录。** 包括 `index.jsonl`、章节导出文件、合并全文、`epub/`、图片——
   一律不拷贝。
 - **只有 evidence 的短片段随题目保存**，每题只取回答所必需的几十到几百字，不要整段整章搬运。
-- 这两条是硬要求：题目目录会被复制、提交和分发，整本原文一旦进去就收不回来。
+- **随仓库发布的那几份（本文件、`schema.json`、`validate_golden.py`）里不得出现任一题 evidence 的原文。**
+  题面与 evidence 只留在本地，跟着仓库走的只有规范与校验器（§1.1 那张表标了哪几件发布）。
+  所以**本文档自己的示例一律用占位符** `……语料原文片段……`——示例写得太像真的，本身就是一次泄漏。
+- 这三条是硬要求：题目目录会被复制、提交和分发，原文一旦进去就收不回来——
+  `docs/` 之外的历史改写代价极高。
 
 ## 10. 一致性：冻结后改题即新版本
 
