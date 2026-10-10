@@ -12,6 +12,11 @@ package com.omniread.backend.session;
  */
 public class ChatSession {
 
+    /** 档位的两个取值，与契约的 `level` 枚举逐字一致（库里存的就是这两个字符串）。 */
+    public static final String LEVEL_PAST = "past";
+
+    public static final String LEVEL_FULL = "full";
+
     private String id;
     private Long userId;
     private Integer bookId;
