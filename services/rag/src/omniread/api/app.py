@@ -46,6 +46,8 @@ from omniread.infrastructure.objectstore.local import LocalFileSystemImageStorag
 from omniread.infrastructure.objectstore.minio_storage import build_minio_storage
 from omniread.infrastructure.providers.ali import AliEmbeddingAdapter, AliRerankAdapter
 from omniread.infrastructure.providers.base import ChatModel, EmbeddingModel, RerankModel
+from omniread.infrastructure.providers.deepseek import DeepSeekChatAdapter
+from omniread.infrastructure.providers.errors import ProviderConfigError
 from omniread.infrastructure.providers.fake import (
     FakeChatModel,
     FakeEmbeddingModel,
@@ -57,6 +59,7 @@ from omniread.logging_config import configure_logging
 from omniread.pipelines.retrieval.dense import PgVectorDenseIndex
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline
 from omniread.pipelines.retrieval.store import PgChunkStore
+from omniread.pipelines.rewriting import FakeQueryRewriter, QueryRewriter
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +148,27 @@ def build_retrieval_service(settings: Settings) -> RetrievalService | None:
         return None
 
 
+def build_rewriter(settings: Settings) -> QueryRewriter:
+    """按配置装配查询改写器。
+
+    **它从不抛，也从不返回 None**：改写是增强步骤，缺 `DEEPSEEK_API_KEY` 时应当整条 query
+    照常跑、只是不改写，而不是把端点变成 503。所以这里自己吞掉构造失败，返回一个
+    `chat=None` 的改写器——它一律落 `skipped`（不发帧、`rewritten_query` 为 null）。
+    这与回答链「缺凭据即未接线」是两条不同的口径，刻意分开。
+    """
+    if settings.rewriter_provider == "fake":
+        logger.warning(
+            "联调/测试模式：查询改写使用确定性假实现（OMNIREAD_REWRITER_PROVIDER=fake），"
+            "不会调用 DeepSeek；它对有历史的请求一律返回 unchanged"
+        )
+        return FakeQueryRewriter()
+    try:
+        return QueryRewriter(DeepSeekChatAdapter())
+    except ProviderConfigError as exc:
+        logger.warning("查询改写未接线（降级为不改写）：%s", exc)
+        return QueryRewriter(None)
+
+
 def build_query_runner(
     retrieval: RetrievalService | None, settings: Settings
 ) -> QueryRunner | None:
@@ -155,6 +179,9 @@ def build_query_runner(
     """
     if retrieval is None:
         return None
+    # 在 try 之外：它自己不抛（缺凭据只降级），不该被下面那个 all-or-nothing 误伤成
+    # 「回答链未接线」——那会把一次增强步骤的缺失放大成整条链不可用。
+    rewriter = build_rewriter(settings)
     try:
         session_factory = sessionmaker(create_engine_from_env(), expire_on_commit=False)
         return AnsweringRunner(
@@ -162,6 +189,7 @@ def build_query_runner(
             context=PgContextSource(session_factory),
             chat=build_chat_model(settings),
             answer_provider=settings.answer_provider,
+            rewriter=rewriter,
         )
     except Exception as exc:
         logger.warning("回答链未接线：%s", exc)

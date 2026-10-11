@@ -56,12 +56,18 @@ class JsonResponseAdapter:
         context_chapters: list[dict[str, Any]] = []
         status: str | None = None
         usage: dict[str, Any] | None = None
+        # 从 `rewrite_completed` 那一帧捕获，而不是从 `query_done` 的负载里取——
+        # 后者的字段被契约写死成 status/context_chapters/usage，没有它的位置。
+        # **没收到的帧就是 null**：skipped 按规则不发帧，所以「没帧」与「没改写」是同一件事。
+        rewritten_query: str | None = None
 
         async for event in events:
             if event.name is EventName.ANSWER_DELTA:
                 answer_parts.append(str(event.payload["text"]))
             elif event.name is EventName.CITATION_READY:
                 context_chapters = list(event.payload["context_chapters"])
+            elif event.name is EventName.REWRITE_COMPLETED:
+                rewritten_query = str(event.payload["effective"])
             elif event.name is EventName.QUERY_DONE:
                 status = str(event.payload["status"])
                 context_chapters = list(event.payload["context_chapters"])
@@ -81,6 +87,7 @@ class JsonResponseAdapter:
                 "answer": "".join(answer_parts),
                 "context_chapters": context_chapters,
                 "usage": usage,
+                "rewritten_query": rewritten_query,
             }
         )
 

@@ -15,6 +15,7 @@ from typing import Any
 class EventName(StrEnum):
     QUERY_STARTED = "query_started"
     REALM_RESOLVED = "realm_resolved"
+    REWRITE_COMPLETED = "rewrite_completed"
     RETRIEVAL_COMPLETED = "retrieval_completed"
     RERANK_COMPLETED = "rerank_completed"
     CONTEXT_ASSEMBLED = "context_assembled"
@@ -35,6 +36,7 @@ class AnswerStatus(StrEnum):
 EVENT_ORDER: tuple[EventName, ...] = (
     EventName.QUERY_STARTED,
     EventName.REALM_RESOLVED,
+    EventName.REWRITE_COMPLETED,
     EventName.RETRIEVAL_COMPLETED,
     EventName.RERANK_COMPLETED,
     EventName.CONTEXT_ASSEMBLED,
@@ -43,6 +45,13 @@ EVENT_ORDER: tuple[EventName, ...] = (
     EventName.CITATION_READY,
     EventName.QUERY_DONE,
 )
+
+
+# 条件事件：可能出现、也可能整条流里都没有。`EVENT_ORDER` 是**线性**的，
+# 表达不了「可选」——所以可选的那几个单独列在这里，断言顺序的测试按这个集合放宽。
+# 目前只有改写：没跑（`skipped`）就不发帧，契约 EventStream 把这条写死了
+# （「有帧 ⟺ 改写这一步真的跑了」）。
+OPTIONAL_EVENTS: frozenset[EventName] = frozenset({EventName.REWRITE_COMPLETED})
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +71,18 @@ def query_started(
 
 def realm_resolved(*, lo: int, hi: int) -> RagEvent:
     return RagEvent(EventName.REALM_RESOLVED, {"lo": lo, "hi": hi})
+
+
+def rewrite_completed(*, status: str, original: str, effective: str) -> RagEvent:
+    """改写结果。**只在真的跑了的时候发**（`skipped` 不发）。
+
+    `effective` 是实际用于检索与回答的那句，无论哪种状态都有值；`original` 是用户
+    这一轮实际问的。载荷形状与契约的 `RewriteOutcome` 逐字段一致。
+    """
+    return RagEvent(
+        EventName.REWRITE_COMPLETED,
+        {"status": status, "original": original, "effective": effective},
+    )
 
 
 def retrieval_completed(

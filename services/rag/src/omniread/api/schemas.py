@@ -115,6 +115,11 @@ class QueryResponse(BaseModel):
     answer: str
     context_chapters: list[ContextChapter]
     usage: Usage
+    # 改写后的独立问题。**没有改写时为 null**——规则写死为「null ⟺ 改写这一步根本没跑」：
+    # 跑了但判定无需改动（unchanged）与跑了但失败（failed）都不是 null，它们的
+    # effective 等于原问题。字段总是存在（required），因为消费方要能区分
+    # 「没改写」与「字段没下发」——两者对排查是不同的事。
+    rewritten_query: str | None
 
 
 class ErrorBody(BaseModel):

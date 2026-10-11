@@ -575,3 +575,85 @@ def _replay(events: Sequence[RagEvent]) -> AsyncIterator[RagEvent]:
             yield event
 
     return generator()
+
+
+# ---- 改写：跑在检索之前，且检索用的是改写后的问题（D2）----------------------
+
+
+class _RewriteChat:
+    """只回一句话的假改写模型。"""
+
+    model = "stub-rewriter"
+
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    async def complete(self, messages, options=None):
+        from omniread.infrastructure.providers.base import ChatResponse
+
+        return ChatResponse(text=self._text, model=self.model)
+
+    async def stream(self, messages, options=None):
+        yield ChatChunk(text=self._text)
+
+
+async def test_rewrite_feeds_retrieval_the_effective_question() -> None:
+    """改写跑在检索**之前**，检索拿到的是改写过的问题。
+
+    这条钉的是顺序。把两步写反（先检索后改写）时，事件流里**照样有** `rewrite_completed`
+    帧、`rewritten_query` 也照样非空——看起来完全正常，只是检索用的还是原问题。
+    """
+    from omniread.domain.models import HistoryMessage
+    from omniread.pipelines.rewriting import QueryRewriter
+
+    seen: list[str] = []
+
+    class Recording(StubRetrieval):
+        async def retrieve(self, request: QueryRequest) -> RetrievalOutcome:
+            seen.append(request.question)
+            return await super().retrieve(request)
+
+    original = "那她后来呢？"
+    effective = "艾莉后来回到周防家了吗？"
+    assembled = [_assembled(_key(17), 17)]
+    runner = AnsweringRunner(
+        retrieval=Recording(_outcome(assembled)),
+        context=StubContext([_context(17, _key(17))]),
+        chat=FakeChatModel(answer="回去了 [C17]。"),
+        answer_provider="fake",
+        rewriter=QueryRewriter(_RewriteChat(effective)),
+    )
+    request = QueryRequest(
+        book_id=1,
+        question=original,
+        level=RealmLevel.FULL,
+        history=(
+            HistoryMessage(role="user", content="政近为什么离开周防家？"),
+            HistoryMessage(role="assistant", content="因为家里出了事 [C17]。"),
+        ),
+    )
+
+    events = [event async for event in runner.run(request, REQUEST_ID)]
+    names = [event.name for event in events]
+
+    assert seen == [effective], "检索必须用改写后的问题"
+    frame = next(event for event in events if event.name is EventName.REWRITE_COMPLETED)
+    assert frame.payload == {"status": "rewritten", "original": original, "effective": effective}
+    assert names.index(EventName.REWRITE_COMPLETED) < names.index(EventName.RETRIEVAL_COMPLETED)
+
+
+async def test_no_history_emits_no_rewrite_frame() -> None:
+    """`skipped` 不发帧——契约写的「有帧 ⟺ 改写真的跑了」。"""
+    from omniread.pipelines.rewriting import QueryRewriter
+
+    runner = AnsweringRunner(
+        retrieval=StubRetrieval(_outcome([_assembled(_key(17), 17)])),
+        context=StubContext([_context(17, _key(17))]),
+        chat=FakeChatModel(answer="答 [C17]。"),
+        answer_provider="fake",
+        rewriter=QueryRewriter(_RewriteChat("不该被用到")),
+    )
+
+    events = await _events(runner)
+
+    assert EventName.REWRITE_COMPLETED not in [event.name for event in events]

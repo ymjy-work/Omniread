@@ -8,11 +8,14 @@ RAG_UNAVAILABLE 收尾；SSE 帧编码本身是真实的（注入假事件流的
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from helpers import REQUEST_ID, fake_event_sequence, parse_sse_frames
+from conftest import build_client_with_runner
+from helpers import REQUEST_ID, FakeQueryRunner, fake_event_sequence, parse_sse_frames
+from omniread.domain.events import EventName, RagEvent, rewrite_completed
 
 QUERY_BODY = {
     "book_id": 1,
@@ -117,6 +120,61 @@ def test_query_stream_encodes_full_fake_sequence(streaming_client: TestClient) -
     assert payloads[-1]["status"] == "answered"
 
 
+REWRITTEN = "周防家的女儿后来怎么样了？"
+
+
+def _sequence_with_rewrite(effective: str) -> list[RagEvent]:
+    """在完整序列里插一帧改写结果。
+
+    位置按契约：`realm_resolved` 之后、`retrieval_completed` 之前。
+    """
+    events = fake_event_sequence()
+    at = next(
+        index
+        for index, event in enumerate(events)
+        if event.name is EventName.RETRIEVAL_COMPLETED
+    )
+    events.insert(
+        at,
+        rewrite_completed(status="rewritten", original="那她后来呢？", effective=effective),
+    )
+    return events
+
+
+def test_json_fold_takes_rewritten_query_from_the_frame(image_root: Path) -> None:
+    """`rewritten_query` 只能从 `rewrite_completed` 那一帧拿。
+
+    `query_done` 的负载被契约写死成 status / context_chapters / usage，没有它的位置——
+    少了这条捕获，字段会永远为 null，而那是**合法值**，所以不会有任何测试变红。
+    """
+    client = build_client_with_runner(
+        image_root, FakeQueryRunner(_sequence_with_rewrite(REWRITTEN))
+    )
+    response = client.post("/internal/v1/rag/query", json=QUERY_BODY)
+
+    assert response.status_code == 200
+    assert response.json()["rewritten_query"] == REWRITTEN
+
+
+def test_sse_carries_the_rewrite_frame(image_root: Path) -> None:
+    client = build_client_with_runner(
+        image_root, FakeQueryRunner(_sequence_with_rewrite(REWRITTEN))
+    )
+    response = client.post("/internal/v1/rag/query-stream", json=QUERY_BODY)
+
+    frames = parse_sse_frames(response.text)
+    names = [name for name, _ in frames]
+    assert "rewrite_completed" in names
+    # 顺序：改写结果在检索之前（改完才用它去检索）。
+    assert names.index("rewrite_completed") < names.index("retrieval_completed")
+    # 载荷与契约的 RewriteOutcome 逐字段一致：effective 无论哪种状态都有值。
+    assert json.loads(dict(frames)["rewrite_completed"]) == {
+        "status": "rewritten",
+        "original": "那她后来呢？",
+        "effective": REWRITTEN,
+    }
+
+
 def test_query_folds_fake_sequence_into_json_object(streaming_client: TestClient) -> None:
     response = streaming_client.post(
         "/internal/v1/rag/query", json=QUERY_BODY, headers={"X-Request-Id": REQUEST_ID}
@@ -124,9 +182,19 @@ def test_query_folds_fake_sequence_into_json_object(streaming_client: TestClient
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"request_id", "status", "answer", "context_chapters", "usage"}
+    assert set(body) == {
+        "request_id",
+        "status",
+        "answer",
+        "context_chapters",
+        "usage",
+        "rewritten_query",
+    }
     assert body["request_id"] == REQUEST_ID
     assert body["status"] == "answered"
+    # 这个请求没有历史，改写落 skipped、不发帧，所以这里是 null——**字段在、值是空**
+    # 才是契约要的形状（「没改写」与「字段没下发」是不同的事）。
+    assert body["rewritten_query"] is None
     assert body["context_chapters"] == [
         {"chapter_index": 17, "chapter_title": "第3话 主仆逆转的释义似乎因人而异"}
     ]

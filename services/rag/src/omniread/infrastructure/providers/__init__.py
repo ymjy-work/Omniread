@@ -23,6 +23,12 @@ from omniread.infrastructure.providers.base import (
     RerankModel,
     RerankResult,
 )
+from omniread.infrastructure.providers.deepseek import (
+    DEEPSEEK_API_KEY_ENV,
+    DEEPSEEK_BASE_URL,
+    DEEPSEEK_MODEL,
+    DeepSeekChatAdapter,
+)
 from omniread.infrastructure.providers.errors import (
     ProviderConfigError,
     ProviderError,
@@ -44,6 +50,9 @@ from omniread.infrastructure.providers.glm import (
 )
 
 __all__ = [
+    "DEEPSEEK_API_KEY_ENV",
+    "DEEPSEEK_BASE_URL",
+    "DEEPSEEK_MODEL",
     "EMBEDDING_DIM",
     "EMBEDDING_MODEL",
     "GLM_ANSWER_MODEL",
@@ -57,6 +66,7 @@ __all__ = [
     "ChatModel",
     "ChatOptions",
     "ChatResponse",
+    "DeepSeekChatAdapter",
     "EmbeddingModel",
     "FakeChatModel",
     "FakeEmbeddingModel",

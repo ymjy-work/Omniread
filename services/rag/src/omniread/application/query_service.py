@@ -28,6 +28,7 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Sequence
+from dataclasses import replace
 from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -47,6 +48,7 @@ from omniread.domain.events import (
     realm_resolved,
     rerank_completed,
     retrieval_completed,
+    rewrite_completed,
 )
 from omniread.domain.models import ContextChunk, QueryRequest
 from omniread.infrastructure.providers.base import ChatMessage, ChatModel
@@ -63,6 +65,12 @@ from omniread.pipelines.answering.refusal import (
     scan_prefix,
 )
 from omniread.pipelines.retrieval.types import RetrievalOutcome
+from omniread.pipelines.rewriting import (
+    QueryRewriter,
+    RewriteResult,
+    RewriteStatus,
+    skipped,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +111,15 @@ class AnsweringRunner:
         chat: ChatModel,
         answer_provider: str = "glm",
         prompt: AnswerPrompt | None = None,
+        rewriter: QueryRewriter | None = None,
     ) -> None:
         self._retrieval = retrieval
         self._context = context
         self._chat = chat
         self._answer_provider = answer_provider
         self._prompt = prompt
+        # 没接改写器与「接了但没配模型」是同一件事：都落 skipped，都不发帧。
+        self._rewriter = rewriter
 
     async def run(self, request: QueryRequest, request_id: str) -> AsyncIterator[RagEvent]:
         started = time.perf_counter()
@@ -140,9 +151,26 @@ class AnsweringRunner:
                 message="检索库不可用",
             )
 
+    async def _rewrite(self, request: QueryRequest) -> RewriteResult:
+        """改写。没接改写器就当作 `skipped`——「没接」与「没配模型」是同一件事。"""
+        if self._rewriter is None:
+            return skipped(request.question)
+        return await self._rewriter.rewrite(request)
+
     async def _run_body(
         self, request: QueryRequest, started: float
     ) -> AsyncIterator[RagEvent]:
+        # 改写在**检索之前**：检索与回答用的都是改写后的问题（契约 QueryResponse 的语义）。
+        # 原问题留在 original 里——它进 meta，不进 prompt。
+        rewrite = await self._rewrite(request)
+        if rewrite.status is not RewriteStatus.SKIPPED:
+            yield rewrite_completed(
+                status=rewrite.status.value,
+                original=rewrite.original,
+                effective=rewrite.effective,
+            )
+        request = replace(request, question=rewrite.effective)
+
         outcome = await self._retrieval.retrieve(request)
         yield realm_resolved(lo=outcome.realm.lo, hi=outcome.realm.hi)
         yield retrieval_completed(
