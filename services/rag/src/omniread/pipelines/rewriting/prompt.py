@@ -20,6 +20,15 @@ from importlib import resources
 from omniread.domain.models import HistoryMessage
 from omniread.domain.text import sha256_hex
 from omniread.infrastructure.providers.base import ChatMessage
+from omniread.pipelines.prompting import (
+    DIALOGUE_LINE,
+    DIALOGUE_SEPARATOR,
+    EMPTY_DIALOGUE,
+    SPEAKER_ASSISTANT,
+    SPEAKER_USER,
+    VERSION_INPUT_SEPARATOR,
+    render_dialogue,
+)
 
 PROMPT_VERSION_LENGTH = 12
 
@@ -28,17 +37,6 @@ _RESOURCE_NAME = "prompts/rewrite.md"
 
 SECTION_SYSTEM = "system"
 SECTION_USER = "user"
-
-# 历史在模型可见文本里的渲染格式。它不在模板文件里，但同样是模型看到的内容，
-# 所以必须一起进 `prompt_version` 的输入（同 answer.md 的 `_PASSAGE_HEADER`）。
-_SPEAKER_USER = "用户"
-_SPEAKER_ASSISTANT = "助手"
-_HISTORY_LINE = "【{speaker}】{content}"
-_HISTORY_SEPARATOR = "\n"
-
-_SPEAKERS = {"user": _SPEAKER_USER, "assistant": _SPEAKER_ASSISTANT}
-
-_VERSION_INPUT_SEPARATOR = "\x00"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,27 +66,26 @@ class RewritePrompt:
 
 
 def prompt_version(template_text: str) -> str:
-    """模板原文**与渲染格式常量**一起取 sha256 前 12 位（判据同 answering）。"""
-    payload = _VERSION_INPUT_SEPARATOR.join(
+    """模板原文**与渲染格式常量**一起取 sha256 前 12 位（判据同 answering）。
+
+    渲染常量来自 `pipelines/prompting`——与摘要共用同一份，所以那个格式变了两个版本一起变。
+    """
+    payload = VERSION_INPUT_SEPARATOR.join(
         (
             template_text,
-            _HISTORY_LINE,
-            _SPEAKER_USER,
-            _SPEAKER_ASSISTANT,
-            _HISTORY_SEPARATOR,
+            DIALOGUE_LINE,
+            SPEAKER_USER,
+            SPEAKER_ASSISTANT,
+            DIALOGUE_SEPARATOR,
+            EMPTY_DIALOGUE,
         )
     )
     return sha256_hex(payload)[:PROMPT_VERSION_LENGTH]
 
 
 def render_history(history: Sequence[HistoryMessage]) -> str:
-    """按时间顺序渲染历史，每条一行；空历史渲染成固定占位句（正常路径上到不了这里）。"""
-    if not history:
-        return "（没有对话历史）"
-    return _HISTORY_SEPARATOR.join(
-        _HISTORY_LINE.format(speaker=_SPEAKERS[message.role], content=message.content)
-        for message in history
-    )
+    """按时间顺序渲染历史（共用实现，见 `pipelines/prompting`）。"""
+    return render_dialogue(history)
 
 
 def parse_rewrite_prompt(text: str) -> RewritePrompt:

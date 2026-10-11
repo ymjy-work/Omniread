@@ -122,6 +122,21 @@ class QueryResponse(BaseModel):
     rewritten_query: str | None
 
 
+class SummarizeRequest(BaseModel):
+    """会话摘要的入参。`messages` 是**待压缩的那一段**，不是整个会话。"""
+
+    # 首次摘要时为 null。契约明说不要传空串——那一层由 `render_previous` 兜住（空串按「没有」处理）。
+    previous_summary: str | None = None
+    messages: list[HistoryMessage] = Field(min_length=1)
+
+
+class SummarizeResponse(BaseModel):
+    summary: str = Field(min_length=1)
+    # 摘要模板的版本。Java 把它写进 `chat_sessions.summary_prompt_version`——
+    # 摘要长期留在会话里，模板改了之后库里的老摘要得能分辨出自哪一版。
+    prompt_version: str
+
+
 class ErrorBody(BaseModel):
     request_id: str = _REQUEST_ID_FIELD
     code: ErrorCode

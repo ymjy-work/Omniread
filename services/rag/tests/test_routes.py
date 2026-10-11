@@ -25,6 +25,14 @@ QUERY_BODY = {
     "options": {"rewrite": False, "neighbor_expand": True},
 }
 
+SUMMARIZE_BODY = {
+    "previous_summary": None,
+    "messages": [
+        {"role": "user", "content": "政近为什么离开周防家？"},
+        {"role": "assistant", "content": "因为家里出了事 [C17]。"},
+    ],
+}
+
 CONTRACT_PATHS = [
     "/internal/v1/health",
     "/internal/v1/books",
@@ -34,7 +42,18 @@ CONTRACT_PATHS = [
     "/internal/v1/rag/query",
     "/internal/v1/rag/query-stream",
     "/internal/v1/rag/retrieval-only",
+    "/internal/v1/summarize",
 ]
+
+# 路径 → 方法显式写死，**不按子串猜**：`/internal/v1/summarize` 不含 `/rag/`，
+# 用「含 /rag/ 就当 POST」那条规则会把它当 GET 发出去、吃一个 405——
+# 而那正是这条用例要区分的东西（405 说明路由没挂上，不是方法用错了）。
+POST_PATHS = {
+    "/internal/v1/rag/query",
+    "/internal/v1/rag/query-stream",
+    "/internal/v1/rag/retrieval-only",
+    "/internal/v1/summarize",
+}
 
 
 def test_health_reports_own_service(client: TestClient) -> None:
@@ -66,11 +85,24 @@ def test_progress_route_is_not_registered(client: TestClient) -> None:
 @pytest.mark.parametrize("path", CONTRACT_PATHS)
 def test_contract_paths_are_routed(client: TestClient, path: str) -> None:
     # 任意已注册路径都不该是 405 / 404「没有这条路由」。
-    method = "post" if "/rag/" in path else "get"
+    method = "post" if path in POST_PATHS else "get"
     request = getattr(client, method)
-    response = request(path, **({"json": QUERY_BODY} if method == "post" else {}))
+    body = SUMMARIZE_BODY if path == "/internal/v1/summarize" else QUERY_BODY
+    response = request(path, **({"json": body} if method == "post" else {}))
 
     assert response.status_code != 405
+
+
+def test_summarize_without_pipeline_returns_unavailable_error_body(client: TestClient) -> None:
+    """摘要是**未接线 503**，不是「返回一份空摘要」。
+
+    契约的响应两个字段都 required，没有「这次不摘要」的取值——静默回一份空摘要
+    会写进会话、让后面每一轮都少一段上下文，而那是查不出来的。
+    """
+    response = client.post("/internal/v1/summarize", json=SUMMARIZE_BODY)
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "RAG_UNAVAILABLE"
 
 
 def test_query_without_pipeline_returns_unavailable_error_body(client: TestClient) -> None:

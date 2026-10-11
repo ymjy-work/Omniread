@@ -60,6 +60,7 @@ from omniread.pipelines.retrieval.dense import PgVectorDenseIndex
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline
 from omniread.pipelines.retrieval.store import PgChunkStore
 from omniread.pipelines.rewriting import FakeQueryRewriter, QueryRewriter
+from omniread.pipelines.summarizing import FakeSessionSummarizer, SessionSummarizer
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ API_PREFIX = "/internal/v1"
 # 显式传 None 表示「本次应用不接该依赖」，端点回 503——测试与控制台用它保持路径确定。
 RETRIEVAL_AUTO: Literal["auto"] = "auto"
 QUERY_RUNNER_AUTO: Literal["auto"] = "auto"
+SUMMARIZER_AUTO: Literal["auto"] = "auto"
 
 
 def build_image_storage(settings: Settings) -> ImageStorage:
@@ -156,9 +158,9 @@ def build_rewriter(settings: Settings) -> QueryRewriter:
     `chat=None` 的改写器——它一律落 `skipped`（不发帧、`rewritten_query` 为 null）。
     这与回答链「缺凭据即未接线」是两条不同的口径，刻意分开。
     """
-    if settings.rewriter_provider == "fake":
+    if settings.enhancement_provider == "fake":
         logger.warning(
-            "联调/测试模式：查询改写使用确定性假实现（OMNIREAD_REWRITER_PROVIDER=fake），"
+            "联调/测试模式：查询改写使用确定性假实现（OMNIREAD_ENHANCEMENT_PROVIDER=fake），"
             "不会调用 DeepSeek；它对有历史的请求一律返回 unchanged"
         )
         return FakeQueryRewriter()
@@ -167,6 +169,26 @@ def build_rewriter(settings: Settings) -> QueryRewriter:
     except ProviderConfigError as exc:
         logger.warning("查询改写未接线（降级为不改写）：%s", exc)
         return QueryRewriter(None)
+
+
+def build_summarizer(settings: Settings) -> SessionSummarizer | None:
+    """按配置装配摘要器；缺 DeepSeek 凭据时返回 None。
+
+    **与改写不同：这里返回 None 而不是降级。** 改写有「回退原问题」这个业务上说得通的
+    降级，摘要没有——契约的响应两个字段都 required，没有「这次不摘要」的取值。
+    所以按检索链那条口径走：`app.state` 上是 None，端点显式 503。
+    """
+    if settings.enhancement_provider == "fake":
+        logger.warning(
+            "联调/测试模式：会话摘要使用确定性假实现（OMNIREAD_ENHANCEMENT_PROVIDER=fake），"
+            "不会调用 DeepSeek"
+        )
+        return FakeSessionSummarizer()
+    try:
+        return SessionSummarizer(DeepSeekChatAdapter())
+    except ProviderConfigError as exc:
+        logger.warning("摘要链未接线：%s", exc)
+        return None
 
 
 def build_query_runner(
@@ -203,13 +225,14 @@ def create_app(
     image_storage: ImageStorage | None = None,
     query_runner: QueryRunner | Literal["auto"] | None = QUERY_RUNNER_AUTO,
     retrieval: RetrievalService | Literal["auto"] | None = RETRIEVAL_AUTO,
+    summarizer: SessionSummarizer | Literal["auto"] | None = SUMMARIZER_AUTO,
 ) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level)
     app = FastAPI(
         title="Omniread RAG 内部 API",
         version="1.0.0",
-        # 只暴露契约里的 8 条路径；交互式文档与 openapi.json 不在契约内，一律关闭。
+        # 只暴露契约里的 9 条路径；交互式文档与 openapi.json 不在契约内，一律关闭。
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -227,6 +250,10 @@ def create_app(
         )
     else:
         app.state.query_runner = query_runner or UnimplementedQueryRunner()
+    # 摘要：未接线时明确放 None（端点 503），**不降级成空摘要**——理由见 build_summarizer。
+    app.state.summarizer = (
+        build_summarizer(settings) if summarizer == SUMMARIZER_AUTO else summarizer
+    )
 
     app.middleware("http")(attach_request_id)
 

@@ -23,6 +23,7 @@ from omniread.application.ports import (
 from omniread.config import Settings
 from omniread.domain.errors import RagUnavailable
 from omniread.logging_config import bind_request_id
+from omniread.pipelines.summarizing import SessionSummarizer
 
 logger = logging.getLogger(__name__)
 
@@ -85,3 +86,16 @@ def get_retrieval(request: Request) -> RetrievalService:
     if service is None:
         raise RagUnavailable("检索链未接线：缺数据库或 provider 配置")
     return service
+
+
+def get_summarizer(request: Request) -> SessionSummarizer:
+    """摘要链未接线（缺 DeepSeek 凭据）时显式 503。
+
+    与改写不同：改写缺凭据**只降级**（回退原问题，业务照常），摘要没有降级这个选项
+    ——契约的响应两个字段都 required，没有「这次不摘要」的取值。所以这里按检索链那条口径
+    走 503，而不是静默返回一个空摘要。
+    """
+    summarizer = getattr(request.app.state, "summarizer", None)
+    if summarizer is None:
+        raise RagUnavailable("摘要链未接线：缺 DeepSeek 凭据")
+    return summarizer

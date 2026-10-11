@@ -143,6 +143,8 @@ paths:
                 $ref: "#/components/schemas/QueryResponse"
         "502":
           $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
         "504":
           $ref: "#/components/responses/Error"
 
@@ -179,6 +181,10 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/EventStream"
+        # **帧开始发之前**失败是普通状态码，只有帧开始之后才只能走 `error` 终止帧
+        # ——两个列表覆盖不同时间段，不是重复（同外部契约 queryStream 的说明）。
+        "503":
+          $ref: "#/components/responses/Error"
 
   /internal/v1/summarize:
     post:
@@ -211,6 +217,8 @@ paths:
                 $ref: "#/components/schemas/SummarizeResponse"
         "502":
           $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
         "504":
           $ref: "#/components/responses/Error"
 
@@ -238,6 +246,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RetrievalOnlyResponse"
         "502":
+          $ref: "#/components/responses/Error"
+        "503":
           $ref: "#/components/responses/Error"
         "504":
           $ref: "#/components/responses/Error"

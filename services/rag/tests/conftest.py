@@ -19,6 +19,7 @@ from omniread.application.ports import QueryRunner, RetrievalService
 from omniread.config import Settings
 from omniread.infrastructure.db.catalog import EmptyCatalogRepository
 from omniread.infrastructure.objectstore.local import LocalFileSystemImageStorage
+from omniread.pipelines.summarizing import SessionSummarizer
 
 
 @pytest.fixture
@@ -60,6 +61,22 @@ def build_client_with_retrieval(
 def build_client_with_runner(image_root: Path, query_runner: QueryRunner) -> TestClient:
     """给需要真跑问答路径的测试用：注入 runner，检索链显式不接线。"""
     return _build_client(image_root, query_runner)
+
+
+def build_client_with_summarizer(
+    image_root: Path, summarizer: SessionSummarizer
+) -> TestClient:
+    """给需要真跑摘要路径的测试用：注入摘要器，其余依赖照默认（不接线）。"""
+    settings = Settings(image_storage_backend="local", image_local_root=image_root)
+    app = create_app(
+        settings,
+        catalog=EmptyCatalogRepository(),
+        image_storage=LocalFileSystemImageStorage(image_root),
+        query_runner=None,
+        retrieval=None,
+        summarizer=summarizer,
+    )
+    return TestClient(app)
 
 
 @pytest.fixture

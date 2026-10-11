@@ -24,10 +24,13 @@ class Settings(BaseSettings):
     # 真 provider 缺凭据时构造即失败，端点以 503 暴露未接线，绝不因为缺 key 静默换成 fake。
     answer_provider: Literal["glm", "fake"] = "glm"
     retrieval_provider: Literal["ali", "fake"] = "ali"
-    # 查询改写用的模型（`多轮会话落地方案` §5.1）。**它是个增强步骤，缺凭据只降级**
-    # （改写回退原问题），不让整条 query 链失败——这是上面那条「真 provider 缺凭据
-    # 构造即失败」的明确例外，所以装配处单独 try，不经 build_query_runner 的 all-or-nothing。
-    rewriter_provider: Literal["deepseek", "fake"] = "deepseek"
+    # **增强步骤**（查询改写与摘要，`多轮会话落地方案` §5.1 / §5.2）共用的模型。
+    # 一个开关而不是两个：两者走同一个 provider、同一个模型、同一把 key。
+    #
+    # 它们的失败口径与其他链**不同**，所以共用开关不会混淆什么：
+    # 改写缺凭据只降级（回退原问题），摘要缺凭据是未接线（503）——都不让整条 query 链失败。
+    # 这是上面那条「真 provider 缺凭据构造即失败」的明确例外，装配处各自 try。
+    enhancement_provider: Literal["deepseek", "fake"] = "deepseek"
     # 只在 answer_provider=fake 时生效的故障注入：让真实 Python 服务返回 502 / 504，
     # 用于验证 Java 网关的上游错误映射，不必依赖付费 provider。
     fake_answer_fault: Literal["none", "provider_error", "timeout"] = "none"

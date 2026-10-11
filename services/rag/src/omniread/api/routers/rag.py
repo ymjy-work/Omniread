@@ -15,17 +15,21 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from omniread.api import schemas
 from omniread.api.adapters import JsonResponseAdapter, SseResponseAdapter
-from omniread.api.deps import get_query_runner, get_retrieval, request_id_of
+from omniread.api.deps import get_query_runner, get_retrieval, get_summarizer, request_id_of
 from omniread.application.ports import QueryRunner, RetrievalService
 from omniread.domain.errors import RagUnavailable
 from omniread.domain.models import HistoryMessage, QueryRequest, RealmLevel
 from omniread.infrastructure.providers.errors import ProviderError, to_rag_error
 from omniread.pipelines.retrieval.types import RetrievalOutcome, StageHit
+from omniread.pipelines.summarizing import SessionSummarizer
 
 router = APIRouter(tags=["rag"])
 
 _PROVIDER_ERRORS: dict[int | str, dict[str, Any]] = {
     502: {"model": schemas.ErrorBody, "description": "provider 返回错误"},
+    # 未接线（缺库凭据 / provider 凭据）。**它不是降级路径**：端点显式 503，
+    # 比让整进程起不来更便于运维定位。
+    503: {"model": schemas.ErrorBody, "description": "服务未接线（缺凭据或库）"},
     504: {"model": schemas.ErrorBody, "description": "provider 超时"},
 }
 
@@ -163,3 +167,36 @@ async def rag_retrieval_only(
     except SQLAlchemyError as exc:
         raise RagUnavailable("检索库不可用") from exc
     return _retrieval_response(outcome, request_id)
+
+
+@router.post(
+    "/summarize",
+    response_model=schemas.SummarizeResponse,
+    operation_id="internalSummarize",
+    responses=_PROVIDER_ERRORS,
+)
+async def summarize(
+    payload: schemas.SummarizeRequest,
+    summarizer: SessionSummarizer = Depends(get_summarizer),
+) -> schemas.SummarizeResponse:
+    """会话摘要。由 Java 在后台按阈值触发，**不在用户请求链路上**。
+
+    `request_id` 照常由中间件放进上下文（错误体要带它），这里不需要再取一次。
+
+    失败一律往上抛：provider 故障 502 / 超时 504 / 没接线 503。**Java 收到失败就什么都不动**
+    ——不推进 `summary_upto`，下次可重试且不会重复压缩。
+    """
+    try:
+        summary, prompt_version = await summarizer.summarize(
+            payload.previous_summary,
+            [
+                HistoryMessage(role=message.role, content=message.content)
+                for message in payload.messages
+            ],
+        )
+    except ProviderError as exc:
+        # provider 故障不降级：超时 504、其余 502。**必须显式转换**——
+        # `ProviderError` 不是 `RagError`，让它自己冒上去会落到兜底处理器变成 503，
+        # 而契约给这条路径声明的是 502 / 504（与另外三条 rag 路径同一条口径）。
+        raise to_rag_error(exc) from exc
+    return schemas.SummarizeResponse(summary=summary, prompt_version=prompt_version)
