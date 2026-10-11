@@ -141,7 +141,11 @@ public class RagGatewayClient {
         }
         ErrorCode code = ErrorCode.fromUpstream(status.value(), upstreamCode);
         String message = upstreamMessage != null ? upstreamMessage : "RAG 服务返回 " + status.value();
-        return new RagException(code, message, status);
+        // **状态由 code 派生，不再把上游状态原样带出**：一个事实一个来源。
+        // 原样带出时能产出契约那张表里不存在的组合（HTTP 404 配一个表里记 400 的码），
+        // 而前端是按 code 分支的——表说这个码是 400，它就不会去处理 404 的语义。
+        // 上游带 body 时 code 优先，所以正常路径一个字节都没变。
+        return new RagException(code, message);
     }
 
     /**

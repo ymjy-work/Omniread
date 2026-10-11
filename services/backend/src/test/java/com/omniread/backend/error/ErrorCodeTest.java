@@ -52,24 +52,34 @@ class ErrorCodeTest {
     }
 
     @Test
-    @DisplayName("上游没有可识别 code 时按状态码兜底，未知状态归不可用")
+    @DisplayName("上游没有可识别 code 时按状态码兜底，且兜底码的默认状态就是那个状态")
     void upstreamStatusFallback() {
-        assertThat(ErrorCode.fromUpstream(400, null)).isEqualTo(ErrorCode.RAG_INVALID_REALM);
-        assertThat(ErrorCode.fromUpstream(404, null)).isEqualTo(ErrorCode.RAG_INVALID_REALM);
+        // 兜底挑的就是那一行：状态与码对得上，契约那张表（REALM↦400、NOT_FOUND↦404）
+        // 因此不会出现表外的组合。400 归 REQUEST 而不是 REALM——兜底拿不到 message，
+        // 判不出是不是「超出你声明的进度」，而契约对「其余情形」的规定就是 REQUEST。
+        assertThat(ErrorCode.fromUpstream(400, null)).isEqualTo(ErrorCode.RAG_INVALID_REQUEST);
+        assertThat(ErrorCode.fromUpstream(404, null)).isEqualTo(ErrorCode.RAG_NOT_FOUND);
         assertThat(ErrorCode.fromUpstream(502, null)).isEqualTo(ErrorCode.RAG_PROVIDER_ERROR);
         assertThat(ErrorCode.fromUpstream(504, null)).isEqualTo(ErrorCode.RAG_TIMEOUT);
         assertThat(ErrorCode.fromUpstream(500, null)).isEqualTo(ErrorCode.RAG_UNAVAILABLE);
         assertThat(ErrorCode.fromUpstream(500, "NOT_A_CODE")).isEqualTo(ErrorCode.RAG_UNAVAILABLE);
+
+        assertThat(ErrorCode.RAG_INVALID_REQUEST.httpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ErrorCode.RAG_NOT_FOUND.httpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    @DisplayName("上游明确给出的状态原样带出：目录端点的 404 不被压成 code 的默认状态")
-    void upstreamStatusIsPreserved() {
-        RagException notFound = new RagException(ErrorCode.RAG_INVALID_REALM, "章节不存在", HttpStatus.NOT_FOUND);
-
-        assertThat(notFound.code()).isEqualTo(ErrorCode.RAG_INVALID_REALM);
-        assertThat(notFound.httpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(new RagException(ErrorCode.RAG_TIMEOUT, "超时").httpStatus()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+    @DisplayName("状态由 code 派生，不另存一份——上游多说一个状态也改不了它")
+    void statusFollowsTheCode() {
+        // 这条钉的是「一个事实一个来源」。原先允许把上游状态原样带出，于是能产出
+        // 契约表里不存在的组合（HTTP 404 配一个表里记 400 的码），而前端按 code 分支
+        // ——表说这个码是 400，它就不会去处理 404 的语义。
+        assertThat(new RagException(ErrorCode.RAG_NOT_FOUND, "章节不存在").httpStatus())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(new RagException(ErrorCode.RAG_INVALID_REALM, "越界").httpStatus())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(new RagException(ErrorCode.RAG_TIMEOUT, "超时").httpStatus())
+                .isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
     }
 
     @Test

@@ -58,10 +58,15 @@ public enum ErrorCode {
             }
         }
         return switch (upstreamStatus) {
-            // 404 也归到这里：Python 对「章节 / 图片不在合法范围内」用的就是 RAG_INVALID_REALM
-            // （它没有 RAG_NOT_FOUND 这条分支），所以按状态兜底时要还原成同一个码，
-            // 否则同一件事会随「上游有没有带 body」而变成两种 code。
-            case 400, 404 -> RAG_INVALID_REALM;
+            // 兜底用**那个状态码在契约里的对应码**，不挑一个「差不多」的：
+            // 挑错的话同一件事会随「上游有没有带 body」变成两个 code，而契约那张表
+            // （REALM↦400、NOT_FOUND↦404）会与真实响应对不上。
+            //
+            // 400 归 REQUEST 而不是 REALM：REALM 的含义窄得多（「问题超出你声明的进度」），
+            // 而兜底时拿不到 message、判不出是不是进度问题——契约对「其余情形」的规定
+            // 就是 REQUEST，那就按更常见的那一类归。
+            case 400 -> RAG_INVALID_REQUEST;
+            case 404 -> RAG_NOT_FOUND;
             case 502 -> RAG_PROVIDER_ERROR;
             case 504 -> RAG_TIMEOUT;
             default -> RAG_UNAVAILABLE;
