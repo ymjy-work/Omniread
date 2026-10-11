@@ -5,6 +5,8 @@ import com.omniread.backend.error.ErrorCode;
 import com.omniread.backend.error.RagException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(RagException.class)
     public ResponseEntity<ErrorBody> handleRag(RagException failure, HttpServletRequest request) {
         return errorBody(failure.code(), failure.httpStatus(), failure.getMessage(), request);
@@ -45,6 +49,14 @@ public class GlobalExceptionHandler {
             ConstraintViolationException.class, HttpMessageNotReadableException.class,
             MissingRequestValueException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ErrorBody> handleInvalidInput(Exception failure, HttpServletRequest request) {
+        // 六种异常共用一个出口，而**响应里看不出是哪一种**——排查时只知道「400」，
+        // 不知道是请求体读不出来、还是某个 @RequestAttribute 没挂上、还是字段校验没过。
+        // 只记异常类型，不记 message（后者可能把请求体片段带进日志）。
+        log.warn(
+                "入参校验失败：{} path={} cause={}",
+                failure.getClass().getSimpleName(),
+                request.getRequestURI(),
+                failure.getCause() == null ? failure.getMessage() : failure.getCause().getMessage());
         return errorBody(
                 ErrorCode.RAG_INVALID_REQUEST, ErrorCode.RAG_INVALID_REQUEST.httpStatus(), describe(failure), request);
     }
