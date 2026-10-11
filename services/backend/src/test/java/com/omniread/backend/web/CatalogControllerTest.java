@@ -71,16 +71,17 @@ class CatalogControllerTest {
     }
 
     @Test
-    @DisplayName("进度小于 1 同样 400，码与越上界相同")
+    @DisplayName("进度小于 1 也是 400，但码与越上界不同：schema 约束归 REQUEST、语义归 REALM")
     void rejectsZero() throws Exception {
         when(bookCatalog.chapterCount(1)).thenReturn(CHAPTER_COUNT);
 
-        // 上下界同码是刻意的：范围检查全在 RealmValidator 一处，见 ProgressWrite 的注释。
+        // 下界 1 写在契约的 schema 里 → 请求本身不合法；上界要问书目录 → 语义检查。
+        // 两者同为 400，前端按 code 分支，所以这条要钉住它们**不一样**。
         mvc.perform(progress(put("/api/v1/books/1/progress"), ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"max_seq\":0}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("RAG_INVALID_REALM"));
+                .andExpect(jsonPath("$.code").value("RAG_INVALID_REQUEST"));
     }
 
     @Test

@@ -61,6 +61,9 @@ class AuthGateTest {
 
     private static final String CSRF_HEADER = AuthInterceptor.CSRF_HEADER;
 
+    /** 与拦截器里那份同义：安全方法不要求 CSRF 头。 */
+    private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS");
+
     private static final Path DB_PATH = createDbPath();
 
     private static Path createDbPath() {
@@ -148,6 +151,45 @@ class AuthGateTest {
     /** 把 `/books/{bookId}/chapters/{chapterIndex}` 变成可以直接请求的路径。 */
     private static String concretize(String pattern) {
         return pattern.replaceAll("\\{[^}]*\\}", "1");
+    }
+
+    @Test
+    @DisplayName("逐个验证：注册表里每条 /api/v1 的写操作都要求 CSRF 头（登录除外）")
+    void everyRegisteredWriteRequiresTheCsrfHeader() throws Exception {
+        // 上一条钉「进得来」，这条钉「写操作多一道」。两条合起来才说明契约里那 7 条
+        // `$ref: CsrfHeader` 与实现里的路由**是同一批**——手写清单做不到这一点，
+        // 而契约与实现各写一份清单、只改一处，正是这类漂移的典型来源。
+        Cookie cookie = login(newAccount("csrf-sweep"));
+        RequestMappingHandlerMapping mapping = context.getBean(RequestMappingHandlerMapping.class);
+        Set<String> exempt = Set.of("/api/v1/health", "/api/v1/auth/login");
+        List<String> checked = new ArrayList<>();
+
+        for (RequestMappingInfo info : mapping.getHandlerMethods().keySet()) {
+            Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
+            for (String pattern : info.getPatternValues()) {
+                if (!pattern.startsWith("/api/v1/") || exempt.contains(pattern)) {
+                    continue;
+                }
+                for (RequestMethod method : methods) {
+                    if (SAFE_METHODS.contains(method.name())) {
+                        continue;
+                    }
+                    // 带着 cookie、**不带** CSRF 头：拦下它的必须是 CSRF 判定（403）。
+                    // 请求体是空的也无所谓——拦截器在参数解析之前就把它挡了，
+                    // 所以这条不需要为每条路由编一份合法载荷。
+                    mvc.perform(request(HttpMethod.valueOf(method.name()), concretize(pattern))
+                                    .cookie(cookie))
+                            .andExpect(status().isForbidden())
+                            .andExpect(jsonPath("$.code").value("RAG_FORBIDDEN"));
+                    checked.add(method + " " + pattern);
+                }
+            }
+        }
+
+        assertThat(checked)
+                .as("一条写操作都没枚举到，说明这条用例已经退化成了空跑")
+                .hasSizeGreaterThanOrEqualTo(5)
+                .doesNotContainAnyElementsOf(exempt);
     }
 
     @Test

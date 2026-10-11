@@ -554,10 +554,10 @@ components:
             | code | 谁产生 | HTTP |
             | --- | --- | --- |
             | `RAG_INVALID_REALM` | 两侧 | 400 |
-            | `RAG_INVALID_REQUEST` | 仅网关 | 400 |
+            | `RAG_INVALID_REQUEST` | 两侧 | 400 |
             | `RAG_UNAUTHENTICATED` | 仅网关 | 401 |
             | `RAG_FORBIDDEN` | 仅网关 | 403 |
-            | `RAG_NOT_FOUND` | 仅网关 | 404 |
+            | `RAG_NOT_FOUND` | 两侧 | 404 |
             | `RAG_SESSION_MISMATCH` | 仅网关 | 409 |
             | `RAG_RATE_LIMITED` | 仅网关 | 429 |
             | `RAG_DAILY_QUOTA_EXCEEDED` | 仅网关 | 429 |
@@ -571,10 +571,20 @@ components:
             分钟限流等一下重试、日额度要等明天、并发要等上一个回答结束、登录锁要换 IP。
             合成一个，前端就只能显示一句笼统的「太频繁」。
 
-            **为什么内部契约也列了只属于网关的码**：`ErrorBody` 是两份契约共有的 schema，
+            **为什么内部契约也列了网关那些码**：`ErrorBody` 是两份契约共有的 schema，
             而 `code` 是闭枚举——枚举没法用 `allOf` 做并集（两个 enum 相交，结果是空集）。
             要么两侧列同一套，要么把这个 schema 拆成两个。选了前者，并把「谁产生哪个」
             写在这里——结构一致由测试守，语义差别由这张表守。
+
+            **这张表本身没有守卫**：结构比对忽略 description，所以两份契约里的这两张表是
+            **手工同步**的，改一处必须改另一处。表与路径列表打架时不会有任何测试变红
+            （`RAG_NOT_FOUND` 曾被记成「仅网关」，而契约自己给 catalog 路径声明了 404、
+            实现者是 Python）——所以这里的每一行都要能对上真实实现。
+
+            `RAG_NOT_FOUND` 与 `RAG_INVALID_REQUEST` 是**两侧**：Python 也发这两个。
+            它那边的章节 / 图片 404 就是「没有这个资源」，请求体校验失败就是
+            「请求本身不合法」——与网关的会话不存在、登录体缺字段是同一类事，
+            没有理由按实现方分成两个码（前端按码分支，同一个处置两码就是两条分支）。
 
             `RAG_INVALID_REALM` 与 `RAG_INVALID_REQUEST` 都是 400，分开是因为处置不同：
             前者是「问题超出你声明的进度」，前端该提示用户改档位或改进度；

@@ -9,7 +9,13 @@ from fastapi.testclient import TestClient
 
 from helpers import REQUEST_ID
 from omniread.api.deps import sanitize_request_id
-from omniread.domain.errors import ErrorCode
+from omniread.domain.errors import (
+    ErrorCode,
+    RagInvalidRealm,
+    RagInvalidRequest,
+    ResourceNotFound,
+    error_from_wire,
+)
 
 REQUEST_ID_PATTERN = re.compile(r"^req_[0-9a-f]{32}$")
 ALLOWED_CODES = {code.value for code in ErrorCode}
@@ -32,14 +38,14 @@ def test_invalid_body_returns_flat_error_body(client: TestClient) -> None:
     )
 
     assert response.status_code == 400
-    _assert_error_body(response.json(), "RAG_INVALID_REALM")
+    _assert_error_body(response.json(), "RAG_INVALID_REQUEST")
 
 
 def test_missing_required_field_returns_flat_error_body(client: TestClient) -> None:
     response = client.post("/internal/v1/rag/query", json={})
 
     assert response.status_code == 400
-    _assert_error_body(response.json(), "RAG_INVALID_REALM")
+    _assert_error_body(response.json(), "RAG_INVALID_REQUEST")
 
 
 @pytest.mark.parametrize(
@@ -51,18 +57,43 @@ def test_missing_required_field_returns_flat_error_body(client: TestClient) -> N
         {"book_id": 1, "question": "q", "level": "past", "progress": 194},
     ],
 )
-def test_query_request_validation_uses_error_body(client: TestClient, body: dict) -> None:
+def test_schema_violations_are_invalid_request(client: TestClient, body: dict) -> None:
+    """**与 schema 对不上的取值归 REQUEST，不归 REALM**。
+
+    判据不是「这个字段叫什么」而是「这一条是不是 schema 里写明的约束」：`progress` 的
+    `ge=1 / le=193` 是 schema 写的，越界即请求本身不合法；而「`level=past` 却没带
+    progress」「progress 超出这本书的章节数」只有拿到书目录才判得了，那才是 REALM。
+    两者同为 400，前端按 code 分支——混在一起就分不出该提示谁。
+    """
     response = client.post("/internal/v1/rag/query", json=body)
 
     assert response.status_code == 400
-    _assert_error_body(response.json(), "RAG_INVALID_REALM")
+    _assert_error_body(response.json(), "RAG_INVALID_REQUEST")
+
+
+def test_the_two_bad_request_codes_are_two_things() -> None:
+    """上半条的另一半：两个 400 必须是两个码、两个类、两条分支。
+
+    这条不走 HTTP：上面的 `client` 是个**未接线**的应用（检索链没有实现），语义层的
+    realm 检查根本到不了——它要拿到书目录才判得了。所以这里只钉「码 → 类」的映射，
+    而真实触发 REALM 的那几处（`level=past` 却没带 progress、progress 超出本书章节数）
+    由检索链自己的用例覆盖。
+    """
+    assert ErrorCode.RAG_INVALID_REALM != ErrorCode.RAG_INVALID_REQUEST
+    assert RagInvalidRealm("x").http_status == 400
+    assert RagInvalidRequest("x").http_status == 400
+    # 映射表漏一项的后果是 `error_from_wire` 抛 KeyError——而那发生在**构造错误响应时**，
+    # 也就是最不该再抛异常的时刻。
+    assert isinstance(error_from_wire("RAG_INVALID_REALM", "x"), RagInvalidRealm)
+    assert isinstance(error_from_wire("RAG_INVALID_REQUEST", "x"), RagInvalidRequest)
+    assert isinstance(error_from_wire("RAG_NOT_FOUND", "x"), ResourceNotFound)
 
 
 def test_not_found_uses_error_body(client: TestClient) -> None:
     response = client.get("/internal/v1/books/1/chapters/17")
 
     assert response.status_code == 404
-    _assert_error_body(response.json(), "RAG_INVALID_REALM")
+    _assert_error_body(response.json(), "RAG_NOT_FOUND")
 
 
 def test_valid_request_id_header_is_passed_through() -> None:

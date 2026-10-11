@@ -175,6 +175,7 @@ paths:
       summary: 写入当前账户的阅读进度
       parameters:
         - $ref: "#/components/parameters/BookId"
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -183,6 +184,8 @@ paths:
               $ref: "#/components/schemas/ProgressWrite"
       responses:
         "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
         "200":
           description: OK
@@ -201,6 +204,8 @@ paths:
       operationId: query
       summary: 一轮问答（JSON 同步）
       description: 供脚本使用；前端走 `/api/v1/query/stream`。两者除编码方式外行为一致。
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -255,6 +260,8 @@ paths:
 
         两个 query 路径用**路径区分**而非 `Accept` 内容协商 —— 适配器选择是显式的，
         省掉协商分支与 `Accept` 解析的边界情况。
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -345,10 +352,14 @@ paths:
 
         对前端的实际影响为零：会话已过期时前端本来就要按 401 走「跳登录页」那条路，
         而「已经登出」与「从未登录」在前端是同一个处置。
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
       responses:
         "204":
           description: 已退出（该登录会话行已删除）
         "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
 
   /api/v1/auth/me:
@@ -391,6 +402,8 @@ paths:
       description: |
         新会话是空的，档位在此定下并**在会话内固定**——切档位不就地改，
         走 `POST /api/v1/sessions/{session_id}/fork`。
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -407,6 +420,8 @@ paths:
         "400":
           $ref: "#/components/responses/Error"
         "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
 
   /api/v1/sessions/{session_id}:
@@ -436,6 +451,7 @@ paths:
       description: 连同它的消息一起删（用户主动删自己的会话）。别人的会话删不掉，返回 403。
       parameters:
         - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/CsrfHeader"
       responses:
         "204":
           description: 已删除
@@ -461,6 +477,7 @@ paths:
         复制式而不是引用式：实现最简单，且删除时父子互不影响。
       parameters:
         - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -517,7 +534,24 @@ components:
       description: 全书连续序号 1..193（不是卷内序号）
       schema: { type: integer, format: int32, minimum: 1, maximum: 193 }
       example: 17
+    CsrfHeader:
+      name: X-Omniread-Csrf
+      in: header
+      required: true
+      description: |
+        CSRF 的第二道防线：**写操作必须带这个头**，值不参与判断。
 
+        为什么是「带一个自定义头」而不是别的：它要求发起方能设请求头，而跨站页面做不到
+        ——要发这样的请求就绕不开 CORS 预检，而预检**不会带上 cookie**。
+        头名固定，`required: true` 是给读契约的人看的（OpenAPI 的 `required` 只约束文档，
+        拦不拦是服务端的事）。
+
+        **缺这个头返回 `403` + `RAG_FORBIDDEN`**，而不是 400：它属于「你不是从我们自己的页面
+        发起的」，与「请求体写错了」不是一件事。**未登录时仍然是 401**——判定顺序是
+        先身份后 CSRF，否则「未登录 `/api/v1/*` 一律 401」这条规则会出现一个例外。
+
+        `POST /api/v1/auth/login` **不带这个头**：它是拿到 cookie 的那一步，本来就没有登录态，
+        而它也不在登录门内（见该 operation 的 `security: []`）。
   responses:
     Error:
       description: 统一错误体
@@ -944,10 +978,10 @@ components:
             | code | 谁产生 | HTTP |
             | --- | --- | --- |
             | `RAG_INVALID_REALM` | 两侧 | 400 |
-            | `RAG_INVALID_REQUEST` | 仅网关 | 400 |
+            | `RAG_INVALID_REQUEST` | 两侧 | 400 |
             | `RAG_UNAUTHENTICATED` | 仅网关 | 401 |
             | `RAG_FORBIDDEN` | 仅网关 | 403 |
-            | `RAG_NOT_FOUND` | 仅网关 | 404 |
+            | `RAG_NOT_FOUND` | 两侧 | 404 |
             | `RAG_SESSION_MISMATCH` | 仅网关 | 409 |
             | `RAG_RATE_LIMITED` | 仅网关 | 429 |
             | `RAG_DAILY_QUOTA_EXCEEDED` | 仅网关 | 429 |
@@ -961,10 +995,19 @@ components:
             分钟限流等一下重试、日额度要等明天、并发要等上一个回答结束、登录锁要换 IP。
             合成一个，前端就只能显示一句笼统的「太频繁」。
 
-            **为什么内部契约也列了只属于网关的码**：`ErrorBody` 是两份契约共有的 schema，
+            **为什么外部契约也列了内部那些码**：`ErrorBody` 是两份契约共有的 schema，
             而 `code` 是闭枚举——枚举没法用 `allOf` 做并集（两个 enum 相交，结果是空集）。
             要么两侧列同一套，要么把这个 schema 拆成两个。选了前者，并把「谁产生哪个」
             写在这里——结构一致由测试守，语义差别由这张表守。
+
+            **这张表本身没有守卫**：结构比对忽略 description，所以两份契约里的这两张表是
+            **手工同步**的，改一处必须改另一处。表与路径列表打架时不会有任何测试变红
+            （`RAG_NOT_FOUND` 曾被记成「仅网关」，而契约自己给章节 / 插图路径声明了 404，
+            那几个端点的实现方是 Python）——所以这里的每一行都要能对上真实实现。
+
+            `RAG_NOT_FOUND` 与 `RAG_INVALID_REQUEST` 是**两侧**：网关与 Python 都发。
+            章节 / 插图不存在、请求体校验失败，与「会话不存在」「登录体缺字段」是同一类事，
+            没有理由按实现方分成两个码——前端按码分支，同一个处置两码就是两条分支。
 
             `RAG_INVALID_REALM` 与 `RAG_INVALID_REQUEST` 都是 400，分开是因为处置不同：
             前者是「问题超出你声明的进度」，前端该提示用户改档位或改进度；

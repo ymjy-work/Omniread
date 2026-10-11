@@ -105,7 +105,8 @@ def test_http_rejects_encoded_traversal(client: TestClient) -> None:
     response = client.get("/internal/v1/books/1/images/%2e%2e%2f%2e%2e%2fsecret.txt")
 
     assert response.status_code == 400
-    assert response.json()["code"] == "RAG_INVALID_REALM"
+    # 路径没通过防护是「请求本身不合法」，不是「超出你声明的进度」——与用户读到第几章无关。
+    assert response.json()["code"] == "RAG_INVALID_REQUEST"
 
 
 def test_http_rejects_non_whitelisted_extension(client: TestClient) -> None:
