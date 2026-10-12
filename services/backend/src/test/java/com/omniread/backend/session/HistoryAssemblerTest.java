@@ -38,7 +38,7 @@ class HistoryAssemblerTest {
     }
 
     private static ContextBudget budget(int historyTokens, int minRecentTurns) {
-        return new ContextBudget(historyTokens, minRecentTurns, 4000, 4);
+        return new ContextBudget(historyTokens, minRecentTurns, 4);
     }
 
     @Test

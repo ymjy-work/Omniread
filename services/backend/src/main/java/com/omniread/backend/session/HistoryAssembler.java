@@ -38,13 +38,13 @@ public final class HistoryAssembler {
             return HistorySelection.empty();
         }
 
-        List<Turn> turns = toTurns(messages);
-        List<Turn> selected = new ArrayList<>();
+        List<Turns.Turn> turns = Turns.of(messages);
+        List<Turns.Turn> selected = new ArrayList<>();
         int tokens = 0;
 
         // 规则 1 + 3：从最新往回整轮地取。
         for (int i = turns.size() - 1; i >= 0; i--) {
-            Turn turn = turns.get(i);
+            Turns.Turn turn = turns.get(i);
             boolean mustKeep = selected.size() < budget.minRecentTurns();
             if (!mustKeep && tokens + turn.tokens() > budget.historyBudgetTokens()) {
                 break;
@@ -55,7 +55,7 @@ public final class HistoryAssembler {
 
         // 规则 2：锚点。已经被选中的话不重复加。
         List<ChatMessage> included = new ArrayList<>();
-        for (Turn turn : selected) {
+        for (Turns.Turn turn : selected) {
             included.addAll(turn.messages());
         }
         ChatMessage anchor = firstUserMessage(messages);
@@ -81,60 +81,5 @@ public final class HistoryAssembler {
             }
         }
         return null;
-    }
-
-    /**
-     * 配对成轮次。
-     *
-     * <p>正常形状是严格交替的 `user, assistant, user, assistant…`，但库里可能出现两种残缺：
-     * 尾部一条没有回答的用户消息（上一轮失败留下的），或一条前面没有用户的助手消息。
-     * 两种都**单独成轮而不是丢掉**——丢掉会让模型看到一段凭空开始的对话，
-     * 而它并不知道前面少了一段。
-     */
-    private static List<Turn> toTurns(List<ChatMessage> messages) {
-        List<Turn> turns = new ArrayList<>();
-        int index = 0;
-        while (index < messages.size()) {
-            ChatMessage current = messages.get(index);
-            if (ChatMessage.ROLE_USER.equals(current.getRole())) {
-                ChatMessage next = index + 1 < messages.size() ? messages.get(index + 1) : null;
-                if (next != null && ChatMessage.ROLE_ASSISTANT.equals(next.getRole())) {
-                    turns.add(new Turn(current, next));
-                    index += 2;
-                    continue;
-                }
-                turns.add(new Turn(current, null));
-                index += 1;
-                continue;
-            }
-            turns.add(new Turn(null, current));
-            index += 1;
-        }
-        return turns;
-    }
-
-    /** 一轮：一问一答。残缺时其中一侧为 null。 */
-    private record Turn(ChatMessage user, ChatMessage assistant) {
-
-        List<ChatMessage> messages() {
-            if (user == null) {
-                return List.of(assistant);
-            }
-            if (assistant == null) {
-                return List.of(user);
-            }
-            return List.of(user, assistant);
-        }
-
-        int tokens() {
-            int total = 0;
-            for (ChatMessage message : messages()) {
-                Integer count = message.getTokenCount();
-                // 没记过 token 数的消息按内容现算：老数据或异常路径可能留空，
-                // 当成 0 会让它变成「免费」的历史，一路把预算撑爆。
-                total += count != null ? count : TokenEstimator.estimate(message.getContent());
-            }
-            return total;
-        }
     }
 }

@@ -40,18 +40,6 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class QueryOrchestrator {
 
-    /** 历史消息在契约里限了长度（`maxLength: 8000`），而库里的正文没有上限。 */
-    private static final int MAX_HISTORY_CONTENT = 8000;
-
-    /**
-     * 超长历史被截断时补的标记。
-     *
-     * <p>**截断而不是让请求失败**：历史是上下文不是答案来源，为一条陈年长消息把用户
-     * 当前这一问整个打回，代价远大于少一段上下文。补一句标记是为了不静默——虽然模型
-     * 读得到，但排查的人从库里也读得到。
-     */
-    private static final String TRUNCATION_MARK = "……（历史消息过长，已截断）";
-
     /** Jackson 3（`tools.jackson`）：本工程的运行时是它，新代码不要混 Jackson 2。 */
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
@@ -61,6 +49,7 @@ public class QueryOrchestrator {
     private final ChatMessageMapper messageMapper;
     private final ChatMessageStore messageStore;
     private final ContextBudget budget;
+    private final SessionSummarizer summarizer;
 
     public QueryOrchestrator(
             RagGatewayClient gateway,
@@ -68,13 +57,15 @@ public class QueryOrchestrator {
             SessionService sessionService,
             ChatMessageMapper messageMapper,
             ChatMessageStore messageStore,
-            ContextBudget budget) {
+            ContextBudget budget,
+            SessionSummarizer summarizer) {
         this.gateway = gateway;
         this.bookCatalog = bookCatalog;
         this.sessionService = sessionService;
         this.messageMapper = messageMapper;
         this.messageStore = messageStore;
         this.budget = budget;
+        this.summarizer = summarizer;
     }
 
     /**
@@ -113,10 +104,17 @@ public class QueryOrchestrator {
         return gateway.openQueryStream(toUpstream(request, prepared.session(), prepared.history()), requestId);
     }
 
-    /** 流式路径用：把回答落库并给出它的 id（末帧要带这个 id 回前端）。 */
+    /**
+     * 把回答落库并给出它的 id（末帧要带这个 id 回前端）。两条路径共用。
+     *
+     * <p>摘要的判定挂在这里，因为**它是「回答已经落库」这件事本身**：放在别处就会出现
+     * 「先判定、后落库」的顺序，而判定读的是库里有没有这一条。触发是异步的，
+     * 用户等待的那条链上只多一次 SQLite 读。
+     */
     public ChatMessage recordAnswer(ChatSession session, QueryResponse answer) {
         ChatMessage replied = appendAssistantMessage(session, answer);
         sessionService.touch(session.getId());
+        summarizer.maybeSummarize(session.getId());
         return replied;
     }
 
@@ -162,7 +160,12 @@ public class QueryOrchestrator {
         return HistoryAssembler.assemble(messages, budget);
     }
 
+    /**
+     * 用户这一问落库。**会话标题的起名也挂在这里**（两条路径共用）：契约说标题由首轮那句问话
+     * 生成，而这句话就是那句问话。
+     */
     private ChatMessage appendUserMessage(ChatSession session, String question) {
+        sessionService.renameFromFirstQuestion(session, question);
         return messageStore.append(
                 session.getId(),
                 ChatMessage.ROLE_USER,
@@ -222,25 +225,8 @@ public class QueryOrchestrator {
                 .question(request.getQuestion())
                 .progress(request.getProgress())
                 .options(request.getOptions())
-                .history(toHistoryMessages(history))
+                .history(UpstreamHistory.of(history.messages()))
                 .summary(session.getSummary());
         return upstream;
-    }
-
-    private static List<HistoryMessage> toHistoryMessages(HistorySelection history) {
-        List<HistoryMessage> messages = new ArrayList<>();
-        for (ChatMessage message : history.messages()) {
-            messages.add(new HistoryMessage(
-                    HistoryMessage.RoleEnum.fromValue(message.getRole()),
-                    truncate(message.getContent())));
-        }
-        return messages;
-    }
-
-    private static String truncate(String content) {
-        if (content == null || content.length() <= MAX_HISTORY_CONTENT) {
-            return content;
-        }
-        return content.substring(0, MAX_HISTORY_CONTENT - TRUNCATION_MARK.length()) + TRUNCATION_MARK;
     }
 }

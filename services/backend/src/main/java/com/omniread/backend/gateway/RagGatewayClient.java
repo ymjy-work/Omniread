@@ -7,6 +7,8 @@ import com.omniread.backend.contract.model.ChapterList;
 import com.omniread.backend.contract.model.ErrorBody;
 import com.omniread.backend.contract.model.InternalQueryRequest;
 import com.omniread.backend.contract.model.QueryResponse;
+import com.omniread.backend.contract.model.SummarizeRequest;
+import com.omniread.backend.contract.model.SummarizeResponse;
 import com.omniread.backend.error.ErrorCode;
 import com.omniread.backend.error.RagException;
 import com.omniread.backend.web.RequestIds;
@@ -73,6 +75,21 @@ public class RagGatewayClient {
                 .header(RequestIds.HEADER, requestId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body), QueryResponse.class);
+    }
+
+    /**
+     * 会话摘要：一次独立的模型调用，**不在用户请求链路上**（由后台任务发起，
+     * 见 {@code orchestration.SessionSummarizer}）。
+     *
+     * <p>失败原样翻成 {@link RagException} 上抛：调用方要的是「这次没压成」这个事实，
+     * 它据此什么都不做——不推进 `summary_upto`，下次可重试且不会重复压缩。
+     */
+    public SummarizeResponse summarize(SummarizeRequest body, String requestId) {
+        return call(restClient.post()
+                .uri(uri("/internal/v1/summarize"))
+                .header(RequestIds.HEADER, requestId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body), SummarizeResponse.class);
     }
 
     /** SSE 帧流：不解析、不重组，字节级透传（事件语义由 Python 侧适配器负责）。 */

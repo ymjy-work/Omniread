@@ -237,7 +237,33 @@ class QueryMultiTurnTest {
                 .andExpect(jsonPath("$.code").value("RAG_SESSION_MISMATCH"));
     }
 
+    @Test
+    @DisplayName("首轮那句问话成了会话标题，之后再问不改名")
+    void firstQuestionNamesTheSession() throws Exception {
+        Cookie cookie = login(newAccount("title"));
+        String sessionId = createSession(cookie);
+
+        assertThat(title(cookie, sessionId)).as("还没问过时是占位标题").isEqualTo("新会话");
+
+        ask(cookie, sessionId, "政近为什么离开周防家？");
+        assertThat(title(cookie, sessionId)).isEqualTo("政近为什么离开周防家？");
+
+        ask(cookie, sessionId, "那她后来呢？");
+        assertThat(title(cookie, sessionId))
+                .as("每问一句都改一次的话，列表里的名字会跟着每一句话跳")
+                .isEqualTo("政近为什么离开周防家？");
+    }
+
     // ── 夹具 ──
+
+    private String title(Cookie cookie, String sessionId) throws Exception {
+        String body = mvc.perform(get("/api/v1/sessions/" + sessionId).cookie(cookie))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        return body.replaceAll(".*\"title\":\"([^\"]*)\".*", "$1");
+    }
 
     private User newAccount(String prefix) {
         return accountService.create(prefix + "-" + UUID.randomUUID(), PASSWORD);

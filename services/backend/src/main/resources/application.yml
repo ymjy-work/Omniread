@@ -14,12 +14,16 @@ mybatis:
 
 omniread:
   context:
-    # 多轮上下文预算（多轮会话落地方案 §三）。四个数互相牵制：
-    # 调大 historyBudgetTokens 就推迟了摘要触发，分开看会以为是两件独立的事。
-    history-budget-tokens: ${OMNIREAD_HISTORY_BUDGET:1500}
-    min-recent-turns: ${OMNIREAD_MIN_RECENT_TURNS:1}
-    summarize-threshold-tokens: ${OMNIREAD_SUMMARIZE_THRESHOLD:4000}
-    keep-recent-on-summarize: ${OMNIREAD_KEEP_RECENT_ON_SUMMARIZE:4}
+    # 多轮上下文预算（多轮会话落地方案 §三）。三个数不是三件独立的事：
+    # history-budget-tokens 同时是「近轮原文的预算」与「摘要的触发线」——攒下的对话
+    # 超过了模型能看到的量，就有一段谁也看不见；keep-recent 决定那一段从哪里切开。
+    #
+    # **keep-recent 要明显小于窗口装得下的轮数**（keep × 每轮 token ≲ 窗口）：取大了会出现
+    # 「既不在摘要里、也不在窗口里」的一段，取小了只是多压一点还看得到的原文（无害但白跑）。
+    # 默认按真实回答每轮几百到一千五百 token 估：12000 的窗口 ≈ 十来轮，keep 取 8 留了余量。
+    history-budget-tokens: ${OMNIREAD_HISTORY_BUDGET:12000}
+    min-recent-turns: ${OMNIREAD_MIN_RECENT_TURNS:2}
+    keep-recent-on-summarize: ${OMNIREAD_KEEP_RECENT_ON_SUMMARIZE:8}
   store:
     # 账户 / 会话 / 进度 / 配额都落这一个 SQLite 文件（多轮会话落地方案 §一）。
     # 连接参数（WAL / busy_timeout / foreign_keys）由 StoreConfig 拼进 URL，不在这里。

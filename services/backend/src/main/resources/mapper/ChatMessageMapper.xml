@@ -25,16 +25,6 @@
     ORDER BY seq
   </select>
 
-  <!-- 摘要取段：id 之后（旧摘要覆盖到哪）、seq 之前（最近几轮留原文不进摘要）。
-       两个条件都可为空，各自为空时该侧不设限。 -->
-  <select id="findBySessionBetween" resultType="com.omniread.backend.session.ChatMessage">
-    SELECT * FROM chat_messages
-    WHERE session_id = #{sessionId}
-    <if test="afterId != null">AND id &gt; #{afterId}</if>
-    <if test="beforeSeq != null">AND seq &lt; #{beforeSeq}</if>
-    ORDER BY seq
-  </select>
-
   <select id="countBySession" resultType="int">
     SELECT COUNT(*) FROM chat_messages WHERE session_id = #{sessionId}
   </select>

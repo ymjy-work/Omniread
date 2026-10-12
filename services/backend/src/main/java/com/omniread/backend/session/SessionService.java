@@ -180,6 +180,30 @@ public class SessionService {
     }
 
     /**
+     * 首轮那句问话顺手给会话起个名，返回改没改。
+     *
+     * <p>**只在还是占位标题时改**：分叉会把父会话的标题一并复制过来，而那是父会话首轮那句话
+     * 截出来的——不判一下的话，标题会变成「这个会话里最后问的那句」，每问一句在列表里跳一次。
+     *
+     * <p>起名挂在**用户消息**落库这一侧，而不是回答那一侧：答案是模型给的，问话是用户给的；
+     * 而且回答失败时（provider 挂了）会话也该有个名字。
+     */
+    public boolean renameFromFirstQuestion(ChatSession session, String question) {
+        if (!PLACEHOLDER_TITLE.equals(session.getTitle())) {
+            return false;
+        }
+        String title = SessionTitle.of(question);
+        if (title == null) {
+            return false;
+        }
+        sessionMapper.updateTitle(session.getId(), title);
+        // 同一个对象这一轮还会被读（记录回答时顺手 touch），先在内存里对齐，
+        // 免得同一轮里出现两个标题。
+        session.setTitle(title);
+        return true;
+    }
+
+    /**
      * 刷新会话的最近活跃时间。列表按它倒序，所以「继续上次」靠的就是这一下——
      * 不刷的话，用户接着聊的那个会话会一直沉在列表底部，而列表本身看不出任何异常。
      */

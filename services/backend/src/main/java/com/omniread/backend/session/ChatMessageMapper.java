@@ -24,12 +24,6 @@ public interface ChatMessageMapper {
     List<ChatMessage> findBySessionUpTo(
             @Param("sessionId") String sessionId, @Param("uptoSeq") int uptoSeq);
 
-    /** 摘要用：`summary_upto` 之后、某个 `seq` 之前的消息。 */
-    List<ChatMessage> findBySessionBetween(
-            @Param("sessionId") String sessionId,
-            @Param("afterId") Long afterId,
-            @Param("beforeSeq") Integer beforeSeq);
-
     /** 会话消息总量（条数），用于按需取全量。 */
     int countBySession(@Param("sessionId") String sessionId);
 
