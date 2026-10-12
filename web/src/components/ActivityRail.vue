@@ -21,6 +21,11 @@ function openReader(): void {
   const chapter = store.chapter?.chapter_index ?? store.progress?.max_seq ?? 1
   void router.push({ name: 'reader', params: { bookId, chapterIndex: chapter } })
 }
+
+/** 介绍 / 导航页：什么时候都能回门厅看一眼「能做什么、边界在哪儿、须知」。 */
+function openWelcome(): void {
+  void router.push({ name: 'welcome' })
+}
 </script>
 
 <template>
@@ -44,6 +49,13 @@ function openReader(): void {
       </svg>
     </button>
     <div class="sp"></div>
+    <button class="ic" :class="{ on: route.name === 'welcome' }" @click="openWelcome">
+      <span class="tip">介绍 / 导航</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 7.6v.1" />
+      </svg>
+    </button>
     <button class="ic" :title="theme === 'light' ? '切换到深色' : '切换到浅色'" @click="toggleTheme">
       <span class="tip">切换深浅</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
