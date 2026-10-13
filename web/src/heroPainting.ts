@@ -19,8 +19,13 @@
 
 /** 三种「材料」：`INK` 是夜空底，`GLOW` / `CY` 是加光（lighter）。**不要混用。** */
 const INK = '3, 12, 16'
-const GLOW = '198, 248, 244'
-const CY = '58, 232, 214'
+const GLOW = '206, 248, 246'
+/**
+ * 画面主色：**跟页面的强调色走**（现在是紫罗兰）。换色只改这一个常量——
+ * 加色混合下换色相是安全的（光还是光），但**混合方式不能跟着换**：
+ * 深底 + 亮笔必须 `lighter`，用 `source-over` 叠亮色只会得到平的灰块。
+ */
+const CY = '150, 128, 255'
 
 /** 固定种子伪随机（mulberry32）。**画面里一个 `Math.random()` 都不该有。** */
 function seeded(seed: number): () => number {
@@ -283,12 +288,18 @@ export function paintHero(canvas: HTMLCanvasElement, options: HeroPaintingOption
 const VEIL_RGB = '4, 13, 17'
 const VEIL = 0.68
 
-/** 墨点：初始半径 / 半径上限 / 存活时长（ms）/ 沿轨迹取点间距 / 同时存活上限 / 轮廓顶点数。 */
+/**
+ * 墨点：初始半径 / 半径上限 / 存活时长（ms）/ 沿轨迹取点间距 / 同时存活上限 / 轮廓顶点数。
+ *
+ * `MAX_STAMPS` 是**每帧成本的总闸**：存活多少点，`draw` 里就画多少次多边形。
+ * 参考站点（MiMo Code 官网）用的是 160，这里跟它对齐——原来的 420 在快速划动时
+ * 每帧要填两份（擦 + 补光）八百多次。
+ */
 const R_START = 8
 const R_END = 132
 const LIFETIME = 520
 const STAMP_STEP = 12
-const MAX_STAMPS = 420
+const MAX_STAMPS = 160
 const SEGS = 32
 
 interface Stamp {
@@ -304,6 +315,12 @@ export interface RevealController {
   resize(): void
   /** 跟着指针走：内部按 `STAMP_STEP` 插值补点，所以拖多快都是一条连续的擦痕。 */
   move(x: number, y: number): void
+  /**
+   * 指针进入首屏时调一次，把「上一个位置」忘掉。
+   * 不重置的话：鼠标移出窗口、从另一侧回来时，第一条 `move` 会从**旧位置**插值过来，
+   * 在画面上拉一道横穿的长痕（参考站点是在 `mouseenter` 里重置的）。
+   */
+  enter(): void
   stop(): void
 }
 
@@ -347,8 +364,8 @@ export function createReveal(canvas: HTMLCanvasElement, options: { seed?: number
     dotGrad.addColorStop(1, 'rgba(0, 0, 0, 0)')
 
     glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
-    glowGrad.addColorStop(0, `rgba(${CY}, 0.55)`)
-    glowGrad.addColorStop(0.45, `rgba(${CY}, 0.16)`)
+    glowGrad.addColorStop(0, `rgba(${CY}, 0.5)`)
+    glowGrad.addColorStop(0.45, `rgba(${CY}, 0.15)`)
     glowGrad.addColorStop(1, `rgba(${CY}, 0)`)
   }
 
@@ -498,11 +515,16 @@ export function createReveal(canvas: HTMLCanvasElement, options: { seed?: number
     start()
   }
 
+  function enter(): void {
+    lastX = null
+    lastY = null
+  }
+
   function stop(): void {
     running = false
     if (raf) cancelAnimationFrame(raf)
     raf = 0
   }
 
-  return { resize, move, stop }
+  return { resize, move, enter, stop }
 }
