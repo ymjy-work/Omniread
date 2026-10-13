@@ -156,6 +156,11 @@ export interface HeroPaintingOptions {
   height: number
   /** 每张画一个种子：同一个种子永远得到同一张画（截图核对的前提）。 */
   seed?: number
+  /**
+   * 画不画**静态**流星。false 时留着天空其余部分（星云 / 密星 / 圆相 / 云海），
+   * 流星改由 `createMeteorField` 逐帧画——两套流星同时出现会显得画面在下雨。
+   */
+  meteors?: boolean
 }
 
 /**
@@ -213,28 +218,33 @@ export function paintHero(canvas: HTMLCanvasElement, options: HeroPaintingOption
     ctx.fillRect(x, y, size, size)
   }
 
-  // 流星：尾部拖长（head 小 / tail 大 = 一头尖一头虚），头部点一个亮点
-  const meteors = 5
-  for (let i = 0; i < meteors; i++) {
-    const startX = w * (0.08 + rand() * 0.8)
-    const startY = h * (0.05 + rand() * 0.44)
-    const len = h * (0.16 + rand() * 0.24)
-    const angle = 0.35 + rand() * 0.3
-    const pts: [number, number][] = []
-    const steps = 54
-    for (let s = 0; s <= steps; s++) {
-      const u = s / steps
-      pts.push([
-        startX - Math.cos(angle) * len * u + Math.sin(u * 5.2) * 6,
-        startY + Math.sin(angle) * len * u
-      ])
+  // 流星：尾部拖长（head 小 / tail 大 = 一头尖一头虚），头部点一个亮点。
+  // `meteors: false` 时整段跳过——那一版由 createMeteorField 逐帧画会动的流星
+  if (options.meteors !== false) {
+    const meteors = 5
+    for (let i = 0; i < meteors; i++) {
+      const startX = w * (0.08 + rand() * 0.8)
+      const startY = h * (0.05 + rand() * 0.44)
+      const len = h * (0.16 + rand() * 0.24)
+      const angle = 0.35 + rand() * 0.3
+      // 点序是**从尾到头**：u=1 那端（左下）是头。尾迹要「尾细头粗」，
+      // 亮点也必须放在头那一端——画在收细的那头看起来就是倒着飞的（动画版踩过同一个坑）
+      const pts: [number, number][] = []
+      const steps = 54
+      for (let s = 0; s <= steps; s++) {
+        const u = s / steps
+        pts.push([
+          startX - Math.cos(angle) * len * u + Math.sin(u * 5.2) * 6,
+          startY + Math.sin(angle) * len * u
+        ])
+      }
+      pen(pts, 7 + rand() * 3.4, 0.2 + rand() * 0.1, { head: 0.9, tail: 0.05 })
+      const head = pts[steps]
+      ctx.beginPath()
+      ctx.arc(head[0], head[1], 2 + rand() * 1.4, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(${GLOW}, 1)`
+      ctx.fill()
     }
-    pen(pts, 7 + rand() * 3.4, 0.2 + rand() * 0.1, { head: 0.55, tail: 0.95 })
-    const head = pts[0]
-    ctx.beginPath()
-    ctx.arc(head[0], head[1], 2 + rand() * 1.4, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(${GLOW}, 1)`
-    ctx.fill()
   }
 
   // 圆相：一笔未闭合的环，起笔最重、收笔虚掉。
@@ -527,4 +537,173 @@ export function createReveal(canvas: HTMLCanvasElement, options: { seed?: number
   }
 
   return { resize, move, enter, stop }
+}
+
+/* ============================================================================
+   流星场：给静态底画叠一层会动的流星（登录页的用法）。
+   ========================================================================== */
+
+/** 生成间隔（ms）/ 速度（px/s）/ 尾长（相对屏宽）/ 寿命（ms）——四个区间。
+    间隔要明显小于寿命，屏幕上才**同时**挂着几颗：一颗一颗地来不叫流星雨。 */
+const SPAWN_GAP: [number, number] = [260, 900]
+const METEOR_SPEED: [number, number] = [520, 940]
+const METEOR_TRAIL: [number, number] = [0.12, 0.28]
+const METEOR_LIFE: [number, number] = [1500, 2600]
+
+interface Meteor {
+  /** 头的位置与速度（px、px/s）。头是亮的那个点，尾迹由头往回推。 */
+  x: number
+  y: number
+  vx: number
+  vy: number
+  trail: number
+  born: number
+  life: number
+  thick: number
+}
+
+export interface MeteorField {
+  resize(): void
+  start(): void
+  stop(): void
+}
+
+/**
+ * 逐帧画流星。**必须画在单独一层透明画布上**：底画重绘一次要画上千颗星与几团星云，
+ * 拿它逐帧重画等于把整页拖垮。
+ *
+ * 与底画同一套纪律：深底亮笔一律 `lighter` 加色（`source-over` 叠不出光）、
+ * 尾迹宽度沿程收细（等宽的尾巴一眼假）、随机走固定种子
+ * （`Math.random()` 逐帧取会让同一颗流星每帧换一个形状，看起来是在抖而不是在飞）。
+ */
+export function createMeteorField(
+  canvas: HTMLCanvasElement,
+  options: { seed?: number } = {}
+): MeteorField {
+  const ctx = canvas.getContext('2d')
+  const rand = seeded(options.seed ?? 90210)
+  let width = 0
+  let height = 0
+  let dpr = 1
+  let raf = 0
+  let running = false
+  let meteors: Meteor[] = []
+  let nextSpawnAt = 0
+  /** 单位半径的光晕渐变：**只建一次**，靠 translate/scale 复用 */
+  let headGrad: CanvasGradient | null = null
+
+  const between = ([lo, hi]: [number, number]): number => lo + rand() * (hi - lo)
+
+  function buildGradients(): void {
+    if (!ctx) return
+    headGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+    headGrad.addColorStop(0, `rgba(${GLOW}, 0.95)`)
+    headGrad.addColorStop(0.35, `rgba(${CY}, 0.42)`)
+    headGrad.addColorStop(1, `rgba(${CY}, 0)`)
+  }
+
+  function spawn(now: number): Meteor {
+    const speed = between(METEOR_SPEED) * (width < 720 ? 0.7 : 1)
+    // 左下走向：与底画里那些静态流星同一个方向——两股风会让天空看起来是乱的
+    const angle = 0.35 + rand() * 0.35
+    return {
+      x: width * (0.3 + rand() * 0.8),
+      y: height * (-0.1 + rand() * 0.5),
+      vx: -Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      trail: width * between(METEOR_TRAIL),
+      born: now,
+      life: between(METEOR_LIFE),
+      thick: 1.6 + rand() * 1.1
+    }
+  }
+
+  function drawMeteor(m: Meteor, now: number): void {
+    if (!ctx) return
+    const t = (now - m.born) / m.life
+    // 淡入快、淡出慢：流星是「燃尽」的，不是走到某处被裁掉
+    const alpha = Math.min(1, t / 0.16) * Math.min(1, (1 - t) / 0.42)
+    if (alpha <= 0) return
+    const age = (now - m.born) / 1000
+    const headX = m.x + m.vx * age
+    const headY = m.y + m.vy * age
+    const len = Math.hypot(m.vx, m.vy) || 1
+    // **运动方向**的单位向量。尾迹画在头的后面（head - 方向 × 长度）——正负写反的话
+    // 拖尾会甩在头的前面，看起来是倒着飞的（改版时绊过一次）
+    const ux = m.vx / len
+    const uy = m.vy / len
+
+    // 尾迹：一批从尾到头的点，宽度沿程收细（0 = 尾、1 = 头）
+    const pts: [number, number][] = []
+    const steps = 12
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps
+      pts.push([headX - ux * m.trail * (1 - u), headY - uy * m.trail * (1 - u)])
+    }
+    ctx.globalAlpha = alpha * 0.75
+    ribbon(ctx, pts, (u) => m.thick * Math.pow(u, 1.6) * 0.5, `rgba(${GLOW}, 0.55)`)
+
+    // 头：一个小亮点 + 一圈比它大得多的光晕（「亮」是光晕给的，不是那个点）
+    if (headGrad !== null) {
+      ctx.globalAlpha = alpha
+      ctx.save()
+      ctx.translate(headX, headY)
+      ctx.scale(m.thick * 7, m.thick * 7)
+      ctx.fillStyle = headGrad
+      ctx.beginPath()
+      ctx.arc(0, 0, 1, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    ctx.globalAlpha = 1
+  }
+
+  function draw(now: number): void {
+    if (!ctx) return
+    ctx.clearRect(0, 0, width, height)
+    if (now >= nextSpawnAt) {
+      meteors.push(spawn(now))
+      nextSpawnAt = now + between(SPAWN_GAP)
+    }
+    meteors = meteors.filter((m) => now - m.born < m.life)
+    for (const m of meteors) drawMeteor(m, now)
+  }
+
+  function frame(now: number): void {
+    if (!running) return
+    draw(now)
+    raf = requestAnimationFrame(frame)
+  }
+
+  function start(): void {
+    if (running || !ctx) return
+    running = true
+    // 头一颗稍等一下：与面板的入场动画错开，不然它一出现就被入场盖住
+    nextSpawnAt = performance.now() + 900
+    raf = requestAnimationFrame(frame)
+  }
+
+  function stop(): void {
+    running = false
+    if (raf) cancelAnimationFrame(raf)
+    raf = 0
+  }
+
+  function resize(): void {
+    if (!ctx) return
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    if (w <= 0 || h <= 0) return
+    dpr = Math.min(window.devicePixelRatio || 1, 2)
+    width = w
+    height = h
+    canvas.width = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    // 深底亮笔：整个流星层一律加色
+    ctx.globalCompositeOperation = 'lighter'
+    buildGradients()
+  }
+
+  return { resize, start, stop }
 }

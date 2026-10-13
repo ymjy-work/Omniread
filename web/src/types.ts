@@ -159,6 +159,15 @@ export interface ErrorBody {
   message: string
 }
 
+/** 单轮问答（JSON 同步）。前端走 sse.ts 的流式路径，这个留给脚本与调试。 */
+export interface SessionQueryRequest extends QueryRequest {
+  /**
+   * 本轮所属会话。**`book_id` 与 `level` 与会话冗余是刻意的**：它们是一致性断言，
+   * 与会话不符时服务端返回 409，不静默采用会话的值（串味的症状只能是靠猜）。
+   */
+  session_id: string
+}
+
 // ---------- SSE ----------
 
 export interface ScoredChunk {

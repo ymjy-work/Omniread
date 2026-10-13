@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * 登录页（登录门）。背景是门厅 hero 那套——`HeroBackdrop`（画布 + 拨雾），
- * 与介绍页**共用同一个组件**；表单居中放在一块毛玻璃面板上。
+ * 登录页（登录门）。背景与门厅同源——`HeroBackdrop` 的同一张画布，但**动态层不同**：
+ * 这一页不要拨雾、不要指针交互（登录是个专注的动作，不是逛场景），改让画里的流星动起来
+ * （`:veil="false" :meteors="true"`）。表单居中放在一块毛玻璃面板上。
  *
  * 两条口径：
  *
@@ -71,7 +72,7 @@ async function submit(): Promise<void> {
 
 <template>
   <div class="login-page canvas-page">
-    <HeroBackdrop class="stage">
+    <HeroBackdrop class="stage" :veil="false" :meteors="true">
       <form class="panel" novalidate @submit.prevent="submit">
         <p class="eyebrow">OMNIREAD · 登录</p>
         <h1>欢迎回来。</h1>
