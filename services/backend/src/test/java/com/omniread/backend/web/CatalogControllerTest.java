@@ -7,9 +7,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.omniread.backend.config.ReadingProperties;
 import com.omniread.backend.gateway.RagGatewayClient;
 import com.omniread.backend.orchestration.BookCatalog;
 import com.omniread.backend.progress.UserProgressStore;
+import com.omniread.backend.reading.ReadingRange;
 import com.omniread.backend.user.AuthenticatedUser;
 import com.omniread.backend.user.UserProgress;
 import com.omniread.backend.user.UserProgressMapper;
@@ -50,7 +52,11 @@ class CatalogControllerTest {
         RagGatewayClient gateway = mock(RagGatewayClient.class);
         bookCatalog = mock(BookCatalog.class);
         UserProgressStore store = new UserProgressStore(new InMemoryProgressMapper());
-        mvc = MockMvcBuilders.standaloneSetup(new CatalogController(gateway, bookCatalog, store))
+        // 阅读范围在这个用例里全放开：它测的是进度与目录的边界校验，不是 E2 那条护栏
+        ReadingRange readingRange = mock(ReadingRange.class);
+        when(readingRange.rangeOf(1)).thenReturn(new ReadingRange.ChapterRange(1, 193));
+        mvc = MockMvcBuilders.standaloneSetup(
+                        new CatalogController(gateway, bookCatalog, store, readingRange, new ReadingProperties(1)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

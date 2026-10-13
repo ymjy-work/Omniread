@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omniread.backend.quota.UsageDailyMapper">
+
+  <!-- (day, user_id) 是复合主键，也是冲突目标：同一账户同一天只有一行。 -->
+  <update id="bump">
+    INSERT INTO usage_daily (day, user_id, turns)
+    VALUES (#{day}, #{userId}, 1)
+    ON CONFLICT (day, user_id) DO UPDATE SET turns = usage_daily.turns + 1
+  </update>
+
+  <select id="turns" resultType="java.lang.Integer">
+    SELECT turns FROM usage_daily WHERE day = #{day} AND user_id = #{userId}
+  </select>
+
+  <!-- turns > 0 的守卫：退还只对「确实计过一轮」的那一天生效，不会把计数做成负数。 -->
+  <update id="refund">
+    UPDATE usage_daily SET turns = turns - 1
+    WHERE day = #{day} AND user_id = #{userId} AND turns &gt; 0
+  </update>
+
+  <delete id="deleteBefore">
+    DELETE FROM usage_daily WHERE day &lt; #{day}
+  </delete>
+
+  <delete id="deleteByUserId">
+    DELETE FROM usage_daily WHERE user_id = #{userId}
+  </delete>
+
+</mapper>

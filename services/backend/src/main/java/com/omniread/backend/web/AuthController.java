@@ -1,5 +1,9 @@
 package com.omniread.backend.web;
 
+import com.omniread.backend.audit.AuditLog;
+import com.omniread.backend.error.ErrorCode;
+import com.omniread.backend.error.RagException;
+import com.omniread.backend.quota.LoginThrottle;
 import com.omniread.backend.user.AuthCookies;
 import com.omniread.backend.user.AuthProperties;
 import com.omniread.backend.user.AuthService;
@@ -32,15 +36,37 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthProperties properties;
+    private final LoginThrottle throttle;
+    private final AuditLog audit;
 
-    public AuthController(AuthService authService, AuthProperties properties) {
+    public AuthController(AuthService authService, AuthProperties properties, LoginThrottle throttle,
+            AuditLog audit) {
         this.authService = authService;
         this.properties = properties;
+        this.throttle = throttle;
+        this.audit = audit;
     }
 
     @PostMapping("/login")
-    public ResponseEntity<CurrentUser> login(@RequestBody @Valid LoginRequest body) {
-        AuthService.IssuedSession session = authService.login(body.username(), body.password());
+    public ResponseEntity<CurrentUser> login(@RequestBody @Valid LoginRequest body, HttpServletRequest request) {
+        String ip = clientIp(request);
+        // 锁着就直接 429，连口令都不必验：验了也只是给猜口令的人一个更快的是非题
+        throttle.check(ip);
+
+        AuthService.IssuedSession session;
+        try {
+            session = authService.login(body.username(), body.password());
+        } catch (RagException failure) {
+            // **只记「口令不对」那一种**：缺字段之类的 400 是客户端写错了，
+            // 把它算进失败次数，一个写错前端的浏览器就能把整间办公室的 IP 锁掉
+            if (failure.code() == ErrorCode.RAG_UNAUTHENTICATED) {
+                throttle.onFailure(ip);
+                audit.loginFailure(body.username(), ip, failure.code());
+            }
+            throw failure;
+        }
+        throttle.onSuccess(ip);
+        audit.loginSuccess(session.username(), ip);
 
         // Max-Age 由 expiresAt 反推，不在这里再算一次 TTL：两处各算一次必然差几毫秒，
         // 而差值的方向决定了是「cookie 先死」还是「cookie 还活着但服务端已判过期」。
@@ -50,6 +76,18 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(new CurrentUser(session.username(), session.expiresAt()));
+    }
+
+    /**
+     * 来源 IP：**读它就够了，不要自己解析 `X-Forwarded-For`**。
+     *
+     * <p>`server.forward-headers-strategy=framework` 已经让容器把那个头的第一跳写进了
+     * `getRemoteAddr()`（反向代理部署时必须透传）。自己再解析一遍就有了第二个口径，
+     * 而「信几跳」正是限流与审计唯一不能含糊的那件事——直连时这个头可以被伪造，
+     * 信任边界只该由部署侧划。
+     */
+    private static String clientIp(HttpServletRequest request) {
+        return request.getRemoteAddr();
     }
 
     /**

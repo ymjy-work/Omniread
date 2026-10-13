@@ -1,5 +1,6 @@
 package com.omniread.backend.user;
 
+import com.omniread.backend.quota.UsageDailyMapper;
 import com.omniread.backend.session.ChatSessionMapper;
 import java.time.Instant;
 import java.util.Optional;
@@ -24,6 +25,7 @@ public class AccountService {
     private final AuthSessionMapper authSessionMapper;
     private final ChatSessionMapper chatSessionMapper;
     private final UserProgressMapper userProgressMapper;
+    private final UsageDailyMapper usageDailyMapper;
     private final PasswordHasher passwordHasher;
 
     public AccountService(
@@ -31,11 +33,13 @@ public class AccountService {
             AuthSessionMapper authSessionMapper,
             ChatSessionMapper chatSessionMapper,
             UserProgressMapper userProgressMapper,
+            UsageDailyMapper usageDailyMapper,
             PasswordHasher passwordHasher) {
         this.userMapper = userMapper;
         this.authSessionMapper = authSessionMapper;
         this.chatSessionMapper = chatSessionMapper;
         this.userProgressMapper = userProgressMapper;
+        this.usageDailyMapper = usageDailyMapper;
         this.passwordHasher = passwordHasher;
     }
 
@@ -80,7 +84,8 @@ public class AccountService {
      * 停用账户并**清理它的全部内容数据**（D15）。
      *
      * <p>账户是一次性的测试账户，清理掉就不留原文片段。删的是：登录会话（登录态立即失效）、
-     * 对话会话（消息由外键 `ON DELETE CASCADE` 带走）、阅读进度。**账户行保留为 `disabled`**
+     * 对话会话（消息由外键 `ON DELETE CASCADE` 带走）、阅读进度、每日用量。
+     * **账户行保留为 `disabled`**
      * ——审计与复用需要，而这一行不含任何内容。
      *
      * <p>整个过程在一个事务里：删了一半就中断会留下「登录态还在、会话已经没了」的中间态，
@@ -91,12 +96,14 @@ public class AccountService {
         int sessions = authSessionMapper.deleteByUserId(userId);
         int chats = chatSessionMapper.deleteByUserId(userId);
         int progress = userProgressMapper.deleteByUserId(userId);
+        int turns = usageDailyMapper.deleteByUserId(userId);
         userMapper.updateStatus(userId, User.STATUS_DISABLED);
         log.info(
-                "停用并清理账户 id={}：登录会话 {} 条、对话会话 {} 个、进度 {} 条",
+                "停用并清理账户 id={}：登录会话 {} 条、对话会话 {} 个、进度 {} 条、用量 {} 行",
                 userId,
                 sessions,
                 chats,
-                progress);
+                progress,
+                turns);
     }
 }

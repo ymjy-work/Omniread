@@ -1,6 +1,8 @@
 package com.omniread.backend.config;
 
 import com.omniread.backend.web.AuthInterceptor;
+import com.omniread.backend.web.OfflineInterceptor;
+import com.omniread.backend.web.QuotaInterceptor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,11 +38,20 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
 
+    private final QuotaInterceptor quotaInterceptor;
+
+    private final OfflineInterceptor offlineInterceptor;
+
     public WebMvcConfig(
-            @Value("${omniread.web.dist-dir}") String distDir, AuthInterceptor authInterceptor) {
+            @Value("${omniread.web.dist-dir}") String distDir,
+            AuthInterceptor authInterceptor,
+            QuotaInterceptor quotaInterceptor,
+            OfflineInterceptor offlineInterceptor) {
         this.distDir = distDir;
         this.dist = resolveDistDir(distDir);
         this.authInterceptor = authInterceptor;
+        this.quotaInterceptor = quotaInterceptor;
+        this.offlineInterceptor = offlineInterceptor;
     }
 
     /**
@@ -50,12 +61,22 @@ public class WebMvcConfig implements WebMvcConfigurer {
      *
      * <p>**例外集中写在这里**，不散到控制器上：一眼能看全「哪些路径不需要登录」，
      * 新加路径时也不会因为忘了挂而漏出一个入口。
+     *
+     * <p>额度闸门挂在两个问答入口上，**注册在登录门之后**——顺序就是执行顺序，
+     * 而它要从请求属性里取当前账户（登录门放进去的那个）。
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 下线开关挂在**最前面**：下线了就不该再谈身份与配额，503 是这一刻唯一该回答的事。
+        // 健康检查除外——否则运维分不清「进程死了」与「站点下线了」。
+        registry.addInterceptor(offlineInterceptor)
+                .addPathPatterns("/api/v1/**")
+                .excludePathPatterns("/api/v1/health");
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns("/api/v1/health", "/api/v1/auth/login");
+        registry.addInterceptor(quotaInterceptor)
+                .addPathPatterns("/api/v1/query", "/api/v1/query/stream");
     }
 
     @Override

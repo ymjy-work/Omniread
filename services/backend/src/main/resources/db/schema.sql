@@ -72,6 +72,19 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages (session_id, seq);
 
+-- 每日问答计数（docs/m1/配额与限流方案.md §三）。**跨重启保留**是它的全部理由：
+-- 分钟窗口在内存里、重启清零可以接受，而「今天已经问了多少轮」清掉就等于白送额度。
+-- 只保留最近若干天，启动时清一次旧行。
+--
+-- 一轮 = 一次 /api/v1/query（流式与同步各算一次）；改写、摘要这类附带调用不单独计。
+-- 请求开始先占位（防并发绕过），provider 5xx 的那一轮退还。
+CREATE TABLE IF NOT EXISTS usage_daily (
+  day     TEXT NOT NULL,                            -- YYYY-MM-DD，服务器本地时区
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  turns   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, user_id)
+);
+
 -- 表结构自身的版本。启动时记一次；**库里比代码新就拒绝启动**——
 -- 与 run 产物那条「产物比代码新先更新代码」的口径一致。
 CREATE TABLE IF NOT EXISTS schema_version (

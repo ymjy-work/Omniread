@@ -1,5 +1,8 @@
 server:
   port: 8080
+  # 反向代理透传的 X-Forwarded-* 由容器认（getRemoteAddr 即真实来源 IP）。
+  # 限流与审计都按它记，**部署时必须只允许反代直连本进程**——直连时这个头可伪造。
+  forward-headers-strategy: framework
 
 spring:
   application:
@@ -55,10 +58,36 @@ omniread:
     # 前端构建产物目录（web/ 由前端产出）。相对路径从进程工作目录向上最多找 4 层，
     # 从仓库根或从 services/backend 启动都能命中；目录不存在时只跳过静态资源托管。
     dist-dir: ${OMNIREAD_WEB_DIST:web/dist}
+  quota:
+    # 单账户限频 / 日额度 / 并发与登录失败锁 IP（docs/m1/配额与限流方案.md §二）。
+    # **值都进配置是为了验收**：要逐项触发四类 429，得在 2 轮/日、1 轮/分这种小阈值下跑。
+    # 一轮 = 一次 /api/v1/query（同步与流式各算一次）；改写与摘要这类附带调用不单独计。
+    turns-per-minute: ${OMNIREAD_QUOTA_PER_MINUTE:5}
+    turns-per-day: ${OMNIREAD_QUOTA_PER_DAY:50}
+    concurrent: ${OMNIREAD_QUOTA_CONCURRENT:1}
+    # 登录失败按 IP 计（其余按账户）：猜口令的人还没有账户，锁账户等于让别人替你挨锁
+    login-failures: ${OMNIREAD_LOGIN_FAILURES:5}
+    login-window: ${OMNIREAD_LOGIN_WINDOW:15m}
+    login-lock: ${OMNIREAD_LOGIN_LOCK:15m}
+    # usage_daily 只保留最近这些天，启动时清一次旧行（它按天累加，不清就只涨不落）
+    retention-days: ${OMNIREAD_USAGE_RETENTION_DAYS:30}
+
+  reading:
+    # 阅读页只开放第 1 卷（部署口径 §三-3，产品上的刻意取舍，不是权限 bug）。
+    # 章号区间由 Java 从章节表按 volume_index 推导，不在这里写死——语料重导入换了卷结构
+    # 时那份写死的区间会静默地挡住或放行错误的章。
+    volume-index: ${OMNIREAD_READING_VOLUME:1}
+  offline:
+    # 一键下线：置 true，或在标记文件上 touch 一个文件（**下一次请求即生效，不必重启**）。
+    # 两种都算下线，健康检查除外——否则运维分不清「进程死了」与「站点下线了」。
+    enabled: ${OMNIREAD_OFFLINE:false}
+    marker-file: ${OMNIREAD_OFFLINE_MARKER:var/OFFLINE}
 
 logging:
   level:
     com.omniread.backend: INFO
+    # 审计单独一个 logger（登录成败 / 每账户问答次数）。与排障日志混在一起等于没有审计
+    omniread.audit: INFO
   pattern:
     # 每行日志带 request_id（MDC，由 RequestIdFilter 放入）；请求线程之外的行该值为空。
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{request_id:-}] %logger{36} - %msg%n"

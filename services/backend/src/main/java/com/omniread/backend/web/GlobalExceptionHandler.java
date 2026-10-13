@@ -2,11 +2,13 @@ package com.omniread.backend.web;
 
 import com.omniread.backend.contract.model.ErrorBody;
 import com.omniread.backend.error.ErrorCode;
+import com.omniread.backend.error.QuotaException;
 import com.omniread.backend.error.RagException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +35,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RagException.class)
     public ResponseEntity<ErrorBody> handleRag(RagException failure, HttpServletRequest request) {
         return errorBody(failure.code(), failure.httpStatus(), failure.getMessage(), request);
+    }
+
+    /**
+     * 超限：与其它错误体同形状，外加一个 `Retry-After`（秒）。
+     *
+     * <p>四个 429 的差别就在「要等多久」上，而这个数只有产生它的地方算得出来
+     * （分钟窗口的最早一次、到明天零点的秒数、锁到什么时候），所以它随异常一起传上来，
+     * 而不是在这里按 code 猜。
+     */
+    @ExceptionHandler(QuotaException.class)
+    public ResponseEntity<ErrorBody> handleQuota(QuotaException failure, HttpServletRequest request) {
+        return ResponseEntity.status(failure.httpStatus())
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(failure.retryAfterSeconds()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body(failure.code(), failure.getMessage(), request));
     }
 
     /**
@@ -73,12 +90,15 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<ErrorBody> errorBody(ErrorCode code, HttpStatusCode status, String message,
             HttpServletRequest request) {
-        ErrorBody body = new ErrorBody(
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body(code, message, request));
+    }
+
+    private ErrorBody body(ErrorCode code, String message, HttpServletRequest request) {
+        return new ErrorBody(
                 RequestIds.current(request),
                 ErrorBody.CodeEnum.valueOf(code.name()),
                 message);
-        return ResponseEntity.status(status)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body);
     }
 }

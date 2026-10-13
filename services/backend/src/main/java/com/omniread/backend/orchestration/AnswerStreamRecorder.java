@@ -31,6 +31,11 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
 
     private static final String EVENT_REWRITE_COMPLETED = "rewrite_completed";
 
+    /** 流里的错误：`query_error` 是 Python 发的业务错误帧，`error` 是网关自己补的传输失败帧。 */
+    private static final String EVENT_QUERY_ERROR = "query_error";
+
+    private static final String EVENT_ERROR = "error";
+
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
     private final QueryOrchestrator orchestrator;
@@ -47,13 +52,25 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
     /** 流被标记为已落库：终止帧可能重复出现（上游重发），只认第一次。 */
     private boolean recorded;
 
+    /** 流里出现过错误帧。额度退还用它——**状态码在这里帮不上忙**（开流时就已经是 200）。 */
+    private boolean failed;
+
     public AnswerStreamRecorder(QueryOrchestrator orchestrator, ChatSession session) {
         this.orchestrator = orchestrator;
         this.session = session;
     }
 
+    /** 这一轮有没有以错误收场（provider 5xx、上游中断）。 */
+    public boolean failed() {
+        return failed;
+    }
+
     @Override
     public String apply(String event, String data) {
+        if (EVENT_ERROR.equals(event) || EVENT_QUERY_ERROR.equals(event)) {
+            failed = true;
+            return null;
+        }
         if (EVENT_ANSWER_DELTA.equals(event)) {
             Object text = parse(data).get("text");
             if (text instanceof String piece) {

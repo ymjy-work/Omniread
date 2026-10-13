@@ -1,14 +1,18 @@
 package com.omniread.backend.web;
 
+import com.omniread.backend.config.ReadingProperties;
 import com.omniread.backend.contract.model.BookList;
 import com.omniread.backend.contract.model.ChapterDetail;
 import com.omniread.backend.contract.model.ChapterList;
+import com.omniread.backend.error.ErrorCode;
+import com.omniread.backend.error.RagException;
 import com.omniread.backend.gateway.RagGatewayClient;
 import com.omniread.backend.gateway.RagStream;
 import com.omniread.backend.orchestration.BookCatalog;
 import com.omniread.backend.progress.Progress;
 import com.omniread.backend.progress.ProgressWrite;
 import com.omniread.backend.progress.UserProgressStore;
+import com.omniread.backend.reading.ReadingRange;
 import com.omniread.backend.user.AuthenticatedUser;
 import com.omniread.backend.validation.RealmValidator;
 import jakarta.servlet.http.HttpServletResponse;
@@ -36,11 +40,16 @@ public class CatalogController {
     private final RagGatewayClient gateway;
     private final BookCatalog bookCatalog;
     private final UserProgressStore progressStore;
+    private final ReadingRange readingRange;
+    private final ReadingProperties readingProperties;
 
-    public CatalogController(RagGatewayClient gateway, BookCatalog bookCatalog, UserProgressStore progressStore) {
+    public CatalogController(RagGatewayClient gateway, BookCatalog bookCatalog, UserProgressStore progressStore,
+            ReadingRange readingRange, ReadingProperties readingProperties) {
         this.gateway = gateway;
         this.bookCatalog = bookCatalog;
         this.progressStore = progressStore;
+        this.readingRange = readingRange;
+        this.readingProperties = readingProperties;
     }
 
     @GetMapping
@@ -50,12 +59,35 @@ public class CatalogController {
 
     @GetMapping("/{bookId}/chapters")
     public ChapterList listChapters(@PathVariable int bookId) {
+        // 列表**不筛**：全部章节的序号与标题照发（列表项不含正文），前端不做锁定标记
+        // （2026-10-13 用户定：不做标记，只留 403）。挡内容的是下面两个端点。
         return gateway.listChapters(bookId);
     }
 
+    /**
+     * 章节正文：**卷外一律 403**（部署口径 §三-3，产品上的刻意取舍）。
+     *
+     * <p>先判范围再取正文：越界时不必向上游要一次全文，也就没有「取回来了再丢掉」那一步。
+     * 前后导航同理往回收——不然读到第 1 卷末尾，界面上的「下一章」会指向卷外那一章，
+     * 点下去才 403。
+     */
     @GetMapping("/{bookId}/chapters/{chapterIndex}")
     public ChapterDetail getChapter(@PathVariable int bookId, @PathVariable int chapterIndex) {
-        return gateway.getChapter(bookId, chapterIndex);
+        ReadingRange.ChapterRange range = readingRange.rangeOf(bookId);
+        if (!range.contains(chapterIndex)) {
+            throw new RagException(
+                    ErrorCode.RAG_FORBIDDEN,
+                    "第 " + chapterIndex + " 章不在可读范围内：阅读页只开放第 "
+                            + readingProperties.volumeIndex() + " 卷（全书第 " + range.lo() + "–" + range.hi() + " 章）");
+        }
+        ChapterDetail detail = gateway.getChapter(bookId, chapterIndex);
+        if (detail.getPrevChapterIndex() != null && !range.contains(detail.getPrevChapterIndex())) {
+            detail.setPrevChapterIndex(null);
+        }
+        if (detail.getNextChapterIndex() != null && !range.contains(detail.getNextChapterIndex())) {
+            detail.setNextChapterIndex(null);
+        }
+        return detail;
     }
 
     /**
@@ -68,6 +100,10 @@ public class CatalogController {
     @GetMapping("/{bookId}/images/{*path}")
     public void getImage(@PathVariable int bookId, @PathVariable String path, HttpServletResponse response)
             throws IOException {
+        // 插图按「可读章节引用了它」判，不按目录名猜：口径只有一个来源（章节详情里的 images）
+        if (!readingRange.imageReadable(bookId, path)) {
+            throw new RagException(ErrorCode.RAG_FORBIDDEN, "这张插图不在可读范围内");
+        }
         RagStream stream = gateway.openImage(bookId, path.startsWith("/") ? path.substring(1) : path);
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(stream.contentType() != null

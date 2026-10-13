@@ -33,7 +33,7 @@ public class SchemaInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(SchemaInitializer.class);
 
     /** 代码认识的表结构版本。改了 {@code schema.sql} 就把它加一。 */
-    static final int SCHEMA_VERSION = 2;
+    static final int SCHEMA_VERSION = 3;
 
     private static final String SCHEMA_RESOURCE = "db/schema.sql";
 

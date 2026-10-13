@@ -5,7 +5,9 @@ import com.omniread.backend.orchestration.AnswerStreamRecorder;
 import com.omniread.backend.orchestration.QueryOrchestrator;
 import com.omniread.backend.orchestration.SessionQueryRequest;
 import com.omniread.backend.orchestration.SessionQueryResponse;
+import com.omniread.backend.quota.QuotaService;
 import com.omniread.backend.user.AuthenticatedUser;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -29,8 +31,11 @@ public class QueryController {
 
     private final QueryOrchestrator orchestrator;
 
-    public QueryController(QueryOrchestrator orchestrator) {
+    private final QuotaService quota;
+
+    public QueryController(QueryOrchestrator orchestrator, QuotaService quota) {
         this.orchestrator = orchestrator;
+        this.quota = quota;
     }
 
     @PostMapping
@@ -54,6 +59,7 @@ public class QueryController {
     public void stream(@RequestBody @Valid SessionQueryRequest request,
             @RequestAttribute(RequestIds.ATTRIBUTE) String requestId,
             @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user,
+            HttpServletRequest servletRequest,
             HttpServletResponse response) throws IOException {
         QueryOrchestrator.PreparedQuery prepared = orchestrator.prepare(request, user.id());
         orchestrator.recordQuestion(prepared.session(), request.getQuestion());
@@ -63,10 +69,14 @@ public class QueryController {
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        SseRelay.relay(
-                upstream,
-                requestId,
-                response.getOutputStream(),
-                new AnswerStreamRecorder(orchestrator, prepared.session()));
+        AnswerStreamRecorder recorder = new AnswerStreamRecorder(orchestrator, prepared.session());
+        SseRelay.relay(upstream, requestId, response.getOutputStream(), recorder);
+
+        // 流里出过错（provider 5xx / 上游中断）：这一轮没有结果，把日额度还回去。
+        // **不能靠状态码**——开流那一刻它就已经是 200 了，这是网关自己发的字节流，
+        // 后到的失败只能以 `error` / `query_error` 帧表达（配额口径见配额与限流方案 §三）。
+        if (recorder.failed()) {
+            quota.refund(QuotaInterceptor.leaseOf(servletRequest));
+        }
     }
 }
