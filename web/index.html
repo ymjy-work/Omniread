@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN" data-theme="violet" data-dark>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,8 +11,11 @@
       // 这里是为时序复制的第二份；改那边要同步改这里。
       try {
         var saved = localStorage.getItem('omniread.theme')
-        if (saved === 'light' || saved === 'deep') {
+        if (saved === 'light' || saved === 'deep' || saved === 'violet') {
           document.documentElement.dataset.theme = saved
+          // data-dark 也要在这里补：它是深色底那批规则的选择器，
+          // 晚一帧补上，深色用户会看到一帧「该换的底色没换」
+          if (saved !== 'light') document.documentElement.setAttribute('data-dark', '')
         }
       } catch (e) {
         // 存储不可用就用 <html> 上的默认值

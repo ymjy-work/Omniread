@@ -3,7 +3,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { store } from '../store'
-import { theme, toggleTheme } from '../theme'
+import { nextThemeName, theme, themeLabel, toggleTheme } from '../theme'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,8 +56,8 @@ function openWelcome(): void {
         <path d="M12 11v5M12 7.6v.1" />
       </svg>
     </button>
-    <button class="ic" :title="theme === 'light' ? '切换到深色' : '切换到浅色'" @click="toggleTheme">
-      <span class="tip">切换深浅</span>
+    <button class="ic" :title="`切换到${themeLabel(nextThemeName(theme))}`" @click="toggleTheme">
+      <span class="tip">切换主题</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
         <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
       </svg>

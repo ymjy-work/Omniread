@@ -315,7 +315,7 @@ function onKeydown(event: KeyboardEvent): void {
         </div>
 
         <div v-else class="msg ai" :class="{ streaming: message.streaming }">
-          <div class="av" style="background: linear-gradient(135deg, #6d7bff, #b76bff)">O</div>
+          <div class="av" style="background: linear-gradient(135deg, var(--accent), var(--accent-2))">O</div>
           <div class="bubble">
             <details class="think">
               <summary>

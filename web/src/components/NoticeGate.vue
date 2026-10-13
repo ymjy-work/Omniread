@@ -168,8 +168,8 @@ a { color: var(--accent); }
   border-radius: 11px;
   border: 0;
   cursor: pointer;
-  color: #fff;
-  background: linear-gradient(135deg, #6d7bff, #b76bff);
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 14px 30px -16px rgba(90, 90, 255, 0.8);
 }
 .hint { font-size: 12px; color: var(--ink-3); }
