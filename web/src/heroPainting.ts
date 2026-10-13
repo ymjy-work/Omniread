@@ -707,3 +707,164 @@ export function createMeteorField(
 
   return { resize, start, stop }
 }
+
+/* ============================================================================
+   指针流星：鼠标自己拖一条会滑动的星尾（登录页的交互层）。
+   ========================================================================== */
+
+/** 星尾节点数；头追指针、每一节追前一节的速率（都是「每 16.7ms 追上多少比例」） */
+const COMET_NODES = 16
+const COMET_EASE = 0.3
+const COMET_FOLLOW = 0.4
+/** 停手多久开始淡出（ms）、淡出用多久（ms） */
+const COMET_IDLE = 500
+const COMET_FADE = 650
+
+export interface CometField {
+  resize(): void
+  /** 跟着指针走（坐标相对画布）。停手后星尾会追上来并自己散掉。 */
+  move(x: number, y: number): void
+  /** 指针离开窗口：立刻开始淡出，别让尾巴挂在边上等那一拍 */
+  leave(): void
+  stop(): void
+}
+
+/**
+ * 一条跟着指针滑动的星尾：**不是**「划过留印子」，而是一串依次跟随的节点——
+ * 头按比例追指针、后面每一节再追前一节，滑动时自然甩出一条弧，停下时自己收拢。
+ *
+ * 三个取舍：
+ *
+ * - **节点跟随即帧率无关**（`1 - (1-k)^(dt/16.7)`）：直接写 `x += (t-x)*k` 时，
+ *   120Hz 屏上的尾巴会比 60Hz 短一截，同一份代码在两台机器上是两种手感。
+ * - **第一次 pointermove 让所有节点直接落位**：不落位的话第一帧会把尾巴从上一个位置
+ *   （或画布原点）整条拉过来，像一道横穿画面的划痕。
+ * - **停手就淡出**：常亮的星尾贴在指针上是个噪点，转几圈还会糊成一团光。淡完之后
+ *   停 rAF，下次移动再起。
+ */
+export function createCometField(canvas: HTMLCanvasElement): CometField {
+  const ctx = canvas.getContext('2d')
+  let width = 0
+  let height = 0
+  let dpr = 1
+  let raf = 0
+  let running = false
+  let lastT = 0
+  /** 收到过至少一次 move（没有它就不画——所有节点都在原点上） */
+  let seen = false
+  let targetX = 0
+  let targetY = 0
+  let lastMoveAt = 0
+  const xs: number[] = []
+  const ys: number[] = []
+  /** 单位半径的光晕渐变：只建一次，靠 translate/scale 复用 */
+  let headGrad: CanvasGradient | null = null
+
+  function buildGradients(): void {
+    if (!ctx) return
+    headGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+    headGrad.addColorStop(0, `rgba(${GLOW}, 1)`)
+    headGrad.addColorStop(0.3, `rgba(${CY}, 0.5)`)
+    headGrad.addColorStop(1, `rgba(${CY}, 0)`)
+  }
+
+  function draw(now: number): void {
+    if (!ctx) return
+    ctx.clearRect(0, 0, width, height)
+    if (!seen) return
+    const idle = now - lastMoveAt
+    const alpha = Math.max(0, Math.min(1, 1 - Math.max(0, idle - COMET_IDLE) / COMET_FADE))
+    if (alpha <= 0.01) return
+
+    // 从尾到头给点：宽度沿程收细，头最粗。ribbon 的 u=0 是第一个点
+    const pts: [number, number][] = []
+    for (let i = COMET_NODES - 1; i >= 0; i--) pts.push([xs[i], ys[i]])
+    ctx.globalAlpha = alpha * 0.9
+    ribbon(ctx, pts, (u) => 0.25 + 2.4 * Math.pow(u, 2.4), `rgba(${GLOW}, 0.5)`)
+
+    // 头：亮点 + 一圈光晕——鼠标看上去就是一颗流星本身
+    if (headGrad !== null) {
+      ctx.globalAlpha = alpha
+      ctx.save()
+      ctx.translate(xs[0], ys[0])
+      ctx.scale(13, 13)
+      ctx.fillStyle = headGrad
+      ctx.beginPath()
+      ctx.arc(0, 0, 1, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    ctx.globalAlpha = 1
+  }
+
+  function frame(now: number): void {
+    const dt = Math.min(48, Math.max(1, now - lastT))
+    lastT = now
+    const ease = 1 - Math.pow(1 - COMET_EASE, dt / 16.7)
+    const follow = 1 - Math.pow(1 - COMET_FOLLOW, dt / 16.7)
+    xs[0] += (targetX - xs[0]) * ease
+    ys[0] += (targetY - ys[0]) * ease
+    for (let i = 1; i < COMET_NODES; i++) {
+      xs[i] += (xs[i - 1] - xs[i]) * follow
+      ys[i] += (ys[i - 1] - ys[i]) * follow
+    }
+    draw(now)
+    if (now - lastMoveAt > COMET_IDLE + COMET_FADE + 80) {
+      // 散完了：停掉，下次 pointermove 再起
+      running = false
+      raf = 0
+      return
+    }
+    raf = requestAnimationFrame(frame)
+  }
+
+  function start(): void {
+    if (running || !ctx) return
+    running = true
+    lastT = performance.now()
+    raf = requestAnimationFrame(frame)
+  }
+
+  function move(x: number, y: number): void {
+    if (width <= 0) return
+    if (!seen) {
+      for (let i = 0; i < COMET_NODES; i++) {
+        xs[i] = x
+        ys[i] = y
+      }
+      seen = true
+    }
+    targetX = x
+    targetY = y
+    lastMoveAt = performance.now()
+    start()
+  }
+
+  function leave(): void {
+    lastMoveAt = performance.now() - COMET_IDLE
+    start()
+  }
+
+  function stop(): void {
+    running = false
+    if (raf) cancelAnimationFrame(raf)
+    raf = 0
+  }
+
+  function resize(): void {
+    if (!ctx) return
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    if (w <= 0 || h <= 0) return
+    dpr = Math.min(window.devicePixelRatio || 1, 2)
+    width = w
+    height = h
+    canvas.width = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.globalCompositeOperation = 'lighter'
+    buildGradients()
+  }
+
+  return { resize, move, leave, stop }
+}
