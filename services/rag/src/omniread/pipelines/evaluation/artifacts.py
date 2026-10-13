@@ -149,7 +149,7 @@ def _render_summary_markdown(config: EvalRunConfig, summary: Mapping[str, Any]) 
         lines.extend(_render_generation_section(generation))
         lines.extend(_render_generation_breakdown(generation))
 
-    for dimension in ("per_difficulty", "per_type", "per_level"):
+    for dimension in ("per_type", "per_level"):
         breakdown = summary.get(dimension)
         if not breakdown:
             continue
@@ -230,7 +230,7 @@ def _render_generation_section(summary: Mapping[str, Any]) -> list[str]:
 def _render_generation_breakdown(summary: Mapping[str, Any]) -> list[str]:
     """答案层的分列。检索层那套列名（证据总数 / leak）在这里没有对应量。"""
     lines: list[str] = []
-    for dimension in ("per_difficulty", "per_type"):
+    for dimension in ("per_type",):
         breakdown = summary.get(dimension)
         if not breakdown:
             continue
@@ -249,7 +249,6 @@ def _render_generation_breakdown(summary: Mapping[str, Any]) -> list[str]:
 
 
 _DIMENSION_LABEL = {
-    "per_difficulty": "难度",
     "per_type": "题型",
     "per_level": "realm 等级",
 }

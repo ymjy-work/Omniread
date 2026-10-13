@@ -57,7 +57,6 @@ def _record(**overrides: object) -> RetrievalScoreRecord:
     base = RetrievalScoreRecord(
         question_id="fact-001",
         question_type="fact",
-        difficulty="easy",
         level="past",
         progress=10,
         expect_refusal=False,

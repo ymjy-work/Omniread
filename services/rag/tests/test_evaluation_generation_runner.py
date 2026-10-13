@@ -115,7 +115,6 @@ def _question(
     return {
         "id": question_id,
         "type": qtype,
-        "difficulty": "easy",
         "level": "past",
         "progress": 50,
         "question": question,

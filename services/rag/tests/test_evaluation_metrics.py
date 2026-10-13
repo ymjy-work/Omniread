@@ -37,14 +37,12 @@ def _question(
     groups: list[list[tuple[str, str]]] | None = None,
     level: str = "past",
     progress: int | None = 10,
-    difficulty: str = "easy",
     expect_refusal: bool = False,
 ) -> dict:
     groups = groups or [[("book:1:chapter:2", "证据甲")]]
     return {
         "id": question_id,
         "type": "fact",
-        "difficulty": difficulty,
         "level": level,
         "progress": progress,
         "expect_refusal": expect_refusal,
@@ -212,15 +210,15 @@ class TestAggregate:
         assert summary["evidence_recall"] == 0.0
         assert summary["evidence_total"] == 0
 
-    def test_per_difficulty_is_a_slice_not_a_weight(self) -> None:
-        """按难度分列：各档独立算比率，不合成一个加权总分。"""
-        easy = self._record(difficulty="easy")
-        hard = self._record(difficulty="hard", evidence_hit=0)
-        breakdown = aggregate([easy, hard])["per_difficulty"]
+    def test_per_type_is_a_slice_not_a_weight(self) -> None:
+        """按题型分列：各桶独立算比率，不合成一个加权总分。"""
+        fact = self._record(question_type="fact")
+        cross = self._record(question_type="cross", evidence_hit=0)
+        breakdown = aggregate([fact, cross])["per_type"]
         assert isinstance(breakdown, dict)
-        assert breakdown["easy"]["evidence_recall"] == 1.0
-        assert breakdown["hard"]["evidence_recall"] == 0.0
-        assert breakdown["easy"]["questions"] == 1
+        assert breakdown["fact"]["evidence_recall"] == 1.0
+        assert breakdown["cross"]["evidence_recall"] == 0.0
+        assert breakdown["fact"]["questions"] == 1
 
     def test_breakdown_carries_its_own_denominator(self) -> None:
         """分列必须自带分母：不列出来就没法判断两次 run 是否同分母。
@@ -228,20 +226,20 @@ class TestAggregate:
         `_ratio` 在空分母上返回 `0.0`（防御性默认，不是测量结果），照直渲染会被
         读成「一条都没中」；可读性由分母列与渲染层的 `—` 负责，不在这一层包装。
         """
-        answer = self._record(difficulty="easy")
+        answer = self._record(question_type="fact")
         refusal = self._record(
-            difficulty="hard", expect_refusal=True, question_id="spoiler-001"
+            question_type="cross", expect_refusal=True, question_id="spoiler-001"
         )
-        breakdown = aggregate([answer, refusal])["per_difficulty"]
+        breakdown = aggregate([answer, refusal])["per_type"]
         assert isinstance(breakdown, dict)
-        assert breakdown["easy"]["evidence_total"] == 1
-        assert breakdown["hard"]["evidence_total"] == 1
-        empty = aggregate([self._record(difficulty="hard", evidence_total=0)])[
-            "per_difficulty"
+        assert breakdown["fact"]["evidence_total"] == 1
+        assert breakdown["cross"]["evidence_total"] == 1
+        empty = aggregate([self._record(question_type="cross", evidence_total=0)])[
+            "per_type"
         ]
         assert isinstance(empty, dict)
-        assert empty["hard"]["evidence_total"] == 0
-        assert empty["hard"]["evidence_recall"] == 0.0
+        assert empty["cross"]["evidence_total"] == 0
+        assert empty["cross"]["evidence_recall"] == 0.0
 
 
 class TestHelpers:

@@ -133,10 +133,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {tier:16s} {count}")
 
     print()
-    print("按难度分列（只分列、不加权）：")
-    for difficulty, counts in result.summary["per_difficulty"].items():  # type: ignore[union-attr]
+    print("按题型分列（只分列、不加权）：")
+    for question_type, counts in result.summary["per_type"].items():  # type: ignore[union-attr]
         detail = "、".join(f"{status} {count}" for status, count in counts.items())
-        print(f"  {difficulty:8s} {detail}")
+        print(f"  {question_type:8s} {detail}")
 
     if problems:
         print()

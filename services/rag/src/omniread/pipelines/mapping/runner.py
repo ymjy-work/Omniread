@@ -55,9 +55,6 @@ class EvidenceRef:
 
     question_id: str
     question_type: str
-    # 带上难度只为**分列统计**：评测结果要能按 easy / medium / hard 分开看。
-    # 它**不参与任何加权**——难度是评测者的主观标签，加权会把它乘进被测系统的分数。
-    difficulty: str
     ordinal: int
     chapter_id: str
     content: str
@@ -82,7 +79,6 @@ def load_golden_evidence(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> list[Evidence
         payload = json.loads(path.read_text(encoding="utf-8"))
         question_id = payload["id"]
         question_type = payload["type"]
-        difficulty = payload["difficulty"]
         ordinal = 0
         for group in payload["must_cite_groups"]:
             for evidence in group:
@@ -92,7 +88,6 @@ def load_golden_evidence(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> list[Evidence
                         EvidenceRef(
                             question_id=question_id,
                             question_type=question_type,
-                            difficulty=difficulty,
                             ordinal=ordinal,
                             chapter_id=evidence["chapter_id"],
                             content=evidence["content"],
@@ -208,9 +203,6 @@ def summarize(
         "decision_tiers": dict(sorted(tiers.items())),
         "per_type": _breakdown(pairs, lambda item: item.question_type),
         # 按难度分列。**只分列、不加权**：难度是评测者给的主观标签，权重会把它乘进
-        # 被测系统的分数，改一个标签就悄悄挪动总分。分列既能看到「难题差在哪」，
-        # 又不会让标签动一下就把头条数字带走。
-        "per_difficulty": _breakdown(pairs, lambda item: item.difficulty),
         "multi_cover_count": tiers.get(TIER_MAX_COVERAGE, 0),
     }
 

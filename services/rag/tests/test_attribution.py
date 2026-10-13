@@ -37,7 +37,6 @@ def _record(**overrides: Any) -> RetrievalScoreRecord:
     base: dict[str, Any] = {
         "question_id": "fact-001",
         "question_type": "fact",
-        "difficulty": "easy",
         "level": "past",
         "progress": 10,
         "expect_refusal": False,

@@ -93,7 +93,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--corpus-root", type=Path, default=DEFAULT_CORPUS_ROOT)
     parser.add_argument("--golden-dir", type=Path, default=DEFAULT_GOLDEN_DIR)
     parser.add_argument("--runs-dir", type=Path, default=DEFAULT_RUNS_DIR)
-    parser.add_argument("--run-id", default=BASELINE_RUN_ID)
+    parser.add_argument(
+        "--run-id",
+        default=BASELINE_RUN_ID,
+        help=(
+            "产物目录名。**默认值是 M0 基线目录**，所以覆盖式重跑默认落在它头上——"
+            "离线冒烟（--fake-providers）必须显式给一个别的 id（下面会拦）"
+        ),
+    )
     parser.add_argument(
         "--mapping-run",
         default="2026-09-20-m0-mapping",
@@ -155,7 +162,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "拒答正确性。每题多 1 次回答模型调用；检索结果回放上面那一遍，不再重跑"
         ),
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    # 默认 run_id 是 M0 基线目录，而基线产物是入库的留痕：`--fake-providers` 不带
+    # `--run-id` 跑一次，就会把那份 86 题的基线换成 3 题的假 provider 结果
+    # （2026-10-13 真的踩到过一次，靠 git checkout 还原）。这种组合直接拦下来。
+    if args.fake_providers and args.run_id == BASELINE_RUN_ID:
+        parser.error(
+            "离线冒烟（--fake-providers）必须显式给 --run-id："
+            f"默认值是 {BASELINE_RUN_ID}，照默认跑会覆盖基线产物"
+        )
+    return args
 
 
 def build_params(spec: str) -> RetrievalParams:
@@ -403,11 +419,11 @@ async def main_async(args: argparse.Namespace) -> int:
         )
         print(f"  {key:20s} {value}")
     print()
-    print("按难度分列（只分列、不加权）：")
-    for difficulty, values in result.summary["per_difficulty"].items():  # type: ignore[union-attr]
+    print("按题型分列（只分列、不加权）：")
+    for question_type, values in result.summary["per_type"].items():  # type: ignore[union-attr]
         # 分母紧挨着比率打印：0/0 也是 0.0000，两个数并排才不会读错。
         print(
-            f"  {difficulty:8s} 题数 {values['questions']:3d} "
+            f"  {question_type:8s} 题数 {values['questions']:3d} "
             f"证据 {values['evidence_total']:4d} "
             f"evidence_recall {fmt_ratio(values['evidence_recall'], values['evidence_total'])} "
             f"leak {values['leak']}"

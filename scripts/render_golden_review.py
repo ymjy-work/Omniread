@@ -45,7 +45,6 @@ def render(questions: list[dict], dataset_hash: str, focus: str | None) -> str:
     for question in shown:
         by_type.setdefault(question["type"], []).append(question)
 
-    difficulty = Counter(q["difficulty"] for q in shown)
     levels = Counter(q["level"] for q in shown)
     refusals = sum(1 for q in shown if q["expect_refusal"])
 
@@ -61,14 +60,12 @@ def render(questions: list[dict], dataset_hash: str, focus: str | None) -> str:
         "| 字段 | 判什么 |",
         "| --- | --- |",
         "| `type` | 六桶归类对不对：`fact` 事实 / `alias` 别称 / `cross` 跨章 / `foreshadow` 伏笔 / `boundary` 边界 / `spoiler` 剧透 |",
-        "| `difficulty` | `easy` / `medium` / `hard` 的档位是否合理 |",
         "| `level` + `progress` | `past` 的 progress 是否卡在「答案已在域内、剧透尚在域外」的位置；`full` 必须无 progress |",
         "| `expect_refusal` | 为 `true` 时，域内**确实没有答案**（不能把「我没找到」当拒答题） |",
         "",
         "第 3 条另需确认：`reference_points` 与 `reference_answer` 与题面匹配、且是重构后的版本。",
         "",
-        f"分布：难度 {dict(sorted(difficulty.items()))}；"
-        f"level {dict(sorted(levels.items()))}；拒答 {refusals} 题。",
+        f"分布：level {dict(sorted(levels.items()))}；拒答 {refusals} 题。",
         "",
     ]
 
@@ -91,7 +88,7 @@ def _render_question(question: dict) -> list[str]:
     evidence_count = sum(len(group) for group in question["must_cite_groups"])
 
     lines = [
-        f"### {question['id']}　`{question['difficulty']}`　{scope}　{refusal}",
+        f"### {question['id']}　{scope}　{refusal}",
         "",
         f"**问：**{question['question']}",
         "",

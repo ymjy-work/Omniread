@@ -114,7 +114,6 @@ def score_answer(
     return GenerationScoreRecord(
         question_id=str(question["id"]),
         question_type=str(question["type"]),
-        difficulty=str(question["difficulty"]),
         expect_refusal=bool(question["expect_refusal"]),
         status=answer.status,
         citation_count=len(hits),
@@ -165,7 +164,6 @@ def aggregate_generation(records: Sequence[GenerationScoreRecord]) -> dict[str, 
             1 for r in expected_answers if r.status in _REFUSAL_STATUSES
         ),
         "per_type": _breakdown(scored, lambda r: r.question_type),
-        "per_difficulty": _breakdown(scored, lambda r: r.difficulty),
     }
 
 

@@ -84,7 +84,6 @@ def score_question(
     return RetrievalScoreRecord(
         question_id=str(question["id"]),
         question_type=str(question["type"]),
-        difficulty=str(question["difficulty"]),
         level=str(question["level"]),
         progress=progress,
         expect_refusal=bool(question["expect_refusal"]),
@@ -142,7 +141,6 @@ def aggregate(records: Sequence[RetrievalScoreRecord]) -> dict[str, object]:
         # 硬门禁：任一题任一阶段 >0 即不为 0。
         "leak": sum(r.leak_total for r in scored),
         "per_type": _breakdown(scored, lambda r: r.question_type),
-        "per_difficulty": _breakdown(scored, lambda r: r.difficulty),
         "per_level": _breakdown(scored, lambda r: r.level),
     }
 

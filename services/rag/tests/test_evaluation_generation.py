@@ -35,7 +35,6 @@ from omniread.pipelines.evaluation.types import (
 QUESTION = {
     "id": "fact-001",
     "type": "fact",
-    "difficulty": "easy",
     "level": "past",
     "progress": 4,
     "question": "艾莉为什么说俄语？",
@@ -189,7 +188,6 @@ def _record(
     return GenerationScoreRecord(
         question_id=question_id,
         question_type=question_type,
-        difficulty="easy",
         expect_refusal=expect_refusal,
         status=status,
         citation_count=citations,
@@ -305,7 +303,6 @@ def test_from_payload_rejects_an_unknown_status() -> None:
     payload = {
         "question_id": "a",
         "question_type": "fact",
-        "difficulty": "easy",
         "expect_refusal": False,
         "status": "maybe",
         "citation_count": 0,
@@ -326,7 +323,6 @@ def test_from_payload_restores_tuples_and_rejects_bad_scalars() -> None:
     payload = {
         "question_id": "a",
         "question_type": "fact",
-        "difficulty": "easy",
         "expect_refusal": False,
         "status": STATUS_ANSWERED,
         "citation_count": 1,

@@ -2,14 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://omniread.local/eval/golden/schema.json",
   "title": "Omniread M0 Golden 题目",
-  "description": "Omniread M0 Golden 数据集单题 Schema（draft 2020-12）。必填字段集：schema_version / id / type / difficulty / book_id / question / reference_points / level / expect_refusal / must_cite_groups；reference_answer 可选。字段集明确不含 source_seqs / must_not_claim / forbidden_patterns / notes。本 schema 只做单题结构约束；纯 JSON Schema 表达力覆盖不到、必须由校验器补的规则：（1）level=past 时，must_cite_groups 内每个 evidence 的 chapter_index 必须 ≤ 该题 progress；（2）book_id 与 progress 必须是整数，不接受小数或布尔值；（3）id 在数据集内唯一；（4）数量目标（总量 ≥60、单类型 ≥8、expect_refusal=true ≥10）在数据集层面统计，不在单题层面。",
+  "description": "Omniread M0 Golden 数据集单题 Schema（draft 2020-12）。必填字段集：schema_version / id / type / book_id / question / reference_points / level / expect_refusal / must_cite_groups；reference_answer 可选。字段集明确不含 source_seqs / must_not_claim / forbidden_patterns / notes。本 schema 只做单题结构约束；纯 JSON Schema 表达力覆盖不到、必须由校验器补的规则：（1）level=past 时，must_cite_groups 内每个 evidence 的 chapter_index 必须 ≤ 该题 progress；（2）book_id 与 progress 必须是整数，不接受小数或布尔值；（3）id 在数据集内唯一；（4）数量目标（总量 ≥60、单类型 ≥8、expect_refusal=true ≥10）在数据集层面统计，不在单题层面。",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "id",
     "type",
-    "difficulty",
     "book_id",
     "question",
     "reference_points",
@@ -32,7 +31,7 @@
       "enum": ["fact", "alias", "cross", "foreshadow", "boundary", "spoiler"]
     },
     "difficulty": {
-      "description": "难度三档。",
+      "description": "**已废弃（2026-10-13）**：难度是评测者的主观标签，而 type 几乎完全决定了它（fact→easy、cross→hard……），不承载额外信息。存量题保留原值、不迁移；新题不写；统计与报表一概不再读它。见 docs/m1/Golden-难度维度迁移.md。",
       "enum": ["easy", "medium", "hard"]
     },
     "book_id": {

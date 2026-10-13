@@ -265,7 +265,7 @@ def _validate_structure_native(obj: object, rep: Report) -> None:
         rep.error("", "题目必须是 JSON 对象")
         return
     required = [
-        "schema_version", "id", "type", "difficulty", "book_id",
+        "schema_version", "id", "type", "book_id",
         "question", "reference_points", "level", "expect_refusal",
         "must_cite_groups",
     ]
@@ -284,8 +284,10 @@ def _validate_structure_native(obj: object, rep: Report) -> None:
         rep.error("id", "必须是非空字符串")
     if obj.get("type") not in TYPES:
         rep.error("type", f"必须属于 {list(TYPES)}，实际为 {obj.get('type')!r}")
-    if obj.get("difficulty") not in DIFFICULTIES:
-        rep.error("difficulty", f"必须属于 {list(DIFFICULTIES)}，实际为 {obj.get('difficulty')!r}")
+    # 难度维度已砍（2026-10-13，见 docs/m1/Golden-难度维度迁移.md）：**存量题面不迁移**，
+    # 字段在就还得合法（防手改出拼写错），新题不写它。统计与报表一概不再读这个字段。
+    if "difficulty" in obj and obj.get("difficulty") not in DIFFICULTIES:
+        rep.error("difficulty", f"写了就必须属于 {list(DIFFICULTIES)}，实际为 {obj.get('difficulty')!r}")
     book_id = obj.get("book_id")
     if not (_is_int(book_id) and book_id == BOOK_ID_M0):
         rep.error("book_id", f"M0 恒为 {BOOK_ID_M0}，实际为 {book_id!r}")

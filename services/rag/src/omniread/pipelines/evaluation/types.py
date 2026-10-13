@@ -25,7 +25,6 @@ class RetrievalScoreRecord:
 
     question_id: str
     question_type: str
-    difficulty: str
     level: str
     # `level=full` 时为 None（schema 要求该键缺省）。
     progress: int | None
@@ -100,7 +99,6 @@ class GenerationScoreRecord:
 
     question_id: str
     question_type: str
-    difficulty: str
     expect_refusal: bool
 
     # ── 确定性判定：不调模型判断（D1），因此可复现、可离线重算 ──
@@ -146,6 +144,12 @@ _TYPE_CHECKS: dict[str, Callable[[Any], bool]] = {
 
 _OPTIONAL_SUFFIX = " | None"
 
+# **退役的产物列**：曾经写进 scores.jsonl、后来砍掉的字段。旧 run 还带着它们，
+# 而下面的白名单是 eval/ 红线的实现方式（多一列正文就进产物了），**不能放宽**——
+# 所以退役的键在这里显式抹掉：旧产物照样读得进来，新产物不再写。
+# 难度维度 2026-10-13 退役，见 docs/m1/Golden-难度维度迁移.md。
+_RETIRED_PAYLOAD_KEYS = frozenset({"difficulty"})
+
 
 def _coerce_from_payload(cls: type, payload: Mapping[str, Any]) -> dict[str, Any]:
     """按注解校验 payload 的形状，并还原成 dataclass 的取值；坏形状即抛，不静默猜。
@@ -163,6 +167,8 @@ def _coerce_from_payload(cls: type, payload: Mapping[str, Any]) -> dict[str, Any
     新加字段时不会漏。
     """
     data: dict[str, Any] = dict(payload)
+    for retired in _RETIRED_PAYLOAD_KEYS:
+        data.pop(retired, None)
     for item in fields(cls):
         if item.name not in data:
             continue

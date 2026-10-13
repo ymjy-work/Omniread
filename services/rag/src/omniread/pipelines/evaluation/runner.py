@@ -198,7 +198,6 @@ def _failure_row(record: RetrievalScoreRecord) -> dict[str, object]:
     """
     return {
         "question_id": record.question_id,
-        "difficulty": record.difficulty,
         "stage": _failure_stage(record),
         "chunk_key": (
             record.mapped_not_assembled_keys[0] if record.mapped_not_assembled_keys else ""
