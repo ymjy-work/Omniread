@@ -13,6 +13,15 @@ export type AnyErrorCode = ErrorCode | LocalErrorCode | SseLocalErrorCode
 
 const TEXT: Record<AnyErrorCode, string> = {
   RAG_INVALID_REALM: '提问超出了可回答的章节范围',
+  RAG_INVALID_REQUEST: '请求不合法，请刷新后重试',
+  RAG_UNAUTHENTICATED: '登录已过期，请重新登录',
+  RAG_FORBIDDEN: '没有权限执行这个操作',
+  RAG_NOT_FOUND: '没有找到请求的内容',
+  RAG_SESSION_MISMATCH: '会话与当前档位对不上',
+  RAG_RATE_LIMITED: '提问太快了，稍等一下再试',
+  RAG_DAILY_QUOTA_EXCEEDED: '今日额度已用完，明天再来',
+  RAG_CONCURRENT_QUERY: '上一个回答还没结束',
+  RAG_LOGIN_LOCKED: '登录尝试过于频繁，请稍后再试',
   RAG_PROVIDER_ERROR: '模型服务异常，请稍后重试',
   RAG_UNAVAILABLE: '问答服务暂不可用',
   RAG_TIMEOUT: '回答超时',

@@ -74,6 +74,17 @@ export interface ProgressWrite {
   max_seq: number
 }
 
+// ---------- 认证 ----------
+
+/**
+ * 契约 CurrentUser：`login` 与 `auth/me` 的响应体。**刻意不含账户 id**
+ * （前端用不到，发出去就成了事实上的契约）。`expires_at` 是登录会话的到期时刻。
+ */
+export interface CurrentUser {
+  username: string
+  expires_at: string
+}
+
 // ---------- rag ----------
 
 /** past: chapter_index <= progress；full: 全部章节 */
@@ -118,11 +129,28 @@ export interface QueryResponse {
   usage: Usage
 }
 
-export type ErrorCode =
-  | 'RAG_INVALID_REALM'
-  | 'RAG_PROVIDER_ERROR'
-  | 'RAG_UNAVAILABLE'
-  | 'RAG_TIMEOUT'
+/**
+ * 契约 `ErrorBody.code` 的闭枚举——**13 个码的并集**（两份契约共用同一个 schema，
+ * 所以两侧的码都列在这里）。运行时以数组存在：sse.ts 拿它判断一个码认不认识。
+ * 表里的「谁产生 / HTTP」对照在 `contracts/openapi/frontend-api-v1.yaml` 的 ErrorBody。
+ */
+export const ERROR_CODES = [
+  'RAG_INVALID_REALM',
+  'RAG_INVALID_REQUEST',
+  'RAG_UNAUTHENTICATED',
+  'RAG_FORBIDDEN',
+  'RAG_NOT_FOUND',
+  'RAG_SESSION_MISMATCH',
+  'RAG_RATE_LIMITED',
+  'RAG_DAILY_QUOTA_EXCEEDED',
+  'RAG_CONCURRENT_QUERY',
+  'RAG_LOGIN_LOCKED',
+  'RAG_PROVIDER_ERROR',
+  'RAG_UNAVAILABLE',
+  'RAG_TIMEOUT'
+] as const
+
+export type ErrorCode = (typeof ERROR_CODES)[number]
 
 /** 只覆盖非 2xx；前端只按 code 分支，不得字符串匹配 message */
 export interface ErrorBody {

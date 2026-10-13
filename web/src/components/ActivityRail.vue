@@ -1,7 +1,8 @@
 <script setup lang="ts">
-/** 活动栏：书库 / 章节两个板块入口 + 深浅切换。图标为内联 SVG，不引图标库。 */
+/** 活动栏：书库 / 章节两个板块入口 + 主题切换 + 退出登录。图标为内联 SVG，不引图标库。 */
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { signOut } from '../auth'
 import { store } from '../store'
 import { nextThemeName, theme, themeLabel, toggleTheme } from '../theme'
 
@@ -25,6 +26,12 @@ function openReader(): void {
 /** 介绍 / 导航页：什么时候都能回门厅看一眼「能做什么、边界在哪儿、须知」。 */
 function openWelcome(): void {
   void router.push({ name: 'welcome' })
+}
+
+/** 退出：服务端删会话（失败也照常本地登出，理由见 auth.ts），回到登录页 */
+async function doLogout(): Promise<void> {
+  await signOut()
+  void router.replace({ name: 'login' })
 }
 </script>
 
@@ -60,6 +67,13 @@ function openWelcome(): void {
       <span class="tip">切换主题</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
         <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+      </svg>
+    </button>
+    <button class="ic" @click="doLogout">
+      <span class="tip">退出登录</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <path d="M10 4H6.5A2.5 2.5 0 004 6.5v11A2.5 2.5 0 006.5 20H10" />
+        <path d="M15.5 8l4 4-4 4M9.5 12h9.5" />
       </svg>
     </button>
   </nav>

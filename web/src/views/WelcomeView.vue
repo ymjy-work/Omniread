@@ -11,83 +11,15 @@
  *
  * **使用须知不在这里**：它是登录进入功能页之后的弹窗（`NoticeGate`），不参与站点设计。
  *
- * 背景是程序化画布（`heroPainting.ts`，零图片素材）+ 一层可以用指针拨开的雾。
- * 首屏内容做成左侧卡片而不是铺满：右边留出画面与雾的部分，「拨开」才有地方发生。
+ * 背景是程序化画布 + 一层可以用指针拨开的雾——那一段抽在 `components/HeroBackdrop.vue`，
+ * **登录页共用同一个组件**（改效果只改一处）。首屏内容居中是刻意的：画面与雾在文字后面，
+ * 「拨开」才有地方发生。
  */
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import HeroBackdrop from '../components/HeroBackdrop.vue'
 import TypewriterText from '../components/TypewriterText.vue'
-import { createReveal, paintHero, type RevealController } from '../heroPainting'
 
 const router = useRouter()
-
-const heroRef = ref<HTMLElement | null>(null)
-const painting = ref<HTMLCanvasElement | null>(null)
-const veil = ref<HTMLCanvasElement | null>(null)
-/** 能不能拨雾：触屏没有 hover、减少动效时也不该动。false 时**整层遮罩不显示**。 */
-const revealable = ref(false)
-let revealCtl: RevealController | null = null
-let observer: ResizeObserver | null = null
-
-onMounted(() => {
-  const canvas = painting.value
-  const veilCanvas = veil.value
-  if (!canvas || !veilCanvas) return
-
-  const draw = (): void => {
-    const width = canvas.clientWidth
-    const height = canvas.clientHeight
-    if (width <= 0 || height <= 0) return
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    canvas.width = Math.round(width * dpr)
-    canvas.height = Math.round(height * dpr)
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    // 画布坐标由 dpr 缩放接管，所以画的时候按 CSS 像素算
-    paintHero(canvas, { width, height })
-    revealCtl?.resize()
-  }
-
-  // **没有 hover、或者开了减少动效，就整层遮罩都不显示**：那种情况下指针不会生成墨点、
-  // 循环也不跑，遮罩会被铺死在那儿——主视觉永久看不见。这是技能里记着的一个真实 blocking。
-  // 遮罩层用 `v-show` 而不是 `v-if`：`v-if` 时它在 mount 这一刻还不在 DOM 里，
-  // 上面那个 ref 就是 null，于是「要不要显示」永远算不出来（踩过）。
-  revealable.value =
-    window.matchMedia('(hover: hover)').matches &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  draw()
-  observer = new ResizeObserver(draw)
-  observer.observe(canvas)
-
-  if (!revealable.value) return
-  revealCtl = createReveal(veilCanvas)
-  // 等 DOM 把遮罩层显示出来再量尺寸——这一刻它还是 display:none，量到的是 0
-  void nextTick(draw)
-
-  // 指针事件挂在**整块首屏**上（那块画布是 `pointer-events: none`）：内容盖在画布之上，
-  // 挂画布上的话指针一进卡片就拨不动了。
-  const hero = heroRef.value
-  if (!hero) return
-  const onMove = (event: PointerEvent): void => {
-    const rect = veilCanvas.getBoundingClientRect()
-    revealCtl?.move(event.clientX - rect.left, event.clientY - rect.top)
-  }
-  hero.addEventListener('pointermove', onMove)
-  // 指针回到首屏时忘掉上一个位置：不然从另一侧进来会拉一道横穿画面的长痕（官网的做法）
-  const onEnter = (): void => revealCtl?.enter()
-  hero.addEventListener('pointerenter', onEnter)
-  onBeforeUnmount(() => {
-    hero.removeEventListener('pointermove', onMove)
-    hero.removeEventListener('pointerenter', onEnter)
-  })
-})
-
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  revealCtl?.stop()
-})
 
 function enter(): void {
   void router.push({ name: 'library' })
@@ -95,19 +27,15 @@ function enter(): void {
 </script>
 
 <template>
-  <div class="welcome">
+  <div class="welcome canvas-page">
     <!-- 顶栏只剩品牌：导航项全砍了，页面内的去向交给首屏那颗按钮与页脚 -->
     <header class="topbar">
       <span class="mark">OMNIREAD</span>
     </header>
 
-    <!-- ── 一、首屏：卡片压在画上，右边留出画面 ── -->
-    <section ref="heroRef" class="hero">
-      <canvas ref="painting" class="scene" aria-hidden="true"></canvas>
-      <canvas v-show="revealable" ref="veil" class="scene veil" aria-hidden="true"></canvas>
-
-      <!-- 内容居中压在画上（不套卡片）：结构照官网 hero —— 标题组 → 输入框 → 按钮，
-           三者都是居中列；画与雾在它们后面，指针拨雾照旧。 -->
+    <!-- ── 一、首屏：内容居中压在画上，画与雾在它后面（共用组件） ── -->
+    <HeroBackdrop class="hero">
+      <!-- 结构照官网 hero —— 标题组 → 输入框 → 按钮，三者都是居中列 -->
       <div class="hero-content">
         <div class="hero-head">
           <p class="eyebrow">OMNIREAD · READ BEYOND</p>
@@ -125,9 +53,8 @@ function enter(): void {
         </button>
 
         <div class="btns">
-          <!-- 这一颗进功能页（`enter`），不是往下滚。
-               未登录时应该重定向到 /welcome——那是 F1 的登录门，还没做，届时在路由守卫里一次收口
-               （见 CLAUDE.md「介绍 / 导航页」那节的记录）。 -->
+          <!-- 这一颗进功能页（`enter`），不是往下滚。未登录时由**路由守卫**统一拦到 /login
+               （一处收口，页面上不逐颗按钮判断）。 -->
           <button class="btn" @click="enter">
             探索故事
             <svg class="arw" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -137,7 +64,7 @@ function enter(): void {
         </div>
       </div>
 
-    </section>
+    </HeroBackdrop>
 
     <!-- ── 二、为什么 ── -->
     <section id="why" class="band why">
@@ -291,27 +218,15 @@ function enter(): void {
 
 <style scoped>
 /* ============================================================================
-   门厅自己的配色：**深底 + 单一紫罗兰强调**（对着设计稿取的色）。
+   门厅的版式。配色令牌（--ac / --fg / --line …）在 style.css 的 `.canvas-page` 里——
+   登录页是同一族的另一张画，两份共用同一套色。
    强调色只用在「信号」上——眉标、按钮、图标、mock 里的高亮行。
-   这一页不跟随应用的深浅主题：它是一张画，画有它自己的颜色。
    ========================================================================== */
 .welcome {
-  --ac: #8b7bff;
-  --ac-2: #b76bff;
-  --fg: #f4f2ff;
-  /* 次级色比应用那套亮一点：这一页的底是**深雾 + 发光的夜空**，
-     沿用 --ink-2 / --ink-3 那两档亮度，小字在雾上读不出来。 */
-  --fg-2: #cdc9e4;
-  --fg-3: #9d97b8;
-  --line: rgba(160, 150, 255, 0.16);
-  --panel: rgba(14, 14, 26, 0.62);
-
   height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  background: #05060c;
-  color: var(--fg);
 }
 
 h1, h2, h3 { margin: 0; font-weight: 800; }
@@ -339,8 +254,8 @@ b { color: var(--fg); }
 }
 
 /* ---------- 首屏 ---------- */
+/* 画布、雾、层叠隔离都在 HeroBackdrop 里，这里只管这一屏多高、内容怎么摆 */
 .hero {
-  position: relative;
   /* 高度封顶 700：满屏那一版太空，内容只占中间一段；矮屏仍按 100svh 兜底 */
   min-height: min(100vh, 700px);
   min-height: min(100svh, 700px);
@@ -348,16 +263,9 @@ b { color: var(--fg); }
   align-items: center;
   justify-items: center;
   padding: 96px 28px 76px;
-  overflow: hidden;
-  /* 隔离出一个层叠上下文：画布与雾的混合不外溢（官网也给 hero 加了 isolate） */
-  isolation: isolate;
   /* 一抹紫罗兰的底光，把视线压到中间那一段文字上；其余交给画布 */
   background: radial-gradient(880px 560px at 50% 62%, rgba(139, 123, 255, 0.17), transparent 64%);
 }
-.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* 遮罩层不吃指针事件：指针事件挂在整块首屏上（见脚本里的注释）。
-   v-show 藏起来时它是 display:none，量出来尺寸为 0，那一支自然什么都不画。 */
-.veil { pointer-events: none; }
 
 /* 居中内容列：宽 809 / 列内间距 40 / 标题组内间距 30 —— 三个数都取自官网 hero */
 .hero-content {

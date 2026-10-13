@@ -9,7 +9,8 @@
  * 2. 出错后不再回调 onEvent，也不重复回调 onError。
  */
 import type { ErrorBody, ErrorCode, QueryRequest, SseFrame } from './types'
-import { SSE_EVENT_NAMES } from './types'
+import { ERROR_CODES, SSE_EVENT_NAMES } from './types'
+import { CSRF_HEADERS, notifyUnauthorized } from './api'
 
 /** 本地错误码：流本身断了，契约的 ErrorCode 覆盖不到 */
 export type SseLocalErrorCode = 'SSE_STREAM_ERROR'
@@ -96,13 +97,16 @@ export function openQueryStream(
     try {
       const response = await fetch('/api/v1/query/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        // 写操作要带 CSRF 头，流式这一条也不例外（契约对 queryStream 同样声明了它）
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...CSRF_HEADERS },
         body: JSON.stringify(payload),
         signal: controller.signal
       })
 
       if (!response.ok) {
         // 帧还没开始发时失败会走这里；帧已开始发时 HTTP 状态无法再改，失败只能用终止帧表达
+        // 会话中途过期：走 api.ts 那个 401 出口统一跳登录页，别在这儿各显各的
+        if (response.status === 401) notifyUnauthorized()
         const text = await response.text().catch(() => '')
         const body = parseJson(text)
         fail({
@@ -221,15 +225,9 @@ function readString(source: unknown, key: string): string | null {
 
 function readCode(source: unknown): ErrorCode | SseLocalErrorCode {
   const code = readString(source, 'code')
-  if (
-    code === 'RAG_INVALID_REALM' ||
-    code === 'RAG_PROVIDER_ERROR' ||
-    code === 'RAG_UNAVAILABLE' ||
-    code === 'RAG_TIMEOUT'
-  ) {
-    return code
-  }
-  return 'SSE_STREAM_ERROR'
+  // 认不认识这个码查契表的闭枚举（types.ts 的 ERROR_CODES）——
+  // 原先按四个码白名单，别的契约码会被错标成「流断了」，而它其实好好地送来了一个业务错误
+  return ERROR_CODES.includes(code as ErrorCode) ? (code as ErrorCode) : 'SSE_STREAM_ERROR'
 }
 
 /** 供调用方按契约字段判断错误体形状（与 api.ts 的 ApiError 同源语义） */

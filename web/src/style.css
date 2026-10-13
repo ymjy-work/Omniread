@@ -57,6 +57,22 @@ html[data-theme="deep"] body {
     radial-gradient(900px 600px at 100% 15%, rgba(190, 70, 140, .18), transparent 55%),
     radial-gradient(800px 700px at 55% 110%, rgba(50, 180, 150, .12), transparent 55%);
 }
+/* 画布页（介绍 / 导航页与登录页，都不进三栏壳）：**自带配色、不跟随应用主题**——
+   它们是一张画，画有它自己的颜色；底色与画面由 HeroBackdrop 的 canvas 铺。
+   两页共用这一份令牌，页面各自的排版留在各自的 SFC 里。 */
+.canvas-page {
+  --ac: #8b7bff;
+  --ac-2: #b76bff;
+  --fg: #f4f2ff;
+  /* 次级色比应用那套亮一点：这一族页面的底是**深雾 + 发光的夜空**，
+     沿用 --ink-2 / --ink-3 那两档亮度，小字在雾上读不出来。 */
+  --fg-2: #cdc9e4;
+  --fg-3: #9d97b8;
+  --line: rgba(160, 150, 255, 0.16);
+  --panel: rgba(14, 14, 26, 0.62);
+  color: var(--fg);
+  background: #05060c;
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
