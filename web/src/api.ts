@@ -8,13 +8,17 @@ import type {
   BookList,
   ChapterDetail,
   ChapterList,
+  ChatSessionSummary,
   CurrentUser,
   ErrorBody,
   ErrorCode,
   Health,
   Progress,
-  QueryRequest,
-  QueryResponse
+  QueryLevel,
+  QueryResponse,
+  SessionDetail,
+  SessionList,
+  SessionQueryRequest
 } from './types'
 
 const BASE = '/api/v1'
@@ -144,10 +148,51 @@ export function putProgress(bookId: number, maxSeq: number): Promise<Progress> {
 }
 
 /** 单轮问答（JSON 同步）。前端走 sse.ts 的流式路径，这个留给脚本与调试。 */
-export function query(payload: QueryRequest): Promise<QueryResponse> {
+export function query(payload: SessionQueryRequest): Promise<QueryResponse> {
   return request<QueryResponse>('/query', {
     method: 'POST',
     body: JSON.stringify(payload)
+  })
+}
+
+// ---------- 会话 ----------
+
+/** 我的会话列表（服务端已按最近活跃倒序）。**别人的会话不会出现在这里，也取不到** */
+export function listSessions(): Promise<SessionList> {
+  return request<SessionList>('/sessions')
+}
+
+export function createSession(bookId: number, level: QueryLevel): Promise<ChatSessionSummary> {
+  return request<ChatSessionSummary>('/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ book_id: bookId, level })
+  })
+}
+
+/** 会话详情（含消息）。消息**不带 meta**，所以恢复出来的气泡没有引用与耗时 */
+export function getSession(sessionId: string): Promise<SessionDetail> {
+  return request<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+/** 删除会话（连同它的消息）。别人的会话删不掉，返回 403 */
+export function deleteSession(sessionId: string): Promise<void> {
+  return request<void>(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
+}
+
+/**
+ * 切档位分叉：复制父会话截至 `at_seq` 的消息进新会话，父会话的档位与消息一律不动。
+ *
+ * `at_seq` 缺省 = 复制到当前最后一条（「继承到当前点」）。前端**不该自己算「完整轮」**
+ * 再传进来——那是服务端的排版知识，算错了的表现是新会话凭空少一段上下文（见契约 ForkRequest）。
+ */
+export function forkSession(
+  sessionId: string,
+  level: QueryLevel,
+  atSeq?: number
+): Promise<ChatSessionSummary> {
+  return request<ChatSessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/fork`, {
+    method: 'POST',
+    body: JSON.stringify(atSeq === undefined ? { level } : { level, at_seq: atSeq })
   })
 }
 

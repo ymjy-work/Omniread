@@ -8,7 +8,7 @@
  * 1. 本模块**不向调用方抛异常** —— 网络错误、非 2xx、非法帧全部走 onError；
  * 2. 出错后不再回调 onEvent，也不重复回调 onError。
  */
-import type { ErrorBody, ErrorCode, QueryRequest, SseFrame } from './types'
+import type { ErrorBody, ErrorCode, SessionQueryRequest, SseFrame } from './types'
 import { ERROR_CODES, SSE_EVENT_NAMES } from './types'
 import { CSRF_HEADERS, notifyUnauthorized } from './api'
 
@@ -38,7 +38,7 @@ export interface SseConnection {
 const KNOWN_EVENTS = new Set<string>(SSE_EVENT_NAMES)
 
 export function openQueryStream(
-  payload: QueryRequest,
+  payload: SessionQueryRequest,
   handlers: SseHandlers = {}
 ): SseConnection {
   const controller = new AbortController()

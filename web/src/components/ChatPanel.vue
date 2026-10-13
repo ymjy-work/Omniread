@@ -1,9 +1,18 @@
 <script setup lang="ts">
 /**
- * 剧情问答：提问 → SSE 流式回答。
+ * 剧情问答：会话（新建 / 切换 / 删除 / 切档位分叉）+ 提问 → SSE 流式回答。
  *
  * 数据路径固定为 /api/v1/query/stream（经 Java 网关），失败一律走 sse.ts 的 onError，
  * 这里只负责把事件翻译成界面上的一行行状态。
+ *
+ * 三条口径：
+ *
+ * - **会话是懒建的**：没有当前会话时，第一句提问才新建（档位用界面上选的那个）。
+ *   这样每个会话都有内容，列表里不攒问都没问过的空壳。
+ * - **档位固定在会话上**（契约）：看着对话切档位不是改会话，而是**分叉**——
+ *   先确认（「既然叫分叉，就得让人知道旧会话还在」），再复制一份换档位。
+ * - **历史消息没有 meta**（契约刻意不下发）：恢复出来的气泡不带引用与耗时，
+ *   角标因此只报章号、不断言它在不在本次上下文里。
  */
 import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -11,10 +20,21 @@ import AnswerBody from './AnswerBody.vue'
 import { formatErrorLine } from '../errors'
 import { openQueryStream } from '../sse'
 import type { SseConnection } from '../sse'
+import {
+  active,
+  create as createSession,
+  fork,
+  forBook,
+  levelLabel,
+  open as openSession,
+  refresh as refreshSessions,
+  remove as removeSession,
+  sessionsError
+} from '../sessions'
 import { chapterCount, currentBook, setLevel, store } from '../store'
-import type { ContextChapter, QueryLevel } from '../types'
+import type { ChatMessage, ChatSessionSummary, ContextChapter, QueryLevel } from '../types'
 
-interface ChatMessage {
+interface Bubble {
   id: number
   role: 'user' | 'ai'
   text: string
@@ -50,9 +70,15 @@ interface ChatMessage {
   firstTokenAt: number | null
   /** 收尾时刻；有值即这题已结束 */
   doneAt: number | null
+  /**
+   * 从服务端恢复出来的历史消息（切会话时）。它们**没有 meta**——
+   * 引用、耗时、检索依据一概没有，所以「思考 · 检索依据」那一块整块不显示，
+   * 而不是显示一堆「等待检索结果…」。
+   */
+  restored: boolean
 }
 
-const messages = ref<ChatMessage[]>([])
+const messages = ref<Bubble[]>([])
 const draft = ref('')
 const scroller = ref<HTMLElement | null>(null)
 const router = useRouter()
@@ -63,8 +89,10 @@ let seq = 0
  * 该恢复时不恢复。连接对象本身不需要深响应，`shallowRef` 足够。
  */
 const connection = shallowRef<SseConnection | null>(null)
+/** 正在建会话（懒建那一刻，还没有连接可看） */
+const starting = ref(false)
 
-const sending = computed(() => connection.value !== null)
+const sending = computed(() => connection.value !== null || starting.value)
 
 /** 每一秒推一下，让「已等待 N 秒」是活的——不动的东西看起来才像卡住。 */
 const now = ref(Date.now())
@@ -84,13 +112,134 @@ function stopTicker(): void {
 }
 const canSend = computed(() => store.bookId !== null && draft.value.trim() !== '' && !sending.value)
 
+// ---------- 会话 ----------
+
+const menuOpen = ref(false)
+/** 当前书的会话（列表接口不按书过滤——那是前端的事） */
+const bookSessions = computed(() => forBook(store.bookId))
+const activeTitle = computed(() => active.value?.title ?? '新会话')
+
+/** 待确认的动作。分叉与删除共用一个对话框——都是「做之前先说清后果」 */
+type Pending = { kind: 'fork'; level: QueryLevel } | { kind: 'delete'; session: ChatSessionSummary }
+const pending = ref<Pending | null>(null)
+const pendingBusy = ref(false)
+
+const pendingTitle = computed(() => {
+  const action = pending.value
+  if (action === null) return ''
+  return action.kind === 'fork' ? '切档位要新建一个分叉会话' : '删除这个会话？'
+})
+const pendingBody = computed(() => {
+  const action = pending.value
+  if (action === null) return ''
+  if (action.kind === 'fork') {
+    return `会话的档位在建立时就定了。切到「${levelLabel(action.level)}」会从当前对话复制一份出来，原会话原样保留、随时切得回去。`
+  }
+  return `「${action.session.title}」连同它的全部消息会一起删掉，删了就没了。`
+})
+const pendingAction = computed(() => (pending.value?.kind === 'fork' ? '分叉并切换' : '删除'))
+
+async function runPending(): Promise<void> {
+  const action = pending.value
+  if (action === null || pendingBusy.value) return
+  pendingBusy.value = true
+  try {
+    if (action.kind === 'fork') {
+      const forked = await fork(action.level)
+      // 分叉继承了截至当前点的对话——界面上的气泡就是那一份，不用重拉
+      if (forked !== null) setLevel(action.level)
+    } else {
+      const wasShown = active.value?.id === action.session.id
+      if ((await removeSession(action.session.id)) && wasShown) {
+        // 删的正是屏上这个：连着半截回答一起清掉
+        connection.value?.close()
+        connection.value = null
+        messages.value = []
+        stopTicker()
+      }
+    }
+  } finally {
+    pendingBusy.value = false
+    pending.value = null
+  }
+}
+
+/** 服务端的历史消息 → 界面气泡 */
+function toBubbles(history: readonly ChatMessage[]): Bubble[] {
+  return history.map((message) => ({
+    id: ++seq,
+    role: message.role === 'user' ? 'user' : 'ai',
+    text: message.content,
+    streaming: false,
+    realm: null,
+    recall: null,
+    citations: [],
+    citationsReady: false,
+    error: null,
+    phase: '',
+    startedAt: 0,
+    retrievedAt: null,
+    firstTokenAt: null,
+    doneAt: null,
+    restored: true
+  }))
+}
+
+async function switchTo(session: ChatSessionSummary): Promise<void> {
+  menuOpen.value = false
+  if (session.id === active.value?.id) return
+  // 正在回答时不切：半截对话切走，攒了一半的正文就没地方落了
+  if (connection.value !== null) return
+  const detail = await openSession(session.id)
+  if (detail === null) return
+  messages.value = toBubbles(detail.messages)
+  // 档位跟着会话走——分段控件与状态栏读的都是 store.level
+  setLevel(detail.level)
+}
+
+function newSession(): void {
+  menuOpen.value = false
+  if (connection.value !== null) return
+  active.value = null
+  messages.value = []
+  // 档位**不重置**：它记的是用户上次的选择，新会话多半还要用同一个
+}
+
+/** 列表行里的时间：今天只给时分，更早给月-日 */
+function shortTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  if (date.toDateString() === new Date().toDateString()) {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// 换书 = 换一整个会话空间：当前会话属于上一本书，屏上的气泡也不再相关。
+// immediate：首次挂载就拉一次列表（那时 bookId 可能还是 null，列表为空是对的）
+watch(
+  () => store.bookId,
+  () => {
+    connection.value?.close()
+    connection.value = null
+    active.value = null
+    messages.value = []
+    stopTicker()
+    void refreshSessions()
+  },
+  { immediate: true }
+)
+
+// ---------- 消息 ----------
+
 /** 按 id 定位后原地改字段：数组元素读出来才是响应式代理，直接改局部变量不会触发更新 */
-function patch(id: number, changes: Partial<ChatMessage>): void {
+function patch(id: number, changes: Partial<Bubble>): void {
   const target = messages.value.find((message) => message.id === id)
   if (target !== undefined) Object.assign(target, changes)
 }
 
-function messageOf(id: number): ChatMessage | undefined {
+function messageOf(id: number): Bubble | undefined {
   return messages.value.find((message) => message.id === id)
 }
 
@@ -103,13 +252,13 @@ function textOf(id: number): string {
 }
 
 /** 已等待多少秒。收尾后冻结在总耗时上，不再跳动。 */
-function elapsedSeconds(message: ChatMessage): number {
+function elapsedSeconds(message: Bubble): number {
   const end = message.doneAt ?? now.value
   return Math.max(0, Math.round((end - message.startedAt) / 1000))
 }
 
 /** 首字延迟（秒，一位小数）；一个字都还没出来时返回空串。 */
-function firstTokenSeconds(message: ChatMessage): string {
+function firstTokenSeconds(message: Bubble): string {
   if (message.firstTokenAt === null) return ''
   return ((message.firstTokenAt - message.startedAt) / 1000).toFixed(1)
 }
@@ -120,7 +269,7 @@ function firstTokenSeconds(message: ChatMessage): string {
  * 分开报是因为它们的量级差得远：检索通常 1–3 秒，而推理型回答模型的首字可能十几秒。
  * 合成一个「总耗时」就看不出该优化哪一段了。
  */
-function timingOf(message: ChatMessage): string {
+function timingOf(message: Bubble): string {
   if (message.doneAt === null) return ''
   const at = (moment: number | null): string =>
     moment === null ? '—' : `${((moment - message.startedAt) / 1000).toFixed(1)}s`
@@ -140,12 +289,25 @@ onUnmounted(() => {
   stopTicker()
 })
 
-function send(): void {
+async function send(): Promise<void> {
   const question = draft.value.trim()
   const bookId = store.bookId
-  if (question === '' || bookId === null || connection.value !== null) return
+  if (question === '' || bookId === null || connection.value !== null || starting.value) return
 
-  const level: QueryLevel = store.level
+  // 懒建会话：没有当前会话就先建一个（档位就是界面上选的那个）
+  let session = active.value
+  if (session === null) {
+    starting.value = true
+    try {
+      session = await createSession(bookId, store.level)
+    } finally {
+      starting.value = false
+    }
+    // 建不出来（错误已经显示在会话栏下）：草稿留着，用户可以直接重试
+    if (session === null) return
+  }
+
+  const level: QueryLevel = session.level
   const askedAt = Date.now()
   // `citations` 不放进 blank：blank 会被展开两次，数组是引用，两条消息会共用同一个实例。
   // 今天所有更新都是整体替换所以看不出来，但只要将来有人原地 push，就会同时改到另一条消息。
@@ -159,7 +321,8 @@ function send(): void {
     startedAt: askedAt,
     retrievedAt: null,
     firstTokenAt: null,
-    doneAt: null
+    doneAt: null,
+    restored: false
   }
   messages.value.push({ ...blank, id: ++seq, role: 'user', text: question, citations: [] })
 
@@ -179,6 +342,7 @@ function send(): void {
 
   connection.value = openQueryStream(
     {
+      session_id: session.id,
       book_id: bookId,
       question,
       level,
@@ -235,6 +399,8 @@ function send(): void {
               doneAt: Date.now()
             })
             stopTicker()
+            // 首轮回答之后服务端才把标题从占位符改成那句话：拉一次，列表与栏上都跟着变
+            void refreshSessions()
             break
           case 'query_error':
             patch(aiId, {
@@ -279,14 +445,23 @@ async function jumpTo(chapterIndex: number | null): Promise<void> {
   await router.push({ name: 'reader', params: { bookId, chapterIndex } })
 }
 
+/**
+ * 切档位：**没在对话里**时改的是下一场的默认档位；看着对话时走分叉
+ * （会话内档位固定，见契约与方案 §四）。
+ */
 function pickLevel(level: QueryLevel): void {
-  setLevel(level)
+  if (level === store.level) return
+  if (active.value === null || messages.value.length === 0) {
+    setLevel(level)
+    return
+  }
+  pending.value = { kind: 'fork', level }
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
-    send()
+    void send()
   }
 }
 </script>
@@ -302,12 +477,48 @@ function onKeydown(event: KeyboardEvent): void {
         <button :class="{ on: store.level === 'past' }" title="回顾：只答已读（1~进度），防剧透" @click="pickLevel('past')">
           回顾
         </button>
-        <button :class="{ on: store.level === 'full' }" title="剧透：全书开放" @click="pickLevel('full')">剧透</button>
+        <button :class="{ on: store.level === 'full' }" title="剧透：全书开放；正在对话时会分叉出一个新会话" @click="pickLevel('full')">剧透</button>
       </div>
     </div>
 
+    <!-- 会话栏：当前会话 → 下拉切换 / 删除，右边是新建 -->
+    <div class="sessbar">
+      <button class="sess-pick" :class="{ on: menuOpen }" @click="menuOpen = !menuOpen">
+        <svg class="s-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M21 11.5a7.5 7.5 0 01-10.9 6.7L5 20l1.6-4.4A7.5 7.5 0 1121 11.5z" />
+        </svg>
+        <span class="s-title">{{ activeTitle }}</span>
+        <span class="s-chev" aria-hidden="true">▾</span>
+      </button>
+      <button class="sess-new" title="新建会话" @click="newSession">＋</button>
+
+      <div v-if="menuOpen" class="sess-scrim" @click="menuOpen = false"></div>
+      <div v-if="menuOpen" class="sess-menu">
+        <p v-if="bookSessions.length === 0" class="sess-none">这本书还没有会话，问一句就会开始记录</p>
+        <div
+          v-for="session in bookSessions"
+          :key="session.id"
+          class="sess-row"
+          :class="{ on: session.id === active?.id }"
+        >
+          <button class="sess-open" @click="switchTo(session)">
+            <span class="t">{{ session.title }}</span>
+            <span class="meta">
+              <span class="lv" :class="session.level">{{ levelLabel(session.level) }}</span>
+              <span v-if="session.forked_from" class="fork" title="切档位时分叉出来的会话">⑂</span>
+              <span class="when">{{ shortTime(session.last_active_at) }}</span>
+            </span>
+          </button>
+          <button class="sess-del" title="删除这个会话" @click="pending = { kind: 'delete', session }">×</button>
+        </div>
+      </div>
+    </div>
+    <p v-if="sessionsError" class="sess-err">{{ sessionsError }}</p>
+
     <div ref="scroller" class="messages">
-      <div v-if="messages.length === 0" class="blank">就这本书提问…（可粘贴选中的正文）</div>
+      <div v-if="messages.length === 0" class="blank">
+        {{ active === null ? '开一段新对话：就这本书提问…（可粘贴选中的正文）' : '这个会话还没有消息' }}
+      </div>
 
       <template v-for="message in messages" :key="message.id">
         <div v-if="message.role === 'user'" class="msg user">
@@ -317,7 +528,9 @@ function onKeydown(event: KeyboardEvent): void {
         <div v-else class="msg ai" :class="{ streaming: message.streaming }">
           <div class="av" style="background: linear-gradient(135deg, var(--accent), var(--accent-2))">O</div>
           <div class="bubble">
-            <details class="think">
+            <!-- 历史消息没有 meta（契约刻意不下发），检索依据那一块整块不显示——
+                 显示一堆「等待检索结果…」比不显示更糟 -->
+            <details v-if="!message.restored" class="think">
               <summary>
                 <span class="tk-ico">🧠</span>
                 <span>思考 · 检索依据（{{ message.citations.length }} 条引用）</span>
@@ -393,5 +606,21 @@ function onKeydown(event: KeyboardEvent): void {
         <span>Enter 发送 · Shift+Enter 换行</span>
       </div>
     </div>
+
+    <!-- 做之前先说清后果：分叉（旧会话还在）与删除（删了就没了）共用这一个框。
+         **Teleport 到 body**：面板带 backdrop-filter，它会给 fixed 后代另立一个包含块——
+         留在面板里的话，这层「全屏」遮罩其实只盖住面板那一块（截图核对时看出来的）。 -->
+    <Teleport to="body">
+      <div v-if="pending !== null" class="sess-modal" @click.self="pending = null">
+        <div class="sess-card" role="dialog" aria-modal="true">
+          <p class="m-title">{{ pendingTitle }}</p>
+          <p class="m-body">{{ pendingBody }}</p>
+          <div class="m-actions">
+            <button class="m-quiet" @click="pending = null">取消</button>
+            <button class="m-go" :disabled="pendingBusy" @click="runPending">{{ pendingAction }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>

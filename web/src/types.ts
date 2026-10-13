@@ -168,6 +168,39 @@ export interface SessionQueryRequest extends QueryRequest {
   session_id: string
 }
 
+// ---------- 会话 ----------
+
+/** 契约 `ChatMessage`：会话里的一条消息。**不带 meta**（改写前后、模型与 prompt 版本是内部诊断列） */
+export interface ChatMessage {
+  id: number
+  seq: number
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+/** 契约 `ChatSessionSummary`：列表项，不含消息（列表不为每条会话搬运全文） */
+export interface ChatSessionSummary {
+  id: string
+  book_id: number
+  /** 首轮生成；还没问过时是占位标题 */
+  title: string
+  level: QueryLevel
+  /** 分叉来源；不是分叉则为 null。列表里当普通会话显示并标注来源，不做树形 UI */
+  forked_from: string | null
+  created_at: string
+  last_active_at: string
+}
+
+export interface SessionList {
+  sessions: ChatSessionSummary[]
+}
+
+/** 契约 `SessionDetail`：列表项 + 消息 */
+export interface SessionDetail extends ChatSessionSummary {
+  messages: ChatMessage[]
+}
+
 // ---------- SSE ----------
 
 export interface ScoredChunk {
