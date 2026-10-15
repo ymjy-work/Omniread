@@ -21,7 +21,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * 账户的发放、认证与停用清理（`docs/m1/用户管理需求.md`）。
+ * 账户的发放、认证与停用清理（`docs/方案.md（用户管理一节）`）。
  *
  * <p>重点不在「能登录」，而在三条容易被做漏的：**明文不落库**、**停用即清空内容数据**、
  * **停用后登录态立即失效**。

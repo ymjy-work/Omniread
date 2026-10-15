@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 登录会话的生命周期：种下、解析、撤销（`docs/m1/java-依赖与选型.md` §十）。
+ * 登录会话的生命周期：种下、解析、撤销（`docs/方案.md（依赖与选型一节）` §十）。
  *
  * <p>口令校验不在这里，在 {@link AccountService#authenticate}——那一层已经保证
  * 「账户不存在」与「口令不对」返回同一种结果，这里只是把它的成功结果换成一条登录会话。

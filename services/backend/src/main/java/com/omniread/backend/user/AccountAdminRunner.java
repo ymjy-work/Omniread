@@ -12,7 +12,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * 账户管理命令：发放 / 停用 / 列出（`docs/m1/用户管理需求.md` §三）。
+ * 账户管理命令：发放 / 停用 / 列出（`docs/方案.md（用户管理一节）` §三）。
  *
  * <p>**这是管理方动作的唯一入口**：账户由开发者发放、不开放注册（§一），而 §四 明确
  * 不做管理后台 UI，所以只能是一个命令行工具。包装脚本是 `scripts/account.sh`。

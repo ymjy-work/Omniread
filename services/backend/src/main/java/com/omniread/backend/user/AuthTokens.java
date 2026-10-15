@@ -9,7 +9,7 @@ import java.util.HexFormat;
 import org.springframework.stereotype.Component;
 
 /**
- * 不透明登录 token 的生成与哈希（`docs/m1/java-依赖与选型.md` §十）。
+ * 不透明登录 token 的生成与哈希（`docs/方案.md（依赖与选型一节）` §十）。
  *
  * <p>**原文只出现在 cookie 里，库里存的是 SHA-256 哈希**：这张表即使被读走，
  * 也拿不到能登录的凭据。

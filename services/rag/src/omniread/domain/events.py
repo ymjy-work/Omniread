@@ -2,7 +2,7 @@
 
 RAG core 只产生本模块定义的事件，`api.adapters` 里的两个适配器只负责把它们编码成
 JSON 对象或 SSE 帧，不含业务逻辑。字段口径见
-`docs/m0/M0-02-数据结构设计.md` §8.5，事件名集合由契约 `EventStream.event` 冻结。
+`docs/规格.md（M0-02 一节）` §8.5，事件名集合由契约 `EventStream.event` 冻结。
 """
 
 from __future__ import annotations

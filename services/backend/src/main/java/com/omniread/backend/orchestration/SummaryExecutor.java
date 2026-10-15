@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 摘要任务的执行器 + **会话级锁**（`docs/m1/多轮会话落地方案.md` §三）。
+ * 摘要任务的执行器 + **会话级锁**（`docs/方案.md（多轮会话一节）` §三）。
  *
  * <p>「同一会话同一时刻只允许一个摘要任务」落在 {@link #submit} 上：这个会话已经在跑或
  * 已排队时，本次提交直接丢弃。丢弃是安全的——触发与否由会话状态决定，这一轮不压，

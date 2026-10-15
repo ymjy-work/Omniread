@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 是可配置就意味着可以被改成契约之外的值，而后端改了前端不会跟着改，
  * 症状是「登录成功但没有登录态」。
  *
- * @param cookieSecure 是否给 cookie 带上 `Secure`。默认 true（`docs/m1/用户管理需求.md` §三）；
+ * @param cookieSecure 是否给 cookie 带上 `Secure`。默认 true（`docs/方案.md（用户管理一节）` §三）；
  *     只有在本机用 http 调试、且浏览器不把 localhost 当可信来源时才关掉——
  *     关掉之后 cookie 会走明文，**不能进部署环境**。
  * @param sessionTtl 登录态有效期；方案定的是 8 小时

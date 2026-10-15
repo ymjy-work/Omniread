@@ -6,7 +6,7 @@ package com.omniread.backend.user;
  * <p>**手写可变类而不是 {@code record}**：`id` 是自增主键，要靠 MyBatis 的
  * {@code useGeneratedKeys} 回填，而回填走的是 setter——record 只有构造器，实测会报
  * {@code No setter found for the keyProperty 'id'}。本项目每张表都有自增或需回填的主键，
- * 所以「需要接收主键的实体手写」是一条会反复遇到的约束（`docs/m1/java-依赖与选型.md` §七）。
+ * 所以「需要接收主键的实体手写」是一条会反复遇到的约束（`docs/方案.md（依赖与选型一节）` §七）。
  *
  * <p>`status` 用字符串常量而不是枚举：SQLite 里存的是 TEXT，用枚举要引 typeHandler，
  * 而只有两个取值（见 {@link #STATUS_ACTIVE} / {@link #STATUS_DISABLED}）。

@@ -2,7 +2,7 @@
  * 受限 Markdown 解析器（`src/markdown.ts` 的 `buildAnswerView`）的回归样本。
  *
  * **为什么是脚本、不引 vitest**：解析器是纯函数，喂字符串看块结构，零依赖的脚本就够；
- * 加一个测试框架要多一个依赖加一套配置（`docs/M1-plan.md` M1-3）。
+ * 加一个测试框架要多一个依赖加一套配置（`docs/阶段.md` M1 一节 · M1-3）。
  *
  * **为什么要挂解析钩子**：`src/markdown.ts` 里有无扩展名的相对导入（`from './citation'`），
  * 而 Node 的 ESM 解析要求显式扩展名。`scripts/ts-resolve-hook.mjs` 补上这一步，

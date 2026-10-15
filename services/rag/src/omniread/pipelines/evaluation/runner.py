@@ -122,7 +122,7 @@ async def run_retrieval_eval(
 
     `neighbor_expand` 是 `QueryRequest` 的既有字段、默认开。关掉它只改装配会不会补邻块，
     不改任何上限——用来把「邻块占用名额」与「每章上限」两种效应分开（见
-    `docs/M1-装配瓶颈测评方案.md` 第三节）。它会随 `retrieval_params` 记进 config.json。
+    `docs/阶段.md 的 M1-1 一节` 第三节）。它会随 `retrieval_params` 记进 config.json。
     """
     records: list[RetrievalScoreRecord] = []
     outcomes: dict[QueryRequest, RetrievalOutcome] = {}

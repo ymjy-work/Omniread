@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 审计行（`docs/m1/deploy-plan.md` §三-4）：登录成败（账户 / 时间 / 来源 IP）、
+ * 审计行（`docs/方案.md（部署一节）` §三-4）：登录成败（账户 / 时间 / 来源 IP）、
  * 每账户问答次数。时间由日志本身带（格式串里有毫秒时间戳），不重复写一个字段。
  *
  * <p>**记什么、不记什么**：不记口令（也拿不到——校验在 BCrypt 里完成，明文只在请求体内）；

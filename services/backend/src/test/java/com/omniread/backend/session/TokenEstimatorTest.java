@@ -6,7 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * token 估算的标尺（`docs/m1/java-依赖与选型.md` §五）。
+ * token 估算的标尺（`docs/方案.md（依赖与选型一节）` §五）。
  *
  * <p>它不是「算得准的近似」，是「算得稳的标尺」——同一段文字每次都得到同一个数，
  * 裁剪结果才可复现。所以这里钉的是**系数与口径**，不是与真实分词器的误差。

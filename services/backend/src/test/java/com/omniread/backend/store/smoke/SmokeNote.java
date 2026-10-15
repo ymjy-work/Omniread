@@ -5,7 +5,7 @@ package com.omniread.backend.store.smoke;
  *
  * <p>存在的意义只有一个：验证 MyBatis 的 Boot 4 starter 与 Boot 4.1.1 合得来。
  * 这个 starter 很新、使用量还很少，「兼容」是实测项而不是假设项——不通过就换
- * MyBatis-Plus 的 boot4 starter（见 {@code docs/m1/java-依赖与选型.md} §七）。
+ * MyBatis-Plus 的 boot4 starter（见 {@code docs/方案.md（依赖与选型一节）} §七）。
  *
  * <p><b>刻意手写成可变类，不用 {@code record}。</b>MyBatis 的 {@code useGeneratedKeys}
  * 靠反射调 setter 把自增主键写回入参，而 record 只有构造器、没有 setter，实测会报

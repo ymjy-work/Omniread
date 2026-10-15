@@ -96,7 +96,7 @@ class LossAttribution:
     by_type_total: Mapping[str, int]
     #: 题型 → 阶段 → 条数。
     by_type_stage: Mapping[str, Mapping[str, int]]
-    #: 题型 → 阶段 → 去重后的 chunk_key 数（与 `M0-进度与交接.md` §3 的 41/19/13 同单位）。
+    #: 题型 → 阶段 → 去重后的 chunk_key 数（与 `docs/阶段.md` M0 一节里的 41/19/13 同单位）。
     by_type_unique_keys: Mapping[str, Mapping[str, int]]
 
     @property

@@ -3,7 +3,7 @@ package com.omniread.backend.session;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 多轮上下文的三个预算参数（`docs/m1/多轮会话落地方案.md` §三）。
+ * 多轮上下文的三个预算参数（`docs/方案.md（多轮会话一节）` §三）。
  *
  * <p>它们不是三件独立的事：{@code historyBudgetTokens} **同时**是「分给近轮原文的预算」
  * 与「摘要的触发线」（{@link SummaryPlanner}），因为这两句话说的是同一件事——

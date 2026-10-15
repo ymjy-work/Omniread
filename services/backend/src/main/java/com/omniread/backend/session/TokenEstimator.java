@@ -1,7 +1,7 @@
 package com.omniread.backend.session;
 
 /**
- * 字符级的 token 估算。**Java 侧不引分词器**（`docs/m1/java-依赖与选型.md` §五）：
+ * 字符级的 token 估算。**Java 侧不引分词器**（`docs/方案.md（依赖与选型一节）` §五）：
  * 这个数字只用来裁剪「近轮原文」的预算，差几个百分点不影响结果；真实用量由 Python 的
  * `usage` 回报，那才是权威值。
  *

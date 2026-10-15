@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 决定「现在要不要摘要、该压哪一段」（纯函数，`docs/m1/多轮会话落地方案.md` §三）。
+ * 决定「现在要不要摘要、该压哪一段」（纯函数，`docs/方案.md（多轮会话一节）` §三）。
  *
  * <p>**触发线挂在「近轮原文的预算」上：`summary_upto` 之后攒下的量超过它，就压。** 那句话
  * 说的是「已经有一段内容谁也看不见了」——{@link HistoryAssembler} 只把最新

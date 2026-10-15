@@ -150,7 +150,7 @@ TABLES="$(psql_t "SELECT string_agg(tablename, ',' ORDER BY tablename) FROM pg_t
 if [ "$TABLES" = "books,chapters,chunk_mappings,chunks,rag_runs,volumes" ]; then
   ok "六张表就位：$TABLES"
 else
-  bad "表集合与 M0-02 §3 不一致（实际：$TABLES）" "对照 docs/m0/M0-02-数据结构设计.md §3.1–§3.6"
+  bad "表集合与 M0-02 §3 不一致（实际：$TABLES）" "对照 docs/规格.md（M0-02 一节） §3.1–§3.6"
 fi
 
 if [ "$(psql_t "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename='progress';")" = "0" ]; then

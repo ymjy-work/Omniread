@@ -147,7 +147,7 @@ _OPTIONAL_SUFFIX = " | None"
 # **退役的产物列**：曾经写进 scores.jsonl、后来砍掉的字段。旧 run 还带着它们，
 # 而下面的白名单是 eval/ 红线的实现方式（多一列正文就进产物了），**不能放宽**——
 # 所以退役的键在这里显式抹掉：旧产物照样读得进来，新产物不再写。
-# 难度维度 2026-10-13 退役，见 docs/m1/Golden-难度维度迁移.md。
+# 难度维度 2026-10-13 退役，见 docs/决策与变更.md 的「Golden 难度维度迁移」一节。
 _RETIRED_PAYLOAD_KEYS = frozenset({"difficulty"})
 
 

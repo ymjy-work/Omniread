@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 /**
  * 启动时建表（幂等）并把版本记进 {@code schema_version}。
  *
- * <p>没有用迁移框架（`docs/m1/java-依赖与选型.md` §三）：五张表、单实例，启动时
+ * <p>没有用迁移框架（`docs/方案.md（依赖与选型一节）` §三）：五张表、单实例，启动时
  * {@code CREATE TABLE IF NOT EXISTS} 够用。代价是**表结构的变更要靠人记住改 {@code schema.sql}**，
  * 所以这里加一道反向闸门：**库里的版本比代码新就拒绝启动**——那是「代码比库旧」，
  * 继续跑只会以难以定位的方式写坏数据，不如当场停下。

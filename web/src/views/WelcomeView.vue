@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 登录前的介绍 / 导航页（门厅）。结构对着 `docs/frontend-static/{hero,mid,tail}.jpg` 的三张设计稿排：
+ * 登录前的介绍 / 导航页（门厅）。结构对着设计稿（hero / mid / tail 三张）排：
  * 卡片式首屏 → `WHY OMNIREAD` 三张卡 → 四个编号功能块 → 收尾。**文案逐句照设计稿。**
  *
  * **它不进三栏壳**（`main.ts` 里标了 `meta.shell = false`）：门厅里摆一组指向应用的按钮、

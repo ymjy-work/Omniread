@@ -32,7 +32,7 @@ omniread:
     # 连接参数（WAL / busy_timeout / foreign_keys）由 StoreConfig 拼进 URL，不在这里。
     file: ${OMNIREAD_DB_FILE:var/omniread.db}
   auth:
-    # 登录 cookie 的 Secure 属性（docs/m1/用户管理需求.md §三）。默认开，缺省即安全：
+    # 登录 cookie 的 Secure 属性（docs/方案.md（用户管理一节） §三）。默认开，缺省即安全：
     # 只有在本机用 http 调试、且浏览器不把 localhost 当可信来源时才关，
     # 而关掉之后 cookie 走明文，**不能进部署环境**。cookie 名不在这里——它由契约钉死。
     cookie-secure: ${OMNIREAD_AUTH_COOKIE_SECURE:true}
@@ -59,7 +59,7 @@ omniread:
     # 从仓库根或从 services/backend 启动都能命中；目录不存在时只跳过静态资源托管。
     dist-dir: ${OMNIREAD_WEB_DIST:web/dist}
   quota:
-    # 单账户限频 / 日额度 / 并发与登录失败锁 IP（docs/m1/配额与限流方案.md §二）。
+    # 单账户限频 / 日额度 / 并发与登录失败锁 IP（docs/方案.md（配额与限流一节） §二）。
     # **值都进配置是为了验收**：要逐项触发四类 429，得在 2 轮/日、1 轮/分这种小阈值下跑。
     # 一轮 = 一次 /api/v1/query（同步与流式各算一次）；改写与摘要这类附带调用不单独计。
     turns-per-minute: ${OMNIREAD_QUOTA_PER_MINUTE:5}

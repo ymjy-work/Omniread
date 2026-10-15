@@ -9,7 +9,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 每日计数的保留期：启动时清掉旧行（`docs/m1/配额与限流方案.md` §三）。
+ * 每日计数的保留期：启动时清掉旧行（`docs/方案.md（配额与限流一节）` §三）。
  * 不清也不影响正确性——超期的行不会再被读到——清的是只涨不落的表。
  *
  * <p>挂 {@link ApplicationReadyEvent} 而不是做成 {@code ApplicationRunner}：runner 与建表的

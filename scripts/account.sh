@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 账户管理：发放 / 停用 / 列出。唯一入口——账户由开发者发放、不开放注册，
-# 且明确不做管理后台 UI（docs/m1/用户管理需求.md §一、§四）。
+# 且明确不做管理后台 UI（docs/方案.md（用户管理一节） §一、§四）。
 #
 #   OMNIREAD_ADMIN_PASSWORD=... bash scripts/account.sh create <账户名>
 #   bash scripts/account.sh disable <账户名>
