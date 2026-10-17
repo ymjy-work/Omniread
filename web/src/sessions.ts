@@ -13,6 +13,7 @@
 import { ref } from 'vue'
 import * as api from './api'
 import { ApiError } from './api'
+import { raiseBlocking } from './blocking'
 import { formatErrorLine } from './errors'
 import type { ChatSessionSummary, QueryLevel, SessionDetail } from './types'
 
@@ -22,8 +23,17 @@ export const active = ref<ChatSessionSummary | null>(null)
 export const sessionsError = ref<string | null>(null)
 
 function noteError(cause: unknown): void {
-  sessionsError.value =
-    cause instanceof ApiError ? formatErrorLine(cause.code, cause.message) : String(cause)
+  if (cause instanceof ApiError) {
+    // 403 走弹窗，不落这一行：同一个码在三条路上要表现一致（见 blocking.ts）
+    if (cause.code === 'RAG_FORBIDDEN') {
+      raiseBlocking(cause.code, cause.message)
+      sessionsError.value = null
+      return
+    }
+    sessionsError.value = formatErrorLine(cause.code, cause.message)
+    return
+  }
+  sessionsError.value = String(cause)
 }
 
 /** 拉一次列表（服务端已按最近活跃倒序），并顺手把 `active` 同步成最新的一份 */
@@ -68,6 +78,23 @@ export async function create(bookId: number, level: QueryLevel): Promise<ChatSes
   }
 }
 
+/**
+ * 改标题。成功后**就地替换那一项**，不整体重拉：列表按最近活跃倒序，
+ * 重拉会让刚改过名的会话跳到第一位——改个名字不该改变它在列表里的位置。
+ */
+export async function rename(sessionId: string, title: string): Promise<boolean> {
+  try {
+    const updated = await api.renameSession(sessionId, title)
+    sessions.value = sessions.value.map((session) => (session.id === sessionId ? updated : session))
+    if (active.value?.id === sessionId) active.value = { ...active.value, title: updated.title }
+    sessionsError.value = null
+    return true
+  } catch (cause) {
+    noteError(cause)
+    return false
+  }
+}
+
 export async function remove(sessionId: string): Promise<boolean> {
   try {
     await api.deleteSession(sessionId)
@@ -104,6 +131,17 @@ export async function fork(level: QueryLevel): Promise<ChatSessionSummary | null
 
 export function levelLabel(level: QueryLevel): string {
   return level === 'past' ? '回顾' : '剧透'
+}
+
+/** 会话行里的时间：今天只给时分，更早给月-日 */
+export function shortTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  if (date.toDateString() === new Date().toDateString()) {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 /** 某本书下的会话（列表接口不按书过滤——那是前端的事） */

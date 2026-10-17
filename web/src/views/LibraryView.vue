@@ -21,15 +21,19 @@ async function enter(book: Book): Promise<void> {
 <template>
   <main class="main glass">
     <div class="mbar">
-      <div class="crumb">书库</div>
+      <!-- 不放面包屑：这一栏的标题就是「我的书库」，再写一遍「书库」是同义重复 -->
       <div class="title"><span>我的书库</span></div>
-      <!-- M0 不做文件导入：TXT / EPUB 上传未实现，按钮先置灰 -->
-      <button class="gobtn" disabled title="TXT / EPUB 上传未实现">导入 TXT / EPUB</button>
+      <!-- M0 不做文件导入：置灰而不是藏起来（藏了会被当成遗漏）。
+           用 aria-disabled 而不是 disabled——disabled 不可聚焦，title 那句说明键盘够不着 -->
+      <button class="gobtn is-disabled" aria-disabled="true" title="TXT / EPUB 上传未实现" @click.prevent>
+        导入 TXT / EPUB
+      </button>
     </div>
 
     <div class="libgrid fade-in">
       <div v-for="book in store.books" :key="book.book_id" class="bookcard">
-        <div class="cov">{{ book.title }}</div>
+        <!-- 书名放内层：封面上限 4 行，长了截断加省略号，而不是被 overflow 裁掉半行 -->
+        <div class="cov"><span>{{ book.title }}</span></div>
         <div>
           <h2>{{ book.title }}</h2>
           <p>{{ book.author }} · {{ book.volume_count }} 卷 · {{ book.chapter_count }} 话</p>

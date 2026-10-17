@@ -57,3 +57,12 @@ export async function signOut(): Promise<void> {
 export function clear(): void {
   current.value = null
 }
+
+/** 会话有效期的显示文案。服务端给的是 ISO 串，解析不出来就退回占位符，不抛。 */
+export function expiryLabel(): string {
+  const raw = current.value?.expires_at
+  if (!raw) return '—'
+  const at = new Date(raw)
+  if (Number.isNaN(at.getTime())) return '—'
+  return at.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}

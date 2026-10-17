@@ -7,6 +7,7 @@
 import { computed, reactive } from 'vue'
 import * as api from './api'
 import { ApiError } from './api'
+import { raiseBlocking } from './blocking'
 import { describeErrorCode } from './errors'
 import { readStored, writeStored } from './storage'
 import type { Book, ChapterDetail, ChapterMeta, Progress, QueryLevel } from './types'
@@ -74,6 +75,12 @@ export const readProgressRatio = computed<number>(() => {
 
 function setError(cause: unknown): void {
   if (cause instanceof ApiError) {
+    // 403 走弹窗，不落状态栏：那一行太容易被当成噪音，而「这次操作不被允许」得让人看见
+    if (cause.code === 'RAG_FORBIDDEN') {
+      raiseBlocking(cause.code, cause.message)
+      store.error = null
+      return
+    }
     store.error = `${cause.code}（${describeErrorCode(cause.code)}）`
     return
   }
@@ -99,6 +106,11 @@ export async function selectBook(bookId: number): Promise<void> {
     store.chapters = []
     store.chapter = null
     store.progress = null
+  }
+  // 直接打开阅读页（刷新、分享链接）时书库列表还没拉过，而书名与总章数都从它取——
+  // 缺了就先补一次，否则界面会一路显示「未选书」
+  if (!store.books.some((book) => book.book_id === bookId)) {
+    await loadBooks()
   }
   await Promise.all([loadChapters(bookId), loadProgress(bookId)])
 }

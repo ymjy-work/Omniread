@@ -96,7 +96,7 @@ async function pickProgress(event: Event): Promise<void> {
           :class="{ active: book.book_id === store.bookId }"
           @click="openBook(book.book_id)"
         >
-          <div class="cov">{{ book.title }}</div>
+          <div class="cov"><span>{{ book.title }}</span></div>
           <div>
             <h2>{{ book.title }}</h2>
             <p>{{ book.author }} · {{ book.volume_count }} 卷 · {{ book.chapter_count }} 话</p>

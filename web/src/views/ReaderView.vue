@@ -83,9 +83,10 @@ async function markRead(): Promise<void> {
 <template>
   <main class="main glass">
     <div class="mbar">
+      <!-- 面包屑只报「哪本书、第几卷」：章标题由右边那颗 .title 报，这里再写一遍是重复 -->
       <div class="crumb">
         <b>{{ currentBook?.title ?? '未选书' }}</b>
-        <template v-if="store.chapter"> › 卷 {{ store.chapter.volume_index }} › <span style="color: var(--ink)">{{ store.chapter.chapter_title }}</span></template>
+        <template v-if="store.chapter"> › 卷 {{ store.chapter.volume_index }}</template>
       </div>
       <div class="title"><span>{{ store.chapter?.chapter_title ?? '' }}</span></div>
       <button class="gobtn" title="把进度设为本章起点" :disabled="store.chapter === null" @click="markRead">

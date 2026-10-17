@@ -38,3 +38,15 @@ export function describeErrorCode(code: AnyErrorCode): string {
 export function formatErrorLine(code: AnyErrorCode, message: string): string {
   return `⚠ ${code}（${describeErrorCode(code)}${message ? ` · ${message}` : ''}）`
 }
+
+/**
+ * 给用户看的一句提示：**不带错误码**，也不把前端描述与服务端 message 拼起来——
+ * 两边说的是同一句话，拼出来是「今日额度已用完，明天再来 · 今日额度已用完（6/6），明天再来」。
+ *
+ * 优先用服务端的 message：它通常更具体（6/6、限几轮每分、几秒后再试）。
+ * 前端那份描述是本地码（网络 / 流中断）与空 message 的兜底。
+ */
+export function noticeFor(code: AnyErrorCode, message: string): string {
+  const text = message.trim()
+  return text || describeErrorCode(code)
+}

@@ -20,6 +20,23 @@ export function writeStored(key: string, value: string): void {
   }
 }
 
+/**
+ * 读回一组字符串（记「关掉的标签」这类 id 集合用）。
+ *
+ * 同样不信任存储：不是数组、或者元素不是字符串，一律当没存过——
+ * 一份手改过的 `["a", 1, null]` 让某个 id 变成数字，后面 `has()` 就永远不命中。
+ */
+export function readStoredList(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 /** 读回一个受白名单约束的偏好；没存过、存坏了、或存储不可用都回落到 `fallback`。 */
 export function readStored<T extends string>(
   key: string,

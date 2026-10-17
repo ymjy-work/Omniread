@@ -1,10 +1,9 @@
 <script setup lang="ts">
-/** 活动栏：书库 / 章节两个板块入口 + 主题切换 + 退出登录。图标为内联 SVG，不引图标库。 */
+/** 活动栏：书库 / 章节两个板块入口 + 账户菜单（设置与退出都在那一层）。图标为内联 SVG，不引图标库。 */
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { signOut } from '../auth'
 import { store } from '../store'
-import { nextThemeName, theme, themeLabel, toggleTheme } from '../theme'
+import AccountMenu from './AccountMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,16 +22,6 @@ function openReader(): void {
   void router.push({ name: 'reader', params: { bookId, chapterIndex: chapter } })
 }
 
-/** 介绍 / 导航页：什么时候都能回门厅看一眼「能做什么、边界在哪儿、须知」。 */
-function openWelcome(): void {
-  void router.push({ name: 'welcome' })
-}
-
-/** 退出：服务端删会话（失败也照常本地登出，理由见 auth.ts），回到登录页 */
-async function doLogout(): Promise<void> {
-  await signOut()
-  void router.replace({ name: 'login' })
-}
 </script>
 
 <template>
@@ -56,25 +45,7 @@ async function doLogout(): Promise<void> {
       </svg>
     </button>
     <div class="sp"></div>
-    <button class="ic" :class="{ on: route.name === 'welcome' }" @click="openWelcome">
-      <span class="tip">介绍 / 导航</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 11v5M12 7.6v.1" />
-      </svg>
-    </button>
-    <button class="ic" :title="`切换到${themeLabel(nextThemeName(theme))}`" @click="toggleTheme">
-      <span class="tip">切换主题</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-        <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
-      </svg>
-    </button>
-    <button class="ic" @click="doLogout">
-      <span class="tip">退出登录</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-        <path d="M10 4H6.5A2.5 2.5 0 004 6.5v11A2.5 2.5 0 006.5 20H10" />
-        <path d="M15.5 8l4 4-4 4M9.5 12h9.5" />
-      </svg>
-    </button>
+    <!-- 主题与退出登录都收进账户菜单：底部只留一个头像 -->
+    <AccountMenu />
   </nav>
 </template>

@@ -95,6 +95,49 @@ body {
   box-shadow: 0 12px 40px -18px rgba(30, 40, 90, .35);
 }
 
+/* ---------- 窄屏顶栏与抽屉 ----------
+   四栏的固定宽度加起来 676px（52 + 252 + 372），窗口一窄就横向溢出，把正文挤没。
+   按宽度依次把两栏收成侧滑抽屉：1200 以下收问答、900 以下再收章节。
+   收起只是改成 fixed，DOM 顺序不动——按钮与栏位一一对应，靠 .app[data-drawer] 开合。
+   抽屉从 58px 起（顶栏之下），否则会盖住右上那颗按钮、点不到自己。 */
+.shellbar {
+  display: none; position: fixed; top: 12px; left: 76px; right: 12px; height: 40px;
+  align-items: center; justify-content: space-between; z-index: 45;
+}
+.sbtn {
+  width: 40px; height: 40px; border: 1px solid var(--stroke); border-radius: 12px;
+  background: var(--glass); backdrop-filter: blur(18px) saturate(150%);
+  color: var(--ink-2); cursor: pointer; display: grid; place-items: center; transition: .18s;
+}
+.sbtn:hover { color: var(--ink); }
+.sbtn.on { color: var(--accent); box-shadow: inset 0 0 0 1px var(--stroke-2); }
+.sbtn svg { width: 19px; height: 19px; }
+.scrim { position: fixed; inset: 0; z-index: 38; background: rgba(10, 12, 30, .34); }
+
+@media (max-width: 1199px) {
+  .app { grid-template-columns: 52px 252px minmax(0, 1fr); padding-top: 58px; }
+  .shellbar { display: flex; }
+  .chat {
+    position: fixed; top: 58px; bottom: 34px; right: 12px; width: min(86vw, 372px); z-index: 40;
+    transform: translateX(calc(100% + 12px)); transition: transform .22s ease;
+  }
+  .app[data-drawer="chat"] .chat { transform: none; }
+}
+@media (max-width: 899px) {
+  .app { grid-template-columns: 52px minmax(0, 1fr); }
+  .side {
+    position: fixed; top: 58px; bottom: 34px; left: 12px; width: min(86vw, 300px); z-index: 40;
+    transform: translateX(calc(-100% - 12px)); transition: transform .22s ease;
+  }
+  .app[data-drawer="chapters"] .side { transform: none; }
+}
+/* 宽屏下抽屉根本打不开（按钮是 display:none），但窗口从窄拖宽时 data-drawer 还在——
+   没有这一条，遮罩会盖在正常布局上。 */
+@media (min-width: 1200px) { .scrim { display: none; } }
+/* 减少动效时抽屉直接就位，不滑 */
+@media (prefers-reduced-motion: reduce) { .side, .chat { transition: none; } }
+
+
 /* ---------- activity rail ---------- */
 .rail {
   display: flex; flex-direction: column; align-items: center; padding: 10px 6px; gap: 6px;
@@ -151,6 +194,9 @@ select.gobtn {
   font-size: 11px; color: var(--accent); border: 1px solid var(--stroke-2); background: var(--glass-2);
   padding: 4px 9px; border-radius: 9px; cursor: pointer;
 }
+/* 置灰但可聚焦：`disabled` 的属性会让元素不可聚焦，挂在它上面的 title 说明键盘就够不着了 */
+.gobtn.is-disabled { color: var(--ink-3); opacity: .55; cursor: not-allowed; }
+.gobtn.is-disabled:hover { color: var(--ink-3); }
 .navs { display: flex; gap: 6px; align-items: center; color: var(--ink-3); }
 .navs button { border: 0; background: var(--glass-2); border-radius: 9px; width: 30px; height: 28px; cursor: pointer; color: var(--ink-2); }
 .navs button:hover { color: var(--ink); }
@@ -185,11 +231,18 @@ select.gobtn {
 .bookcard:hover { background: var(--glass); border-color: var(--stroke); }
 .bookcard .cov {
   width: 52px; height: 70px; border-radius: 8px; flex: none; background: linear-gradient(150deg, #9f7bff, #5aa2ff);
-  color: #fff; display: grid; place-items: center; font-size: 11px; text-align: center; padding: 4px; overflow: hidden;
+  color: #fff; display: grid; place-items: center; text-align: center; padding: 5px; overflow: hidden;
+}
+/* 封面里是**书名占位**（没有图片素材）。这个宽度 11px 只放得下 4 行，长书名会被裁掉半行；
+   10px / 行高 1.3 能放下 4 行共约 17 字，再长就省略号——截断要看得见，不能靠 overflow 切。 */
+.bookcard .cov span {
+  font-size: 10px; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
 .bookcard h2 { font-size: 15px; }
 .bookcard p { font-size: 12px; color: var(--ink-2); margin-top: 3px; }
-.bookcard .tag { margin-left: auto; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+/* 不 nowrap 的话「193 话」会在窄栏里断成「193 / 话」两行——它是个整体，不该拆 */
+.bookcard .tag { margin-left: auto; font-size: 11px; color: var(--ink-3); font-family: var(--mono); white-space: nowrap; }
 .import { border: 1.5px dashed var(--ink-3); border-radius: 16px; padding: 18px; text-align: center; color: var(--ink-3); font-size: 13px; cursor: pointer; }
 .blank { color: var(--ink-3); font-size: 12px; text-align: center; padding: 26px 10px; font-family: var(--mono); }
 
@@ -217,91 +270,162 @@ select.gobtn {
 }
 .cite:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .cite-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.errline { color: var(--danger); font-size: 12px; margin-top: 6px; }
+/* 系统提示：失败那一轮不是模型说的话，所以不套头像与气泡。
+   用 --warn 而不是 --danger：多数是「等一会儿再来」（额度 / 限频 / 并发），
+   真正的连不上另有自己的文案。 */
+.notice {
+  display: flex; gap: 9px; align-items: flex-start;
+  margin: 2px 0 12px; padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, transparent);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border-radius: 12px;
+}
+.notice .n-ico {
+  flex: none; width: 17px; height: 17px; margin-top: 1px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  color: #4a3200; background: color-mix(in srgb, var(--warn) 62%, transparent);
+}
+.notice .n-text { margin: 0; font-size: 13px; line-height: 1.55; color: var(--ink); }
 .composer { padding: 10px 12px 12px; border-top: 1px solid var(--stroke-2); }
 .composer .box {
   background: #fff; border: 1px solid var(--stroke-2); border-radius: 13px; padding: 9px 11px;
   display: flex; align-items: flex-end; gap: 8px; box-shadow: 0 6px 18px -12px rgba(20, 30, 80, .4);
 }
 [data-dark] .composer .box { background: var(--panel-bg); }
+/* 高度由 ChatPanel 的 autosize 按内容写内联样式：一行起，到 max-height 封顶后框内滚动。
+   这里的 min/max 是那两个边界，overflow 的默认值也要是 hidden——长不过一屏时不该出现滚动条 */
 .composer textarea {
   flex: 1; border: 0; outline: 0; resize: none; background: transparent; color: var(--ink); font-size: 13px;
-  font-family: var(--sans); line-height: 1.5; min-height: 20px; max-height: 110px;
+  font-family: var(--sans); line-height: 1.5; min-height: 20px; max-height: 110px; overflow-y: hidden;
 }
 .composer textarea::placeholder { color: var(--ink-3); }
+/* 上下文占用：一颗细圆环，悬停/聚焦给出书名与章号。
+   放在发送键左边而不是输入框下方——下面那一行只留键盘提示，不再堆信息 */
+.ctx { position: relative; flex: none; width: 22px; height: 22px; display: grid; place-items: center; cursor: default; }
+.ctx svg { width: 22px; height: 22px; transform: rotate(-90deg); }
+.ctx circle { fill: none; stroke-width: 2.4; }
+.ctx-track { stroke: var(--stroke-2); }
+.ctx-fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dasharray .3s ease; }
+.ctx-tip {
+  position: absolute; right: -2px; bottom: calc(100% + 9px); white-space: nowrap;
+  background: #222; color: #fff; font-size: 11.5px; padding: 5px 9px; border-radius: 8px;
+  opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 6;
+}
+.ctx:hover .ctx-tip, .ctx:focus-visible .ctx-tip { opacity: .96; }
 .send { width: 30px; height: 30px; border: 0; border-radius: 10px; background: var(--accent); color: var(--on-accent); cursor: pointer; flex: none; display: grid; place-items: center; }
 .send:hover { filter: brightness(1.08); }
 .send:disabled { opacity: .5; cursor: default; }
-.composer .row { display: flex; justify-content: space-between; margin-top: 5px; padding: 0 2px; }
-.composer .row span { font-size: 10.5px; color: var(--ink-3); }
 
-/* ---------- 会话栏（问答面板顶部） ---------- */
-.sessbar {
-  position: relative; display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; border-bottom: 1px solid var(--stroke-2);
+/* ---------- 会话标签页（问答面板顶部）----------
+   像浏览器标签：一本书的会话横排，多了横向滚动；右边是新建与「查找全部会话」 */
+.tabbar {
+  display: flex; align-items: center; gap: 4px;
+  padding: 7px 10px; border-bottom: 1px solid var(--stroke-2);
 }
-.sess-pick {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; text-align: left;
-  padding: 6px 9px; border: 1px solid var(--stroke-2); border-radius: 10px;
-  background: var(--glass-2); color: var(--ink-2); font-size: 12px; cursor: pointer;
+.tabs {
+  flex: 1; min-width: 0; display: flex; gap: 4px; overflow-x: auto;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
-.sess-pick:hover, .sess-pick.on { border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--ink); }
-.sess-pick .s-ico { width: 14px; height: 14px; flex: none; color: var(--accent); }
-.sess-pick .s-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sess-pick .s-chev { flex: none; font-size: 10px; color: var(--ink-3); }
-.sess-new {
-  flex: none; width: 28px; height: 28px; border: 1px solid var(--stroke-2); border-radius: 10px;
-  background: var(--glass-2); color: var(--ink-2); font-size: 15px; line-height: 1; cursor: pointer;
+.tabs::-webkit-scrollbar { display: none; }
+/* 标签是容器：里面一个是「切过去」，一个是「关掉」——两个按钮不能嵌套 */
+.tab {
+  flex: none; max-width: 176px; display: flex; align-items: center;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--ink-3);
 }
-.sess-new:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-/* 点空白处收起下拉：这层透明板铺满全屏，菜单压在它上面 */
-.sess-scrim { position: fixed; inset: 0; z-index: 40; }
-.sess-menu {
-  position: absolute; left: 12px; right: 12px; top: calc(100% - 4px); z-index: 41;
-  max-height: 300px; overflow: auto; padding: 6px; border-radius: 13px;
-  border: 1px solid var(--stroke-2); background: var(--glass);
-  backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, .75);
+.tab:hover { color: var(--ink-2); background: var(--glass-2); }
+.tab.on { color: var(--ink); background: var(--glass-2); border-color: var(--stroke-2); }
+.tab-open {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px;
+  padding: 5px 3px 5px 10px; border: 0; background: transparent; color: inherit;
+  font: inherit; font-size: 12px; text-align: left; cursor: pointer;
 }
-.sess-none { padding: 10px; font-size: 12px; color: var(--ink-3); }
-.sess-row { display: flex; align-items: center; border-radius: 9px; }
-.sess-row.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.sess-row:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.sess-open { flex: 1; min-width: 0; display: grid; gap: 3px; padding: 7px 9px; border: 0; background: transparent; text-align: left; cursor: pointer; }
-.sess-open .t { font-size: 12.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sess-open .meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ink-3); }
-/* 档位标签：绿=回顾（不越界）、黄=剧透（全书开放），与头部那颗点同一个语义 */
-.sess-open .lv { padding: 1px 6px; border-radius: 99px; border: 1px solid var(--stroke-2); }
-.sess-open .lv.past { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
-.sess-open .lv.full { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
-.sess-open .fork { color: var(--accent); font-size: 12px; }
-.sess-del {
-  flex: none; width: 24px; height: 24px; margin-right: 5px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--ink-3); font-size: 15px; line-height: 1; cursor: pointer;
+.tab.on .tab-open { font-weight: 600; }
+.tab .t-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab .t-fork { flex: none; color: var(--accent); font-size: 11px; }
+/* 关闭键常驻但压暗：只在悬停时才出现的 × 在触屏上等于不存在 */
+.tab-x {
+  flex: none; width: 18px; height: 18px; margin-right: 4px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--ink-3); font-size: 13px; line-height: 1; cursor: pointer;
+  opacity: .45; transition: opacity .12s, color .12s, background .12s;
 }
-.sess-del:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.tab:hover .tab-x, .tab.on .tab-x, .tab-x:focus-visible { opacity: 1; }
+.tab-x:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.tab-none { font-size: 11.5px; color: var(--ink-3); padding: 5px 4px; white-space: nowrap; }
+.tab-btn {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center;
+  border: 1px solid var(--stroke-2); border-radius: 9px; background: var(--glass-2);
+  color: var(--ink-2); font-size: 15px; line-height: 1; cursor: pointer;
+}
+.tab-btn:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.tab-btn svg { width: 15px; height: 15px; }
 .sess-err { margin: 0; padding: 6px 12px 0; font-size: 11px; color: var(--danger); }
 
-/* 分叉 / 删除的确认框：做之前先说清后果。共用一套，两种动作只是文案不同 */
-.sess-modal {
-  position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px;
-  background: rgba(8, 10, 20, .55); backdrop-filter: blur(3px);
+/* ---------- 查找全部会话 / 设置页的会话列表 ---------- */
+.find-input {
+  width: 100%; font: inherit; font-size: 13px; padding: 8px 11px; outline: 0;
+  border: 1px solid var(--stroke-2); border-radius: 10px; background: var(--glass-2); color: var(--ink);
 }
-.sess-card {
-  width: min(360px, 100%); padding: 18px 18px 14px; border-radius: 16px;
-  border: 1px solid var(--stroke-2); background: var(--glass);
-  backdrop-filter: blur(20px) saturate(140%);
+.find-input:focus { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.find-list { margin-top: 10px; max-height: 46vh; overflow-y: auto; display: grid; gap: 2px; }
+.find-row {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border: 0; border-radius: 9px; background: transparent;
+  color: var(--ink-2); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.find-row:hover { background: var(--glass-2); color: var(--ink); }
+.find-row.on { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); }
+.find-row .f-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.find-row .f-meta { flex: none; font-size: 10.5px; color: var(--ink-3); font-family: var(--mono); }
+.find-none { margin: 10px 2px; font-size: 12px; color: var(--ink-3); }
+
+/* 设置页里的会话管理 */
+.set-sessions { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--stroke-2); }
+.ss-list { margin-top: 10px; display: grid; gap: 4px; }
+.ss-row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border: 1px solid var(--stroke-2); border-radius: 10px; background: var(--glass-2);
+}
+.ss-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.ss-meta { flex: none; font-size: 10.5px; color: var(--ink-3); font-family: var(--mono); }
+.ss-row .dlg-btn { padding: 4px 10px; font-size: 11.5px; }
+.ss-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 5px 9px; outline: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 8px;
+  background: var(--glass-2); color: var(--ink);
+}
+.ss-err { margin: 8px 0 0; font-size: 11.5px; color: var(--danger); }
+
+/* ---------- 通用弹窗（AppDialog）----------
+   遮罩 / 卡片 / 标题 / 操作区 / 按钮只在这里定义一份，各处弹窗共用 */
+.dlg-mask {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px;
+  background: rgba(8, 12, 24, .55); backdrop-filter: blur(4px);
+}
+.dlg-card {
+  max-height: min(84vh, 100%); overflow-y: auto; padding: 20px 20px 16px;
+  border-radius: 16px; border: 1px solid var(--stroke-2); background: var(--glass);
+  backdrop-filter: blur(22px) saturate(150%);
   box-shadow: 0 40px 90px -50px rgba(0, 0, 0, .95);
 }
-.sess-card .m-title { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--ink); }
-.sess-card .m-body { margin: 9px 0 0; font-size: 12.5px; line-height: 1.75; color: var(--ink-2); }
-.sess-card .m-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.sess-card .m-quiet, .sess-card .m-go { font: inherit; font-size: 12.5px; padding: 7px 14px; border-radius: 10px; cursor: pointer; }
-.sess-card .m-quiet { border: 1px solid var(--stroke-2); background: transparent; color: var(--ink-2); }
-.sess-card .m-quiet:hover { color: var(--ink); }
-.sess-card .m-go { border: 1px solid transparent; background: var(--accent); color: var(--on-accent); }
-.sess-card .m-go:hover { filter: brightness(1.06); }
-.sess-card .m-go:disabled { opacity: .55; cursor: default; }
+.dlg-card:focus { outline: none; }
+.dlg-title { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+.dlg-body { margin-top: 9px; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+.dlg-body > :first-child { margin-top: 0; }
+.dlg-body > :last-child { margin-bottom: 0; }
+.dlg-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.dlg-btn {
+  font: inherit; font-size: 12.5px; padding: 7px 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--stroke-2); background: transparent; color: var(--ink-2);
+}
+.dlg-btn:hover { color: var(--ink); }
+.dlg-btn.primary { border-color: transparent; background: var(--accent); color: var(--on-accent); }
+.dlg-btn.primary:hover { filter: brightness(1.06); }
+.dlg-btn:disabled { opacity: .55; cursor: default; }
+.dlg-fade-enter-active, .dlg-fade-leave-active { transition: opacity .18s ease; }
+.dlg-fade-enter-from, .dlg-fade-leave-to { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .dlg-fade-enter-active, .dlg-fade-leave-active { transition: none; }
+}
 
 /* ---------- status bar ---------- */
 .statusbar {
@@ -359,7 +483,8 @@ select.gobtn {
 .chap button {
   width: 100%; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 5px; align-items: center;
   border: 0; cursor: pointer; background: transparent; text-align: left; border-radius: 7px;
-  padding: 0 8px 0 11px; position: relative; min-height: 20px;
+  /* 20px 的行高在触屏上点不准，鼠标也要瞄；28px 是列表密度与命中率之间的折中 */
+  padding: 0 8px 0 11px; position: relative; min-height: 28px;
 }
 .chap::before { content: ""; position: absolute; left: 8px; top: 2px; bottom: 2px; width: 1px; background: var(--stroke-2); }
 .chap button:hover { background: rgba(255, 255, 255, .5); }
@@ -487,3 +612,120 @@ select.gobtn {
 .tk-time { margin-right: 7px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 [data-dark] .think { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 [data-dark] .tk-dim { color: var(--ink-3); }
+
+/* ---------- 账户菜单（活动栏底部那颗头像） ---------- */
+.acct { margin-top: 2px; }
+.acct-btn {
+  width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: pointer; display: grid; place-items: center; position: relative;
+}
+.acct-av {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 4px 12px -6px rgba(90, 90, 255, .8); transition: .18s;
+}
+.acct-btn:hover .acct-av { filter: brightness(1.08); }
+.acct-btn.on .acct-av { box-shadow: 0 0 0 2px var(--accent); }
+.acct-scrim { position: fixed; inset: 0; z-index: 60; }
+.acct-menu {
+  position: fixed; z-index: 61; width: 236px; padding: 8px;
+  border: 1px solid var(--stroke-2); border-radius: 14px; background: var(--glass);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 26px 60px -28px rgba(0, 0, 0, .7);
+}
+.am-head {
+  display: flex; gap: 10px; align-items: center;
+  padding: 8px 8px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--stroke-2);
+}
+.am-av {
+  width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  font-size: 14px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.am-id { min-width: 0; }
+.am-name { margin: 0; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.am-sub { margin: 2px 0 0; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+.am-item {
+  width: 100%; display: flex; align-items: center; gap: 9px; text-align: left;
+  border: 0; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px;
+  padding: 9px 8px; border-radius: 10px; cursor: pointer;
+}
+.am-item:hover { background: var(--glass-2); color: var(--ink); }
+.am-item.danger:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.am-item svg { width: 17px; height: 17px; flex: none; }
+
+/* ---------- 设置页（独立路由 /settings，不进三栏壳） ---------- */
+.set-page {
+  min-height: 100vh; padding: 32px 24px 64px;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+}
+.sp-head { width: min(880px, 100%); display: flex; align-items: center; gap: 12px; }
+.sp-head b { font-size: 15px; }
+.sp-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--stroke-2); background: var(--glass-2); color: var(--ink-2);
+  font: inherit; font-size: 12px; padding: 5px 10px 5px 7px; border-radius: 9px; cursor: pointer;
+}
+.sp-back:hover { color: var(--ink); }
+.sp-back svg { width: 13px; height: 13px; }
+/* 两栏：左竖排 tab、右内容。单栏居中会让它读起来像「忘了收起来的弹窗」 */
+.set-card {
+  width: min(880px, 100%); border-radius: 18px; border: 1px solid var(--stroke-2);
+  background: var(--glass); backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: 0 30px 80px -40px rgba(0, 0, 0, .85); overflow: hidden;
+  display: grid; grid-template-columns: 184px minmax(0, 1fr); align-items: stretch;
+}
+.set-tabs {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 10px;
+  border-right: 1px solid var(--stroke-2);
+  background: color-mix(in srgb, var(--glass-2) 55%, transparent);
+}
+.set-tabs button {
+  border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink-3);
+  padding: 9px 12px; border-radius: 9px; cursor: pointer; text-align: left;
+}
+.set-tabs button:hover { color: var(--ink); }
+.set-tabs button.on {
+  color: var(--accent); font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.set-body { padding: 22px 24px; min-height: 280px; }
+.set-kv { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px 12px; margin: 0; }
+.set-kv dt { font-size: 12px; color: var(--ink-3); }
+.set-kv dd { margin: 0; font-size: 13px; color: var(--ink); }
+.set-note { margin: 16px 0 0; font-size: 11.5px; line-height: 1.7; color: var(--ink-3); }
+.set-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.sr-copy { flex: 1 1 200px; min-width: 0; }
+.sr-t { margin: 0; font-size: 13px; font-weight: 600; }
+.sr-d { margin: 4px 0 0; font-size: 11.5px; line-height: 1.65; color: var(--ink-3); }
+.theme-pick {
+  display: flex; gap: 4px; padding: 3px; border-radius: 10px;
+  background: var(--glass-2); border: 1px solid var(--stroke-2);
+}
+.theme-pick button {
+  border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--ink-2);
+  padding: 5px 10px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+}
+.theme-pick button.on { background: var(--accent); color: var(--on-accent); }
+
+/* ---------- 窄屏：阅读页顶栏与正文内边距 ----------
+   放在文件末尾是因为要压过上面的基础声明（同优先级时后写的赢），
+   跟着基础规则写会被它们覆盖掉。 */
+@media (max-width: 899px) {
+  /* 面包屑在窄屏折成三行，而它报的章标题与右边那颗标题本来就是同一个；只留一个 */
+  .mbar .crumb { display: none; }
+  .mbar { padding: 10px 12px; gap: 8px; }
+  /* 不 nowrap 的话「读到这里的」会被压成一竖条 */
+  .gobtn { white-space: nowrap; }
+  /* 40px 的左右内边距在 300px 的栏里吃掉四分之一，正文跟着变窄 */
+  .read { padding: 22px 18px 48px; }
+}
+
+/* 设置的左竖排 tab 在窄屏放不下，改成横排——它与上面的窄屏块不共用选择器，放在后面不影响 */
+@media (max-width: 719px) {
+  .set-card { grid-template-columns: minmax(0, 1fr); }
+  .set-tabs { flex-direction: row; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--stroke-2); }
+  .set-tabs button { text-align: center; }
+  .set-body { padding: 16px; min-height: 220px; }
+}

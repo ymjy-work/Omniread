@@ -180,6 +180,17 @@ export function deleteSession(sessionId: string): Promise<void> {
 }
 
 /**
+ * 改会话标题。挂子资源上而不是 PATCH 整个会话：标题是唯一可改的字段。
+ * 上限 20 码点由服务端判（`emoji` 占两个 char，前端不重复算一遍）。
+ */
+export function renameSession(sessionId: string, title: string): Promise<ChatSessionSummary> {
+  return request<ChatSessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/title`, {
+    method: 'PUT',
+    body: JSON.stringify({ title })
+  })
+}
+
+/**
  * 切档位分叉：复制父会话截至 `at_seq` 的消息进新会话，父会话的档位与消息一律不动。
  *
  * `at_seq` 缺省 = 复制到当前最后一条（「继承到当前点」）。前端**不该自己算「完整轮」**

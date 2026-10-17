@@ -5,6 +5,7 @@ import App from './App.vue'
 import LibraryView from './views/LibraryView.vue'
 import LoginView from './views/LoginView.vue'
 import ReaderView from './views/ReaderView.vue'
+import SettingsView from './views/SettingsView.vue'
 import WelcomeView from './views/WelcomeView.vue'
 import { setUnauthorizedHandler } from './api'
 import { clear as clearAuth, ensureLoaded, isAuthed } from './auth'
@@ -19,6 +20,8 @@ const router = createRouter({
     { path: '/welcome', name: 'welcome', component: WelcomeView, meta: { shell: false, public: true } },
     { path: '/login', name: 'login', component: LoginView, meta: { shell: false, public: true } },
     { path: '/', name: 'library', component: LibraryView },
+    // 设置是整页而不是弹窗，也不进三栏壳：它跟「在读哪本书」无关，套着章节栏会让人误会
+    { path: '/settings', name: 'settings', component: SettingsView, meta: { shell: false } },
     {
       path: '/books/:bookId(\\d+)/chapters/:chapterIndex(\\d+)',
       name: 'reader',
