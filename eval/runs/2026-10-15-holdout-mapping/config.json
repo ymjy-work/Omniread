@@ -1,0 +1,15 @@
+{
+  "chunk_source": "corpus",
+  "chunking_version": "m0-placeholder-v1",
+  "dataset_hash": "5fb103e87a6594bdb24e7d3c8d885d19716e49de4188851f4bc0ab957204780f",
+  "dataset_version": "m0.1.0",
+  "deterministic_only": true,
+  "evidence_count": 137,
+  "golden_question_count": 30,
+  "kind": "mapping",
+  "mapper_model": "deterministic:substring-interval-v1",
+  "mapper_prompt_version": "no-prompt",
+  "mapper_provider": "none",
+  "run_id": "2026-10-15-holdout-mapping",
+  "tokenizer_id": "tokenizers:Qwen/Qwen3.6-27B:6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
+}

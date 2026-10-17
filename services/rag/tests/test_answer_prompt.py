@@ -30,8 +30,8 @@ PASSAGES = [
 def test_template_file_carries_the_required_disciplines() -> None:
     prompt = load_answer_prompt()
 
-    assert "只使用「材料」中明确写到的内容作答" in prompt.system
-    assert "禁止使用材料之外的任何知识" in prompt.system
+    assert "只使用用户问题中提供的材料作答" in prompt.system
+    assert "不得使用材料之外的知识" in prompt.system
     assert "[C17]" in prompt.system
     assert "不得写成 Markdown 链接" in prompt.system
     # 拒答走结构化标记，不靠模型自述那句话——话术由服务端填（M0-02 §8.3）。

@@ -76,6 +76,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--write-db", action="store_true", help="把结果 upsert 进 chunk_mappings"
     )
     parser.add_argument("--no-review", action="store_true", help="跳过人工复核件")
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help=(
+            "题集不满数量目标（总量 ≥60 / 单桶 ≥8 / 拒答 ≥10）时仍然放行。"
+            "给留出题集用：**结构、命名、evidence 的 chapter 上界一条不放松**，"
+            "降级的只有数量"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -95,7 +104,9 @@ def main(argv: list[str] | None = None) -> int:
         chunk_source = "db"
 
     evidence = load_golden_evidence(args.golden_dir)
-    dataset_hash = golden_dataset_hash(args.golden_dir)
+    dataset_hash = golden_dataset_hash(
+        args.golden_dir, allow_incomplete=args.allow_incomplete
+    )
     dataset_version = golden_schema_version(args.golden_dir)
     question_count = len({item.question_id for item in evidence})
 

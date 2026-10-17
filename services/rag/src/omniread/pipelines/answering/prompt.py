@@ -108,6 +108,21 @@ class AnswerPrompt:
         return messages
 
 
+def render_format_constants() -> tuple[str, str, str]:
+    """材料段的渲染格式常量：段头、段间分隔、空材料占位句。
+
+    它们写在代码里而不在模板文件里，但**同样是模型可见文本**，所以必须并进
+    `prompt_version` 的输入（见下）。导出成函数是因为**裁判 prompt 看的是同一批
+    材料段**——它复用这里的渲染，也就必须复用同一份常量，否则改了段头只有一半的
+    版本会变。
+
+    每次调用都重新读模块全局：`test_prompt_version.py` 逐个 monkeypatch 这三个
+    名字来验证「每个常量都真的进了 hash」，把它们冻结成一个模块级元组会让那些
+    断言静默失效。
+    """
+    return (_PASSAGE_HEADER, _PASSAGE_SEPARATOR, _EMPTY_CONTEXT)
+
+
 def prompt_version(template_text: str) -> str:
     """模板原文**与渲染格式常量**一起取 sha256 前 12 位。
 
@@ -117,7 +132,7 @@ def prompt_version(template_text: str) -> str:
     「是否改变模型可见文本或判据」，不是「模板文件是否变化」）。
     """
     payload = _VERSION_INPUT_SEPARATOR.join(
-        (template_text, _PASSAGE_HEADER, _PASSAGE_SEPARATOR, _EMPTY_CONTEXT)
+        (template_text, *render_format_constants())
     )
     return sha256_hex(payload)[:PROMPT_VERSION_LENGTH]
 
@@ -195,4 +210,5 @@ __all__ = [
     "prompt_version",
     "read_answer_template",
     "render_context",
+    "render_format_constants",
 ]

@@ -494,7 +494,17 @@ def validate_question(
             )
 
 
-def validate_directory(target: Path) -> Report:
+def validate_directory(target: Path, *, allow_incomplete: bool = False) -> Report:
+    """校验整个数据集目录。
+
+    `allow_incomplete` 把**数量目标**从错误降成警告，其余校验一条不放松。
+
+    它存在是因为数量目标描述的是「交付一份完整 Golden」，而不是「这份题集合不合法」：
+    留出题集（holdout，用来验「0.8179 里有多少是过拟合」）刻意只抽 30 题，结构与命名
+    都合规，但永远达不到 ≥60 / 单桶 ≥8 / 拒答 ≥10。没有这个开关，留出题集连
+    `dataset_hash` 都算不出来——而 hash 恰恰是它必须落进 run 记录的东西。
+    **结构、命名、id 唯一、evidence 的 chapter 上界一条都不降级**，降级的只有数量。
+    """
     rep = Report()
     schema = load_schema(target, rep)
 
@@ -540,16 +550,23 @@ def validate_directory(target: Path) -> Report:
     print(f"== 数据集校验：{target} ==")
     print(f"题目文件数：{total}")
     print("-- 数量目标 --")
+    # 数量目标：默认是错误（交付一份完整 Golden 才算过），`--allow-incomplete` 下只警告。
+    def _quota(where: str, message: str) -> None:
+        if allow_incomplete:
+            rep.warn(f"{message}（--allow-incomplete：数量目标不判失败）")
+        else:
+            rep.error(where, message)
+
     _print_quota("总量", total, TOTAL_MIN)
     if total < TOTAL_MIN:
-        rep.error("(数据集)", f"总量 {total} 未达目标 ≥{TOTAL_MIN}")
+        _quota("(数据集)", f"总量 {total} 未达目标 ≥{TOTAL_MIN}")
     for t in TYPES:
         _print_quota(f"  {t}", per_type[t], PER_TYPE_MIN)
         if per_type[t] < PER_TYPE_MIN:
-            rep.error("(数据集)", f"类型 {t} 数量 {per_type[t]} 未达目标 ≥{PER_TYPE_MIN}")
+            _quota("(数据集)", f"类型 {t} 数量 {per_type[t]} 未达目标 ≥{PER_TYPE_MIN}")
     _print_quota("拒答题", refusal, REFUSAL_MIN)
     if refusal < REFUSAL_MIN:
-        rep.error("(数据集)", f"拒答题数量 {refusal} 未达目标 ≥{REFUSAL_MIN}")
+        _quota("(数据集)", f"拒答题数量 {refusal} 未达目标 ≥{REFUSAL_MIN}")
 
     print("-- dataset_hash --")
     print(f"dataset_hash: {dataset_hash(dataset_entries, rep)}")
@@ -614,14 +631,20 @@ def _force_utf8_stdout() -> None:
             pass
 
 
+USAGE = "用法：python validate_golden.py [--allow-incomplete] [目录或单个 .json]"
+
+
 def main(argv: list[str]) -> int:
     _force_utf8_stdout()
-    if len(argv) > 2:
-        print("用法：python validate_golden.py [目录或单个 .json]", file=sys.stderr)
+    flags = [item for item in argv[1:] if item.startswith("--")]
+    positional = [item for item in argv[1:] if not item.startswith("--")]
+    if [flag for flag in flags if flag != "--allow-incomplete"] or len(positional) > 1:
+        print(USAGE, file=sys.stderr)
         return 2
 
-    if len(argv) == 2:
-        target = Path(argv[1]).resolve()
+    allow_incomplete = "--allow-incomplete" in flags
+    if positional:
+        target = Path(positional[0]).resolve()
     else:
         target = Path(__file__).resolve().parent.parent / "eval" / "golden"
 
@@ -631,7 +654,7 @@ def main(argv: list[str]) -> int:
 
     print("注意：evidence 的 content 是否为原文片段（非转述）无法机器判定，仍需人工/映射阶段复核。")
     if target.is_dir():
-        rep = validate_directory(target)
+        rep = validate_directory(target, allow_incomplete=allow_incomplete)
     else:
         rep = validate_single_file(target)
     _report(rep)

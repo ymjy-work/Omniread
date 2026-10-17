@@ -49,20 +49,33 @@ from omniread.infrastructure.providers.fake import (  # noqa: E402
     FakeEmbeddingModel,
     FakeRerankModel,
 )
+from omniread.infrastructure.providers.deepseek import DeepSeekChatAdapter  # noqa: E402
 from omniread.infrastructure.providers.glm import GlmChatAdapter  # noqa: E402
 from omniread.pipelines.answering import answer_prompt_version  # noqa: E402
 from omniread.pipelines.chunking import M0_PLACEHOLDER_V1  # noqa: E402
 from omniread.pipelines.evaluation import (  # noqa: E402
     FAKE_ANSWER_TRUST_NOTE,
+    FAKE_JUDGE_TRUST_NOTE,
     FAKE_TRUST_NOTE,
     AnswerOutcome,
     GenerationScoreRecord,
+    JudgedAnswer,
+    JudgingEvalResult,
     RecordedRetrieval,
     fmt_ratio,
     load_golden_questions,
     run_generation_eval,
+    run_judging_eval,
     run_retrieval_eval,
     write_eval_run_dir,
+    write_judging_artifact,
+)
+from omniread.pipelines.judging import (  # noqa: E402
+    VERDICT_FAIL,
+    VERDICT_PASS,
+    VERDICT_UNCERTAIN,
+    AnswerJudge,
+    FakeAnswerJudge,
 )
 from omniread.pipelines.mapping.artifacts import check_run_dir  # noqa: E402
 from omniread.pipelines.mapping.runner import (  # noqa: E402
@@ -85,6 +98,14 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 # 基线 run 的固定 id：后续 run 的回归门禁按它取基线值（M0-04 §6）。
 BASELINE_RUN_ID = "2026-09-20-m0-baseline"
+
+#: 留出题集（holdout）的标注。它进 `config.json` 的 `trust_note`，因为**它改变了
+#: 数字的可比性**：题集不同即 `dataset_hash` 不同，这些数不能与 Golden 基线并列，
+#: 只能用来回答「基线里有多少是过拟合」。
+HOLDOUT_TRUST_NOTE = (
+    "本次题集不满交付数量目标（--allow-incomplete）：dataset_hash 与 Golden 不同，"
+    "数字不可与 Golden 基线并列，只用于留出验证。"
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -162,7 +183,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "拒答正确性。每题多 1 次回答模型调用；检索结果回放上面那一遍，不再重跑"
         ),
     )
+    parser.add_argument(
+        "--judge",
+        action="store_true",
+        help=(
+            "答案层之后再跑一遍裁判（需 --answer-layer）：逐题把「材料 + 问题 + 回答」"
+            "交给裁判模型，产出三态判定。**旁挂，不作门禁**（M0-04 §6），"
+            "数字只落 --judge-out，不进 run 目录"
+        ),
+    )
+    parser.add_argument(
+        "--judge-out",
+        type=Path,
+        default=None,
+        help=(
+            "裁判结果写到这里（JSON：聚合 + 逐题，含 reason 自由文本）。"
+            "**必须落在 run 目录之外**——裁判的 reason 会逐字引用材料。"
+            "不传时默认写 temp/judge-<run-id>.json"
+        ),
+    )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help=(
+            "题集不满数量目标（总量 ≥60 / 单桶 ≥8 / 拒答 ≥10）时仍然放行。"
+            "给留出题集用：它刻意只抽 30 题，结构与命名都合规，但达不到交付口径。"
+            "**结构与命名一条不放松**，降级的只有数量"
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.judge and not args.answer_layer:
+        parser.error("--judge 需要 --answer-layer：没有回答就无从判起")
     # 默认 run_id 是 M0 基线目录，而基线产物是入库的留痕：`--fake-providers` 不带
     # `--run-id` 跑一次，就会把那份 86 题的基线换成 3 题的假 provider 结果
     # （2026-10-13 真的踩到过一次，靠 git checkout 还原）。这种组合直接拦下来。
@@ -234,6 +285,23 @@ def build_chat(args: argparse.Namespace) -> tuple[ChatModel, str]:
     return GlmChatAdapter(), "glm"
 
 
+def build_judge(args: argparse.Namespace) -> tuple[object, str, str]:
+    """装配裁判；返回 (裁判, provider 名, 模型名)。
+
+    跟着 `--fake-providers` 走，与 `build_chat` 同一条纪律：一次 run 要么整体离线、
+    要么整体真实——混着来会产出「一半数字不可信」却看起来正常的 run。
+
+    裁判**刻意用与回答不同的模型**（回答走 GLM、裁判走 DeepSeek）：同一个模型判自己
+    写的东西会偏向自己，而那种偏差在数字上只表现为「通过率偏高」，看不出来。
+    两者共用同一把 DeepSeek key（改写与摘要已经在用），不新增凭据。
+    """
+    if args.fake_providers:
+        fake = FakeAnswerJudge()
+        return fake, fake.provider, fake.model
+    chat = DeepSeekChatAdapter()
+    return AnswerJudge(chat), "deepseek", chat.model
+
+
 def _report_progress(index: int, total: int, question_id: str) -> None:
     """逐题回显到 **stderr** 并立刻 flush。
 
@@ -281,6 +349,42 @@ def _write_answers(
     )
 
 
+def _write_judgments(
+    path: Path,
+    *,
+    runs_dir: Path,
+    verdicts: Sequence[JudgedAnswer],
+    summary: dict[str, object],
+    provider: str,
+    model: str,
+    prompt_version: str,
+) -> None:
+    """把裁判结果写成复核件（聚合 + 逐题）；**拒绝写进 run 目录**。
+
+    裁判的 `reason` / `issues` / `raw` 是自由文本、**会逐字引用材料**——与回答原文
+    同一条红线（`M0-02` §7.1）。所以这里与 `_write_answers` 同一道闸门：不靠「记得
+    别写错」，而是直接拒绝。聚合数字也一并落这里，而不是塞进 `summary.json`：
+    run 目录是入库产物，而裁判**不作门禁**，它的数字不该与确定性指标并列成基线。
+    """
+    resolved = path.resolve()
+    runs_root = runs_dir.resolve()
+    if resolved == runs_root or runs_root in resolved.parents:
+        raise SystemExit(
+            f"不能把裁判结果写进 run 目录：{path}\n"
+            "  裁判的 reason 会逐字引用材料，只落 temp/；run 目录只准出现"
+            " ALLOWED_RUN_FILES 里的文件。"
+        )
+
+    write_judging_artifact(
+        path,
+        verdicts=verdicts,
+        summary=summary,
+        provider=provider,
+        model=model,
+        prompt_version=prompt_version,
+    )
+
+
 def load_mapping_lookup(runs_dir: Path, mapping_run: str) -> dict[str, str | None]:
     """读映射 run 的 `mappings.jsonl`，折成 evidence_hash → chunk_key。
 
@@ -322,12 +426,18 @@ async def main_async(args: argparse.Namespace) -> int:
     params = build_params(args.overrides)
     pipeline, provider, embedding_model, rerank_model = build_pipeline(args, params)
 
+    trust_notes = [FAKE_TRUST_NOTE] if args.fake_providers else []
+    if args.allow_incomplete:
+        trust_notes.append(HOLDOUT_TRUST_NOTE)
+
     result = await run_retrieval_eval(
         run_id=args.run_id,
         questions=questions,
         pipeline=pipeline,
         mapping_lookup=mapping_lookup,
-        dataset_hash=golden_dataset_hash(args.golden_dir),
+        dataset_hash=golden_dataset_hash(
+            args.golden_dir, allow_incomplete=args.allow_incomplete
+        ),
         dataset_version=golden_schema_version(args.golden_dir),
         corpus_manifest_hash=manifest_hash,
         chunk_source="db",
@@ -343,7 +453,7 @@ async def main_async(args: argparse.Namespace) -> int:
         rerank_model=rerank_model,
         retrieval_params=retrieval_params_record(params, neighbor_expand=args.neighbor_expand),
         book_id=args.book_id,
-        trust_note=FAKE_TRUST_NOTE if args.fake_providers else "",
+        trust_note=" ".join(trust_notes),
         neighbor_expand=args.neighbor_expand,
     )
 
@@ -352,14 +462,19 @@ async def main_async(args: argparse.Namespace) -> int:
     failures = list(result.failures)
     generation_records: tuple[GenerationScoreRecord, ...] = ()
     generation_summary: dict[str, object] | None = None
+    judging_result: JudgingEvalResult | None = None
+    judge_label: tuple[str, str] = ("", "")
 
     if args.answer_layer:
         # 检索结果回放上面那一遍（`RecordedRetrieval`），不重跑：同一次 run 里两层
         # 必须看同一份装配集，而 provider 那侧不保证两次采样一致。
         chat, answer_provider = build_chat(args)
+        context_source = PgContextSource(
+            sessionmaker(create_engine_from_env(), expire_on_commit=False)
+        )
         runner = AnsweringRunner(
             retrieval=RecordedRetrieval(result.outcomes),
-            context=PgContextSource(sessionmaker(create_engine_from_env(), expire_on_commit=False)),
+            context=context_source,
             chat=chat,
             answer_provider=answer_provider,
         )
@@ -383,6 +498,41 @@ async def main_async(args: argparse.Namespace) -> int:
                 questions=questions,
                 outcomes=generation_result.outcomes,
             )
+        if args.fake_providers:
+            trust_notes.append(FAKE_ANSWER_TRUST_NOTE)
+
+        if args.judge:
+            # 裁判旁挂在确定性指标旁边（**不作门禁**，M0-04 §6）：它的材料从本次 run
+            # 已算好的装配集回放，与回答看到的是同一份，所以判定描述的是「模型当时
+            # 看到了什么」，而不是另一次检索。
+            judge, judge_provider, judge_model = build_judge(args)
+            judge_label = (judge_provider, judge_model)
+            if args.fake_providers:
+                trust_notes.append(FAKE_JUDGE_TRUST_NOTE)
+            judging_result = await run_judging_eval(
+                questions=questions,
+                answers=generation_result.outcomes,
+                retrieval=result.outcomes,
+                context=context_source,
+                judge=judge,
+                book_id=args.book_id,
+                neighbor_expand=args.neighbor_expand,
+                on_progress=_report_progress,
+            )
+            judge_out = args.judge_out or (
+                REPO_ROOT / "temp" / f"judge-{args.run_id}.json"
+            )
+            _write_judgments(
+                judge_out,
+                runs_dir=args.runs_dir,
+                verdicts=judging_result.verdicts,
+                summary=judging_result.summary,
+                provider=judge_provider,
+                model=judge_model,
+                prompt_version=judge.prompt_version,  # type: ignore[attr-defined]
+            )
+            print(f"裁判复核件：{judge_out}", file=sys.stderr, flush=True)
+
         config = replace(
             config,
             kind="full",
@@ -390,9 +540,11 @@ async def main_async(args: argparse.Namespace) -> int:
             answer_provider=answer_provider,
             answer_model=chat.model,
             prompt_version=answer_prompt_version(),
-            trust_note=(
-                f"{FAKE_TRUST_NOTE} {FAKE_ANSWER_TRUST_NOTE}" if args.fake_providers else ""
-            ),
+            # 这两个字段本来就为裁判留好了（M0-02 的 rag_runs 列，此前恒为
+            # not-exercised）。裁判跑过就如实填，不跑就保持默认值。
+            judge_provider=judge_label[0] or config.judge_provider,
+            judge_model=judge_label[1] or config.judge_model,
+            trust_note=" ".join(trust_notes),
         )
 
     run_dir = args.runs_dir / args.run_id
@@ -453,6 +605,36 @@ async def main_async(args: argparse.Namespace) -> int:
             "  （`citation_in_set` 分母不含拒答与生成失败的题；"
             "`answered_without_citation` 必须与它并读——空集天然满足集合判定。）"
         )
+
+    if judging_result is not None:
+        values = judging_result.summary
+        print()
+        print(f"裁判层（{judge_label[0]}/{judge_label[1]}，三态判定，**旁挂、不作门禁**）：")
+        for label in ("pass", "fail", "uncertain"):
+            print(
+                f"  {label:26s} {fmt_ratio(values[label], values['judged'])}"
+                f"（分母 {values['judged']}）"
+            )
+        for label in (
+            "judged",
+            "judge_failed",
+            "supported_false",
+            "citations_invalid",
+            "incomplete",
+            "refusal_wrong",
+        ):
+            print(f"  {label:26s} {values[label]}")
+        print(
+            "  （判不出来的题不参与比率——`judge_failed` 与 `judged` 必须并读，"
+            "否则「裁判坏了一半」会显示成一个偏低的通过率。）"
+        )
+        print("  按题型分列（只分列、不加权）：")
+        for question_type, bucket in values["per_type"].items():  # type: ignore[union-attr]
+            print(
+                f"    {question_type:8s} 判 {bucket['judged']:3d} "
+                f"通过 {bucket['pass']:3d} 不通过 {bucket['fail']:3d} "
+                f"无法确定 {bucket['uncertain']:3d} 判失败 {bucket['judge_failed']:3d}"
+            )
 
     print()
     print(f"失败样本 {len(failures)} 条；计数 {result.summary['failure_counts']}")

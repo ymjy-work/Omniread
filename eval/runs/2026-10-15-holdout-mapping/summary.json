@@ -1,0 +1,35 @@
+{
+  "dataset_hash": "5fb103e87a6594bdb24e7d3c8d885d19716e49de4188851f4bc0ab957204780f",
+  "decision_tiers": {
+    "introducer": 5,
+    "unique_cover": 132
+  },
+  "evidence_count": 137,
+  "mapping_coverage": 1.0,
+  "match_status": {
+    "matched": 137
+  },
+  "matched_count": 137,
+  "multi_cover_count": 0,
+  "per_type": {
+    "alias": {
+      "matched": 15
+    },
+    "boundary": {
+      "matched": 25
+    },
+    "cross": {
+      "matched": 49
+    },
+    "fact": {
+      "matched": 10
+    },
+    "foreshadow": {
+      "matched": 29
+    },
+    "spoiler": {
+      "matched": 9
+    }
+  },
+  "run_id": "2026-10-15-holdout-mapping"
+}

@@ -180,8 +180,9 @@ def test_history_and_question_land_in_the_user_message() -> None:
 def test_system_message_carries_the_disciplines() -> None:
     system = load_rewrite_prompt().system
 
-    assert "原样返回" in system
-    assert "不得引入对话历史里没有出现过" in system
+    assert "保留用户当前问题的核心意图" in system
+    assert "不得擅自增加用户没有提出的要求" in system
+    assert "不得补充历史中不存在的事实" in system
 
 
 def test_prompt_version_is_the_short_hash_of_the_template() -> None:

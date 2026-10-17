@@ -122,10 +122,21 @@ def golden_schema_version(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> str:
     return version
 
 
-def golden_dataset_hash(golden_dir: Path = DEFAULT_GOLDEN_DIR) -> str:
-    """调校验器取 `dataset_hash`；校验不通过即抛错，不带着坏数据集往下走。"""
+def golden_dataset_hash(
+    golden_dir: Path = DEFAULT_GOLDEN_DIR, *, allow_incomplete: bool = False
+) -> str:
+    """调校验器取 `dataset_hash`；校验不通过即抛错，不带着坏数据集往下走。
+
+    `allow_incomplete` 透传给校验器，**只把数量目标降成警告**：留出题集（holdout）
+    刻意只抽 30 题，结构与命名都合规却永远达不到 ≥60 / 单桶 ≥8 / 拒答 ≥10，
+    没有这个开关它连 `dataset_hash` 都算不出来。结构、命名、id 唯一、
+    evidence 的 chapter 上界一条都不降级。
+    """
+    command = [sys.executable, str(VALIDATOR), str(golden_dir)]
+    if allow_incomplete:
+        command.append("--allow-incomplete")
     completed = subprocess.run(
-        [sys.executable, str(VALIDATOR), str(golden_dir)],
+        command,
         capture_output=True,
         text=True,
         encoding="utf-8",

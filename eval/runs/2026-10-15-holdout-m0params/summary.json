@@ -1,0 +1,62 @@
+{
+  "evidence_mapped": 1.0,
+  "evidence_recall": 0.7591240875912408,
+  "evidence_total": 137,
+  "failure_counts": {
+    "mapped_but_dropped": 16
+  },
+  "leak": 0,
+  "per_level": {
+    "full": {
+      "evidence_recall": 0.8421052631578947,
+      "evidence_total": 19,
+      "leak": 0,
+      "questions": 3
+    },
+    "past": {
+      "evidence_recall": 0.7457627118644068,
+      "evidence_total": 118,
+      "leak": 0,
+      "questions": 27
+    }
+  },
+  "per_type": {
+    "alias": {
+      "evidence_recall": 0.7333333333333333,
+      "evidence_total": 15,
+      "leak": 0,
+      "questions": 6
+    },
+    "boundary": {
+      "evidence_recall": 0.8,
+      "evidence_total": 25,
+      "leak": 0,
+      "questions": 6
+    },
+    "cross": {
+      "evidence_recall": 0.8367346938775511,
+      "evidence_total": 49,
+      "leak": 0,
+      "questions": 8
+    },
+    "fact": {
+      "evidence_recall": 0.8,
+      "evidence_total": 10,
+      "leak": 0,
+      "questions": 3
+    },
+    "foreshadow": {
+      "evidence_recall": 0.7931034482758621,
+      "evidence_total": 29,
+      "leak": 0,
+      "questions": 4
+    },
+    "spoiler": {
+      "evidence_recall": 0.1111111111111111,
+      "evidence_total": 9,
+      "leak": 0,
+      "questions": 3
+    }
+  },
+  "question_count": 30
+}
