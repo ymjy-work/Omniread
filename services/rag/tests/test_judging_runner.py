@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -45,8 +46,15 @@ QUESTIONS = [
 ]
 
 ANSWERS = (
-    AnswerOutcome(request_id="eval-fact-101", status="answered", text="化学参考书[C2]。", chapters=(2,)),
-    AnswerOutcome(request_id="eval-spoiler-101", status="answered", text="[INSUFFICIENT]", chapters=(3,)),
+    AnswerOutcome(
+        request_id="eval-fact-101", status="answered", text="化学参考书[C2]。", chapters=(2,)
+    ),
+    AnswerOutcome(
+        request_id="eval-spoiler-101",
+        status="answered",
+        text="[INSUFFICIENT]",
+        chapters=(3,),
+    ),
 )
 
 CHUNKS = (
@@ -183,7 +191,11 @@ async def test_each_question_is_judged_with_its_own_material() -> None:
     retrieval = {**retrieval_for(QUESTIONS[0], ("k2",)), **retrieval_for(QUESTIONS[1], ("k3",))}
     judge = StubJudge(verdict())
     result = await run_judging_eval(
-        questions=QUESTIONS, answers=ANSWERS, retrieval=retrieval, context=StubContext(), judge=judge
+        questions=QUESTIONS,
+        answers=ANSWERS,
+        retrieval=retrieval,
+        context=StubContext(),
+        judge=judge,
     )
 
     assert [item.question_id for item in result.verdicts] == ["fact-101", "spoiler-101"]
@@ -273,9 +285,21 @@ def test_aggregate_splits_by_question_type() -> None:
         ]
     )
 
-    per_type = summary["per_type"]
-    assert per_type["cross"] == {"judged": 2, "pass": 1, "fail": 1, "uncertain": 0, "judge_failed": 0}
-    assert per_type["spoiler"] == {"judged": 0, "pass": 0, "fail": 0, "uncertain": 0, "judge_failed": 1}
+    per_type = cast(dict[str, dict[str, object]], summary["per_type"])
+    assert per_type["cross"] == {
+        "judged": 2,
+        "pass": 1,
+        "fail": 1,
+        "uncertain": 0,
+        "judge_failed": 0,
+    }
+    assert per_type["spoiler"] == {
+        "judged": 0,
+        "pass": 0,
+        "fail": 0,
+        "uncertain": 0,
+        "judge_failed": 1,
+    }
 
 
 def test_refusal_wrong_counts_both_directions() -> None:

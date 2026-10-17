@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 
 import pytest
 
 from omniread.infrastructure.providers.base import (
+    ChatChunk,
     ChatMessage,
     ChatOptions,
     ChatResponse,
@@ -67,7 +69,9 @@ class StubChat:
         self.calls.append((list(messages), options))
         return ChatResponse(text=self.text, model=self.model)
 
-    async def stream(self, messages, options: ChatOptions | None = None):
+    def stream(
+        self, messages, options: ChatOptions | None = None
+    ) -> AsyncIterator[ChatChunk]:
         raise AssertionError("裁判不该走流式：半截 JSON 无法解析")
 
 

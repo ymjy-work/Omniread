@@ -101,11 +101,8 @@ async def run_judging_eval(
         question_id = str(question["id"])
         if on_progress is not None:
             on_progress(index, total, question_id)
-        base = {
-            "question_id": question_id,
-            "question_type": str(question["type"]),
-            "expect_refusal": bool(question["expect_refusal"]),
-        }
+        question_type = str(question["type"])
+        expect_refusal = bool(question["expect_refusal"])
         try:
             passages = await load_passages(
                 question,
@@ -120,6 +117,9 @@ async def run_judging_eval(
         except (JudgeError, ProviderError, RagError, LookupError) as failure:
             verdicts.append(
                 JudgedAnswer(
+                    question_id=question_id,
+                    question_type=question_type,
+                    expect_refusal=expect_refusal,
                     status=JUDGE_STATUS_FAILED,
                     verdict="",
                     supported=None,
@@ -129,12 +129,14 @@ async def run_judging_eval(
                     issues=(),
                     reason=f"{type(failure).__name__}: {failure}",
                     raw="",
-                    **base,
                 )
             )
             continue
         verdicts.append(
             JudgedAnswer(
+                question_id=question_id,
+                question_type=question_type,
+                expect_refusal=expect_refusal,
                 status=JUDGE_STATUS_OK,
                 verdict=verdict.verdict,
                 supported=verdict.supported,
@@ -144,7 +146,6 @@ async def run_judging_eval(
                 issues=verdict.issues,
                 reason=verdict.reason,
                 raw=verdict.raw,
-                **base,
             )
         )
 
