@@ -88,6 +88,29 @@ public class SessionService {
     }
 
     /**
+     * 改标题。**只改标题这一个字段**——档位固定在建立时（切档位要分叉），`book_id` 同理，
+     * 所以这里不接受别的。
+     *
+     * <p>空白压成单个空格：标题是列表里的一行，带换行的标题会把那一行撑成两行。
+     * 去完空白为空、或超过上限（按**码点**算，与首轮自动命名同一个数）都是
+     * `RAG_INVALID_REQUEST`——这里**截断而不是拒绝**的话，用户输入的东西会被悄悄改掉。
+     */
+    public ChatSessionSummary rename(long userId, String sessionId, String rawTitle) {
+        ChatSession session = requireOwned(userId, sessionId);
+        String title = rawTitle.strip().replaceAll("\\s+", " ");
+        if (title.isEmpty()) {
+            throw new RagException(ErrorCode.RAG_INVALID_REQUEST, "标题不能为空");
+        }
+        if (title.codePointCount(0, title.length()) > SessionTitle.MAX_LENGTH) {
+            throw new RagException(
+                    ErrorCode.RAG_INVALID_REQUEST, "标题最多 " + SessionTitle.MAX_LENGTH + " 个字");
+        }
+        sessionMapper.updateTitle(session.getId(), title);
+        session.setTitle(title);
+        return ChatSessionSummary.of(session);
+    }
+
+    /**
      * 切档位分叉：新建一个会话，**复制**父会话截至 `atSeq` 的消息进去。
      *
      * <p>复制式而不是引用式：实现最简单，且删除时父子互不影响（引用式要么级联删掉父，

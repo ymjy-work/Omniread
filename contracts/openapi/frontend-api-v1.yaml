@@ -500,6 +500,42 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /api/v1/sessions/{session_id}/title:
+    put:
+      tags: [session]
+      operationId: renameSession
+      summary: 改会话标题
+      description: |
+        用户给会话起名字；聊天框里的 `/rename 新名字` 走的也是它。
+
+        标题是会话上**唯一可改**的字段，所以挂在子资源上而不是 PATCH 整个会话——
+        写口越窄，将来「反正能 PATCH」长出别的可改字段的机会就越小。
+        上限与首轮自动命名一致（20 码点）：列表一行放得下，再多也只是被前端截掉。
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionRenameRequest"
+      responses:
+        "200":
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionSummary"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
 components:
   securitySchemes:
     sessionCookie:
@@ -685,6 +721,18 @@ components:
         level:
           type: string
           enum: [past, full]
+
+    SessionRenameRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: |
+            新标题。上限与首轮自动命名一致（20 码点，按码点不按 char——emoji 占两个 char）。
+            首尾空白由服务端去掉；去完为空即 400。
 
     ForkRequest:
       type: object

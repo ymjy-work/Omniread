@@ -29,6 +29,7 @@ EXTERNAL_ONLY = {
     "SessionList",
     "SessionCreateRequest",
     "ForkRequest",
+    "SessionRenameRequest",
     # 共有核心 + 网关专有字段（session_id / message_id 是 Java 分配的，Python 不知道）。
     "SessionQueryRequest",
     "SessionQueryResponse",

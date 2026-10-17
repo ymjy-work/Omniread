@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -241,6 +242,85 @@ class SessionCrudTest {
                         .content("{\"level\":\"past\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RAG_INVALID_REQUEST"));
+    }
+
+    // ── 改名 ──
+
+    @Test
+    @DisplayName("改名返回更新后的摘要，列表里读到的也是新名字")
+    void renameUpdatesTheTitle() throws Exception {
+        Cookie cookie = login(newAccount("rename"));
+        String sessionId = createSession(cookie, "past");
+
+        mvc.perform(put("/api/v1/sessions/" + sessionId + "/title").cookie(cookie).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"第三章伏笔整理\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(sessionId))
+                .andExpect(jsonPath("$.title").value("第三章伏笔整理"));
+
+        mvc.perform(get("/api/v1/sessions").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessions[0].title").value("第三章伏笔整理"));
+    }
+
+    @Test
+    @DisplayName("标题的空白压成单个空格：带换行的标题会把列表那一行撑成两行")
+    void renameFlattensWhitespace() throws Exception {
+        Cookie cookie = login(newAccount("rename-space"));
+        String sessionId = createSession(cookie, "past");
+
+        mvc.perform(put("/api/v1/sessions/" + sessionId + "/title").cookie(cookie).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"  前后  空白\\n换行  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("前后 空白 换行"));
+    }
+
+    @Test
+    @DisplayName("空标题与超长都是 400；上限按**码点**算，20 个 emoji（40 个 char）是合法的")
+    void renameRejectsBadTitles() throws Exception {
+        Cookie cookie = login(newAccount("rename-bad"));
+        String sessionId = createSession(cookie, "past");
+
+        for (String bad : new String[] {"{\"title\":\"   \"}", "{\"title\":\"\"}", "{\"title\":\"" + "字".repeat(21) + "\"}"}) {
+            mvc.perform(put("/api/v1/sessions/" + sessionId + "/title").cookie(cookie).header(CSRF, "1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(bad))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("RAG_INVALID_REQUEST"));
+        }
+
+        // 20 个 emoji 是 20 个码点、40 个 char：按 char 判会误拒，所以这条必须过
+        String emoji = "😀".repeat(20);
+        assertThat(emoji.length()).isEqualTo(40);
+        mvc.perform(put("/api/v1/sessions/" + sessionId + "/title").cookie(cookie).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + emoji + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value(emoji));
+    }
+
+    @Test
+    @DisplayName("改名也分 403 与 404：别人的会话改不了，不存在的返回没找到")
+    void renameSplitsForbiddenFromNotFound() throws Exception {
+        Cookie alice = login(newAccount("rename-alice"));
+        Cookie bob = login(newAccount("rename-bob"));
+        String sessionId = createSession(alice, "past");
+
+        mvc.perform(put("/api/v1/sessions/" + sessionId + "/title").cookie(bob).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"偷改\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("RAG_FORBIDDEN"));
+        assertThat(sessionMapper.findById(sessionId).getTitle())
+                .isEqualTo(SessionService.PLACEHOLDER_TITLE);
+
+        mvc.perform(put("/api/v1/sessions/" + UUID.randomUUID() + "/title").cookie(alice).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"随便\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RAG_NOT_FOUND"));
     }
 
     // ── 夹具 ──
