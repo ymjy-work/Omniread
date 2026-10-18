@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * E 阶段三条护栏在**真实注册路径**上（拦截器 + 控制器都在链上）的验收：
+ * 三条护栏在**真实注册路径**上（拦截器 + 控制器都在链上）的验收：
  * 阅读范围 403 与导航夹住、卷外插图 403、配额 429（带 `Retry-After`）与 provider 5xx 退还、
  * 一键下线 503（健康检查除外）。
  *

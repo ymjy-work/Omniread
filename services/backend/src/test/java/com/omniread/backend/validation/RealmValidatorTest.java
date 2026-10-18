@@ -10,7 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * realm 校验发生在 Java 边界（M0-01 §7）：Python 不重复校验，
+ * realm 校验发生在 Java 边界：Python 不重复校验，
  * 所以这里的漏判就是整条链的漏判 —— 越界的 progress 会直接变成检索范围。
  */
 class RealmValidatorTest {

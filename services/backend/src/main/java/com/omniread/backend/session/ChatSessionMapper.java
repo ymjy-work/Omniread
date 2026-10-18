@@ -39,6 +39,6 @@ public interface ChatSessionMapper {
 
     int deleteForUser(@Param("id") String id, @Param("userId") long userId);
 
-    /** 停用账户时级联清理（D15）；消息由外键 `ON DELETE CASCADE` 带走。 */
+    /** 停用账户时级联清理；消息由外键 `ON DELETE CASCADE` 带走。 */
     int deleteByUserId(@Param("userId") long userId);
 }

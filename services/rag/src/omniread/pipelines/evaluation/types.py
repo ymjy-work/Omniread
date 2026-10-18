@@ -1,13 +1,13 @@
-"""评测产物的数据形状（M0-04 §5，M0-02 §7.1）。
+"""评测产物的数据形状。
 
 两类逐题记录：`RetrievalScoreRecord`（检索层）与 `GenerationScoreRecord`（答案层）。
 每条都是一个 **frozen dataclass**，字段集即允许进 git 的全部内容。
 这不是风格选择：`eval/` 进 git，红线由「字段白名单 + 拒绝未知字段」实现，
-而不是靠「实现者别写错」。散文表格约束不了任何东西——`M0-02` §7.1 对
+而不是靠「实现者别写错」。散文表格约束不了任何东西——规范对
 `retrieval.scores.jsonl` 只写了「question_id + 指针 + 指标值」，
 任何 runner 都能多写一个字段把正文带进去，唯一的闸门就只剩 500 字符长度检查。
 
-**逐阶段指针不截断**（`M0-02` §8.7）：截断会让排名超出截断线的候选无法区分
+**逐阶段指针不截断**：截断会让排名超出截断线的候选无法区分
 「未召回」与「被截掉」，而这两件事的处置完全不同。指针是 chunk_key，
 短且不含正文，全量列出不触红线。
 """
@@ -31,15 +31,15 @@ class RetrievalScoreRecord:
     expect_refusal: bool
 
     # ── 指标（全部标量，聚合时代数运算即可）──
-    # 命中判定一律以 assembled 为准（M0-04 §5.1）：只有真正进入 prompt 的段才算命中。
+    # 命中判定一律以 assembled 为准：只有真正进入 prompt 的段才算命中。
     evidence_total: int
     evidence_hit: int
     # 映射成功的 evidence 数。与 evidence_total 的差即「没映射上」，
-    # 单列出来是为了让分母不随映射结果塌缩（M0-02 §6.2），
+    # 单列出来是为了让分母不随映射结果塌缩，
     # 也为了让「切片没对上」与「检索没召回到」分得开。
     evidence_mapped: int
 
-    # ── 泄漏：逐阶段统计，任一阶段 >0 即红（M0-02 §8.7）──
+    # ── 泄漏：逐阶段统计，任一阶段 >0 即红──
     leak_dense: int
     leak_kw: int
     leak_fused: int
@@ -74,7 +74,7 @@ class RetrievalScoreRecord:
 
 
 #: 答案层逐题记录的 `status`。`generation_failed` 是**独立的一种**，绝不并进拒答：
-#: provider 故障记成拒答会让 `refusal_correct` 悄悄失真（M0-02 §8.3）。
+#: provider 故障记成拒答会让 `refusal_correct` 悄悄失真。
 STATUS_ANSWERED = "answered"
 STATUS_INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 STATUS_GENERATION_FAILED = "generation_failed"
@@ -90,7 +90,7 @@ class GenerationScoreRecord:
 
     **这是答案层唯一的自动防线**：`verify_artifacts.py` 的「与语料逐字重合」比对只认
     语料原文，对模型写的文本天然失效；500 字符长度上限也拦不住一段 300 字回答。
-    所以放正文的位置在**类型里就没有**——回答原文只落 `temp/`（`M0-02` §7.1）。
+    所以放正文的位置在**类型里就没有**——回答原文只落 `temp/`。
 
     越界引用只记**标记本身**（`[C45]` 这种短 token），且由解析出的章号**重新拼**、
     不是从答案里切下来的：`CANDIDATE_PATTERN` 是 `\\[[Cc]\\d[^\\]]*\\]`，那个 `[^\\]]*`
@@ -101,7 +101,7 @@ class GenerationScoreRecord:
     question_type: str
     expect_refusal: bool
 
-    # ── 确定性判定：不调模型判断（D1），因此可复现、可离线重算 ──
+    # ── 确定性判定：不调模型判断，因此可复现、可离线重算 ──
     status: str
     citation_count: int
     #: 回答里的引用**全部**落在本次装配集的章号内。空集天然满足——没有引用的回答
@@ -147,7 +147,6 @@ _OPTIONAL_SUFFIX = " | None"
 # **退役的产物列**：曾经写进 scores.jsonl、后来砍掉的字段。旧 run 还带着它们，
 # 而下面的白名单是 eval/ 红线的实现方式（多一列正文就进产物了），**不能放宽**——
 # 所以退役的键在这里显式抹掉：旧产物照样读得进来，新产物不再写。
-# 难度维度 2026-10-13 退役，见 docs/决策与变更.md 的「Golden 难度维度迁移」一节。
 _RETIRED_PAYLOAD_KEYS = frozenset({"difficulty"})
 
 

@@ -1,6 +1,6 @@
-"""语料导入（M0-3）：`index.jsonl` → `books` / `volumes` / `chapters` / `chunks`。
+"""语料导入：`index.jsonl` → `books` / `volumes` / `chapters` / `chunks`。
 
-职责边界（M0-02 §2、§3.3、§3.4）：
+职责边界：
 
 - 语料读取、P-3 最小规范化与逐章校验由 `omniread.infrastructure.objectstore.corpus.read_corpus`
   负责；缺字段、空正文在那里已是硬错误，导入不再静默跳过任何一行。
@@ -9,7 +9,7 @@
 
 落库口径：
 
-- `books.id` M0 恒为 1（`--book-id` 可覆盖，用于测试库避开正式数据）。
+- `books.id` 恒为 1（`--book-id` 可覆盖，用于测试库避开正式数据）。
 - `volume_index` 取 `vol` 在语料中的首次出现次序，不按数字排——语料目录顺序不是阅读顺序。
 - `chapter_index` 与 `index.jsonl` 行号严格 1:1。
 - `chapters.image_paths` 原样取 `index.jsonl[].images`（保留语料自带的 `images/` 前缀），
@@ -19,7 +19,7 @@
 
 幂等：一次导入在单个事务里先删该书既有行、再整批写入，因此同一份语料重跑后行数、
 `chunk_key`、`content_hash` 都不变。用整批替换而不是逐表 upsert：`volumes.id` 是自增且
-不对外暴露（M0-02 §8.8），替换比 upsert 少一层「部分更新」的中间状态。
+不对外暴露，替换比 upsert 少一层「部分更新」的中间状态。
 
 prev/next 在全部 chunk 落库后用一次窗口函数 UPDATE 统一回填：邻居由
 `(chapter_id, chunk_index)` 排序决定，只可能落在同章，首块 prev / 末块 next 为 NULL。
@@ -266,7 +266,7 @@ def _delete_book_rows(session: Session, book_id: int) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="把语料 index.jsonl 导入 books/volumes/chapters/chunks（M0-02 §2）"
+        description="把语料 index.jsonl 导入 books/volumes/chapters/chunks"
     )
     parser.add_argument("--corpus-root", required=True, type=Path, help="语料根目录")
     parser.add_argument("--book-id", type=int, default=1, help="书籍 ID，M0 恒为 1")

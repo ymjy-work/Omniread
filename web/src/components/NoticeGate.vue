@@ -18,7 +18,7 @@ const STORAGE_KEY = 'omniread.notice.v1'
 const open = ref(false)
 
 /**
- * 权利人联系方式**只进配置，不入代码与仓库**（`deploy-plan` P4）。
+ * 权利人联系方式**只进配置，不入代码与仓库**。
  * 仓库里这一项是空的，部署构建时用 `VITE_RIGHTS_CONTACT` 注入。
  */
 const contact = String(import.meta.env.VITE_RIGHTS_CONTACT ?? '').trim()

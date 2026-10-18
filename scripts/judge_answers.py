@@ -8,7 +8,7 @@
     python scripts/judge_answers.py --run-dir <run 目录> --answers <answers.jsonl> \
         --out temp/judge-<id>.json [--golden-dir <题集>] [--allow-incomplete] [--fake-providers]
 
-**它不写 run 目录**：裁判的 `reason` 是自由文本、会逐字引用材料（`M0-02` §7.1）。
+**它不写 run 目录**：裁判的 `reason` 是自由文本、会逐字引用材料。
 
 **它不重跑检索**，所以判的仍是「模型当时看到了什么」。材料正文按 `assembled_keys`
 从库里取——与 `AnsweringRunner._load_context` 同一条路径、同一个顺序。

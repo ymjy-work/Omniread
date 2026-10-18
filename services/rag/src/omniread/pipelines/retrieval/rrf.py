@@ -1,4 +1,4 @@
-"""RRF 融合（M0-01 §4.1，自研）。
+"""RRF 融合（自研）。
 
 分数 = Σ 1 / (k + rank)，`k = RRF_K = 60`，rank 从 1 起。只用排名不用原始分数——
 dense 的余弦相似度与 BM25 的分值不同量纲，直接加权需要各自归一化，RRF 绕开了这件事。
@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-# 已冻结基线（M0-00 §5）。改动即新基线，必须走 run 对比。
+# 已冻结基线。改动即新基线，必须走 run 对比。
 RRF_K = 60
 
 

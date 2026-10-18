@@ -9,7 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 摘要区间的划法（`docs/方案.md（多轮会话一节）` §三）。
+ * 摘要区间的划法。
  *
  * <p>纯函数：给定一串消息、一个旧摘要覆盖点和一份预算，结果必须完全确定。划错区间的症状是
  * 「关键事实在某一轮之后悄悄没了」，而它不会让任何东西报错——所以边界要一条条钉住。

@@ -1,6 +1,6 @@
-"""检索（M0-4）：normalize → realm → dense(top60) → BM25(top60) → RRF(k=60) → rerank。
+"""检索：normalize → realm → dense(top60) → BM25(top60) → RRF(k=60) → rerank。
 
-链路口径见 M0-01 §4；realm 过滤与迭代索引扫描的约束同见该节。装配在
+链路口径见 `pipeline.py`；realm 过滤与迭代索引扫描的约束见 `dense.py` 与 `bm25.py`。装配在
 `omniread.pipelines.assembly`，本包只负责把候选池交出去。
 """
 

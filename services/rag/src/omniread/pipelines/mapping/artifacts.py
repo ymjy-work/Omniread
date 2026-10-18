@@ -1,6 +1,6 @@
-"""映射 run 产物落盘（M0-02 §7.1），按「eval/ 进 git」的红线约束写法。
+"""映射 run 产物落盘，按「eval/ 进 git」的红线约束写法。
 
-`M0-02` §7.1 的白名单只列了 retrieval / generation / failures 三类逐题产物，
+既有白名单只列了 retrieval / generation / failures 三类逐题产物，
 映射产物不在其中；这里沿同一条原则补上它的字段集——**只带指针与指标值**：
 question_id、evidence_hash、chapter_id、chunk_key、match_status、confidence、判据档位。
 evidence 的 content 与 chunk 正文一律不进 `eval/`。

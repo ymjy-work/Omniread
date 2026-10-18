@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 单轮问答。两个入口用路径区分（`/query` 与 `/query-stream`），不做 Accept 内容协商：
- * 适配器选择是显式的，省掉协商分支与 Accept 解析的边界情况（M0-01 §6.1）。
+ * 适配器选择是显式的，省掉协商分支与 Accept 解析的边界情况。
  *
  * <p>两条路径各自写全，**不用类级 `@RequestMapping("/api/v1/query")` 加方法级后缀**：
  * 后者会强制 `/query-stream` 长成 `/query/stream`（子资源形状），而它与 `/query` 是
@@ -51,12 +51,12 @@ public class QueryController {
     /**
      * SSE：逐帧转发，同时把这一轮折叠成一条落库的回答。
      *
-     * <p>M0 是纯字节透传（「Java 不解析事件」）；多轮之后必须解析——回答正文只出现在
+     * <p>这里必须解析事件，不能只做纯字节透传：回答正文只出现在
      * `answer_delta` 里，不攒起来落库的就是一条空消息，而它看起来只是「回答很短」。
      * 除终止帧外仍旧逐帧即刷，只有 `query_done` 那一刻等一次落库（它要带 `message_id`）。
      *
      * <p>直接写响应流而不是返回 StreamingResponseBody：后者把 flush 攒到任务结束，
-     * 首字节要等整条流跑完才到客户端。代价是整段流占用一个请求线程，M0 单机可接受。
+     * 首字节要等整条流跑完才到客户端。代价是整段流占用一个请求线程，单机可接受。
      */
     @PostMapping(path = "/api/v1/query-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public void stream(@RequestBody @Valid SessionQueryRequest request,
@@ -77,7 +77,7 @@ public class QueryController {
 
         // 流里出过错（provider 5xx / 上游中断）：这一轮没有结果，把日额度还回去。
         // **不能靠状态码**——开流那一刻它就已经是 200 了，这是网关自己发的字节流，
-        // 后到的失败只能以 `error` / `query_error` 帧表达（配额口径见配额与限流方案 §三）。
+        // 后到的失败只能以 `error` / `query_error` 帧表达。
         if (recorder.failed()) {
             quota.refund(QuotaInterceptor.leaseOf(servletRequest));
         }

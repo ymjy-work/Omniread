@@ -1,4 +1,4 @@
-"""DeepSeek 适配器：查询改写与摘要用的模型（`多轮会话落地方案` §5.1）。
+"""DeepSeek 适配器：查询改写与摘要用的模型。
 
 `https://api.deepseek.com` 是 OpenAI 兼容的根地址，对话接口在 `/chat/completions`
 ——与 GLM 同一个形状，所以协议转换走 `openai_compat` 的基类，这里只有常量。

@@ -1,7 +1,7 @@
 /**
  * 全局阅读状态：当前书、章节列表、当前章、阅读进度、问答档位。
  *
- * 用 reactive 单例而不是 Pinia：M0 的状态只有这一份，装一个状态库
+ * 用 reactive 单例而不是 Pinia：这点状态只有这一份，装一个状态库
  * 换不来任何东西。store 只放状态，动作是同模块的具名导出函数。
  */
 import { computed, reactive } from 'vue'

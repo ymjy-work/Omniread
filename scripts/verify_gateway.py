@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""M0-6 Java 网关联调断言：外部 API → Java → Python 内部契约。
+"""Java 网关联调断言：外部 API → Java → Python 内部契约。
 
 由 `scripts/verify-gateway.sh` 分阶段调用（`--phase`）——Java 与 Python 的起停、以及
 故障注入用的 Python 重启都在 shell 侧，本脚本只做 HTTP 断言，不碰进程。

@@ -1,4 +1,4 @@
-"""答案层确定性判定：引用越界、拒答正确性、状态折叠（M1-2）。
+"""答案层确定性判定：引用越界、拒答正确性、状态折叠。
 
 不调模型、不连库：判据全是字符串与集合运算，喂进去什么就判什么。
 """
@@ -147,7 +147,7 @@ def test_fold_answered_stream_joins_deltas_and_reads_chapters() -> None:
 
 
 def test_fold_refusal_stream_keeps_the_context_chapters() -> None:
-    # §8.3：模型级拒答时 `context_chapters` **非空**——折叠不能把它清掉，
+    # 模型级拒答时 `context_chapters` **非空**——折叠不能把它清掉，
     # 否则判「该拒的拒了没有」时就分不出「检索为空」与「模型答不了」。
     chapters = [{"chapter_index": 17, "chapter_title": "第17章"}]
 

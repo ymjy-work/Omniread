@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""M0-4 检索链确定性验证：真库语料 + 假 provider，全程不发真实 API 调用。
+"""检索链确定性验证：真库语料 + 假 provider，全程不发真实 API 调用。
 
-覆盖 M0-03 §2 的 M0-4 验收里可在本机跑的部分：
+覆盖下列可在本机跑的部分：
 
 1. 未嵌入行显式报告：`chunks.embedding` 为 NULL 的行不会被 dense 召回，若全库尚未
    嵌入则 dense 一路 0 条。脚本把这件事报出来，不拿它冒充通过。
@@ -241,7 +241,7 @@ async def check_dense_recall(
         checker.ok(f"HNSW 会话 GUC 已下发：{actual_gucs}")
     else:
         checker.bad(
-            "HNSW 会话 GUC 与 M0-00 §5 不一致",
+            "HNSW 会话 GUC 与基线参数不一致",
             f"期望 {expected_gucs}，实际 {actual_gucs}",
         )
 
@@ -496,7 +496,7 @@ async def main() -> int:
 
     print(f"\n=== 汇总：{checker.passed} 项通过，{checker.failed} 项失败 ===")
     if checker.failed == 0:
-        print("M0-4 检索链确定性验证通过（dense 现状已在 §1 显式报出）。")
+        print("检索链确定性验证通过（dense 现状已在 §1 显式报出）。")
     return 1 if checker.failed else 0
 
 

@@ -1,7 +1,7 @@
-"""模型 provider 接口（M0-01 §5.1）：回答 / embedding / rerank。
+"""模型 provider 接口：回答 / embedding / rerank。
 
 核心业务只依赖这三个接口，协议转换由适配器负责（`ali.py` 的 embedding 与 rerank，
-回答模型随 M0-5 落地）。调用一律异步——适配器走 `httpx.AsyncClient`，与 FastAPI 的
+回答模型在 `glm.py`、`deepseek.py`）。调用一律异步——适配器走 `httpx.AsyncClient`，与 FastAPI 的
 请求生命周期一致。
 """
 
@@ -104,7 +104,7 @@ class MapperCandidate:
 
 @dataclass(frozen=True, slots=True)
 class MapperResult:
-    """映射模型的输出，即 M0-02 §6.1 的四字段。"""
+    """映射模型的输出，四个匹配字段 + `model` 型号。"""
 
     matched_chunk_key: str | None
     confidence: float

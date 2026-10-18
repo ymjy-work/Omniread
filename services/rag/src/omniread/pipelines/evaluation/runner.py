@@ -1,4 +1,4 @@
-"""检索层评测编排（M0-04 §5.1，M0-9）。
+"""检索层评测编排。
 
 **离线跑得出的数字不能进 baseline** —— 这条写在配置里、也写在这里，因为它反直觉：
 
@@ -121,8 +121,8 @@ async def run_retrieval_eval(
     """逐题跑检索链并打分。题目顺序即 Golden 的 id 序，结果与顺序无关。
 
     `neighbor_expand` 是 `QueryRequest` 的既有字段、默认开。关掉它只改装配会不会补邻块，
-    不改任何上限——用来把「邻块占用名额」与「每章上限」两种效应分开（见
-    `docs/阶段.md 的 M1-1 一节` 第三节）。它会随 `retrieval_params` 记进 config.json。
+    不改任何上限——用来把「邻块占用名额」与「每章上限」两种效应分开。
+    它会随 `retrieval_params` 记进 config.json。
     """
     records: list[RetrievalScoreRecord] = []
     outcomes: dict[QueryRequest, RetrievalOutcome] = {}
@@ -187,7 +187,7 @@ def _is_failure(record: RetrievalScoreRecord) -> bool:
 
 
 def _failure_row(record: RetrievalScoreRecord) -> dict[str, object]:
-    """失败清单的一行：只写指针、阶段与指标快照（M0-02 §7.1 的字段白名单）。
+    """失败清单的一行：只写指针、阶段与指标快照（字段白名单）。
 
     `stage` 是判定失败**卡在哪一层**，用来分辨修检索还是修装配：
 

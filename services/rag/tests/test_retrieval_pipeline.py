@@ -1,4 +1,4 @@
-"""查询链编排（M0-01 §4.1）：normalize → realm → dense → BM25 → RRF → rerank → 装配。
+"""查询链编排：normalize → realm → dense → BM25 → RRF → rerank → 装配。
 
 全部用内存替身与假 provider，不发真实网络请求、不连库。dense 替身模拟「embedding 全是
 NULL 时召回 0 条」的真实现状，验证链路仍由 BM25 走通。
@@ -134,7 +134,7 @@ async def test_pipeline_runs_every_stage_and_closes_with_assembly() -> None:
     assert dense.calls == [(1, 6, 60)]
     assert outcome.kw and outcome.dense and outcome.fused and outcome.reranked
     # 对着参数的上限断言，不写死数字：这是接线测试，要验的是「链尾遵守上限」，
-    # 而具体上限随基线变（M1 把 ask_top_k 8→12、rerank_output 仍是 24）。
+    # 而具体上限随基线变（ask_top_k 8→12、rerank_output 仍是 24）。
     assert len(outcome.reranked) <= DEFAULT_PARAMS.rerank_output
     assert len(outcome.assembled) <= DEFAULT_PARAMS.ask_top_k
     assert all(item.chapter_index in range(1, 7) for item in outcome.assembled)

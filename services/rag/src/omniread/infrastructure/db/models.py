@@ -1,7 +1,7 @@
-"""M0 数据层的 SQLAlchemy 模型：字段逐列照 `docs/规格.md`（M0-02 一节）§3 建。
+"""数据层的 SQLAlchemy 模型。
 
 表集合固定为 `books` / `volumes` / `chapters` / `chunks` / `rag_runs` / `chunk_mappings`。
-阅读进度 `progress` **不进本库**——它由 Java 侧持久化后随请求传入（M0-02 §3.7）。
+阅读进度 `progress` **不进本库**——它由 Java 侧持久化后随请求传入。
 
 向量维度与 HNSW 参数是单向门：`embedding` 固定 `vector(1024)`，构建参数固定 `m=16` /
 `ef_construction=64`。改维度要重建该列并重跑全量索引；参数写在模型与迁移里同一份常量上，
@@ -33,7 +33,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from omniread.infrastructure.db.base import Base
 
-# 已冻结（M0-02 §3.4 / §3.8，M0-01 §4.2）：向量维度与 HNSW 构建参数。
+# 已冻结：向量维度与 HNSW 构建参数。
 EMBEDDING_DIM = 1024
 HNSW_M = 16
 HNSW_EF_CONSTRUCTION = 64
@@ -49,11 +49,11 @@ def _created_at_column() -> Mapped[datetime]:
 class Book(Base):
     __tablename__ = "books"
 
-    # M0 恒为 1，不依赖自增
+    # 恒为 1，不依赖自增
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     author: Mapped[str] = mapped_column(Text, nullable=False)
-    # 语料版本；变更即新基线（M0-02 §7.3）
+    # 语料版本；变更即新基线
     corpus_version: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = _created_at_column()
 
@@ -90,7 +90,7 @@ class Chapter(Base):
     # 章节正文副本；服务端读 DB 即可，不必每次去对象存储取
     text: Mapped[str] = mapped_column(Text, nullable=False)
     # 语料内图片相对路径（`images/01_第1卷/007.jpg`），顺序即语料里的出现顺序。
-    # 目录接口据此重建 `[插图NNN]` 的 marker→url 映射（M0-02 §2）；路径是字符串数组，
+    # 目录接口据此重建 `[插图NNN]` 的 marker→url 映射；路径是字符串数组，
     # 用 text[] 而不是 jsonb：只整组读取、不做键查询，数组元素类型还能钉死为 text。
     image_paths: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default=sa_text("'{}'::text[]")
@@ -146,7 +146,7 @@ class RagRun(Base):
     corpus_manifest_hash: Mapped[str] = mapped_column(Text, nullable=False)
     chunking_version: Mapped[str] = mapped_column(Text, nullable=False)
     tokenizer_id: Mapped[str] = mapped_column(Text, nullable=False)
-    # 换回答 / judge / embedding / rerank 模型或维度均即新基线（M0-02 §7.3）
+    # 换回答 / judge / embedding / rerank 模型或维度均即新基线
     answer_provider: Mapped[str] = mapped_column(Text, nullable=False)
     answer_model: Mapped[str] = mapped_column(Text, nullable=False)
     judge_provider: Mapped[str] = mapped_column(Text, nullable=False)

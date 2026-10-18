@@ -1,12 +1,12 @@
-"""映射编排：读 Golden → 逐条映射 → 落 run 产物（M0-02 §6.2）。
+"""映射编排：读 Golden → 逐条映射 → 落 run 产物。
 
 `dataset_hash` **不在本模块重算**：规范序列化（`sort_keys=True`、`separators=(",", ":")`）
 只存在于 `scripts/validate_golden.py`，另写一份必然在某个细节上分叉，而分叉的后果是
 「冻结的 hash」与「实际的数据集」对不上却无人察觉。这里改为调校验器取它的输出，
-顺带把 Ready Gate 第 1 条（schema 零报错）与映射放在同一次运行里。
+顺带把 schema 零报错校验与映射放在同一次运行里。
 
 失败不静默：`unmatched` / `low_conf` 一并写进 `mapping_failures.jsonl`，
-分母不随映射结果塌缩（M0-02 §6.2 第 5 步）。
+分母不随映射结果塌缩。
 """
 
 from __future__ import annotations
@@ -208,7 +208,7 @@ def summarize(
         "evidence_count": total,
         "matched_count": matched,
         # 映射完整度。注意这不是检索侧的 evidence_recall：那个要有检索结果才算得出来，
-        # 属 M0-9；两者分母相同、分子不同，混用会让数字看起来比实际好。
+        # 两者分母相同、分子不同，混用会让数字看起来比实际好。
         "mapping_coverage": (matched / total) if total else 0.0,
         "match_status": dict(sorted(status.items())),
         "decision_tiers": dict(sorted(tiers.items())),

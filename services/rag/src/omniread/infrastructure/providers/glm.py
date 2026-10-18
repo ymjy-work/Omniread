@@ -1,11 +1,11 @@
-"""智谱 BigModel（GLM）回答适配器（M0-01 §5.2）。
+"""智谱 BigModel（GLM）回答适配器。
 
 协议转换在 `openai_compat.OpenAiCompatibleChatAdapter` 里——GLM 与 DeepSeek 的对话接口
 是同一个形状（`POST {base_url}/chat/completions`、SSE 以 `[DONE]` 收尾），
 写两份就会有两份要一起改的代码。这里只放这一家的常量与采样参数。
 
 采样参数固定为官方建议值（`temperature=1`、`top_p=0.95`、`reasoning_effort=max`），
-M0 的管线不覆盖；`ChatOptions` 显式给出的值仍然生效，覆盖是调用方的显式行为。
+管线不覆盖；`ChatOptions` 显式给出的值仍然生效，覆盖是调用方的显式行为。
 
 凭据只读环境变量 `GLM_API_KEY`，缺失时构造即抛 `ProviderConfigError`：不静默降级，
 也不在日志里回显密钥。
@@ -26,7 +26,7 @@ GLM_ANSWER_MODEL = "glm-5.3-flash"
 
 GLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 
-# 官方建议采样参数（M0-01 §5.2）；M0 的管线不覆盖。
+# 官方建议采样参数；管线不覆盖。
 GLM_TEMPERATURE = 1.0
 
 GLM_TOP_P = 0.95

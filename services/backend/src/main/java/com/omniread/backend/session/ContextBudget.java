@@ -3,7 +3,7 @@ package com.omniread.backend.session;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 多轮上下文的三个预算参数（`docs/方案.md（多轮会话一节）` §三）。
+ * 多轮上下文的三个预算参数。
  *
  * <p>它们不是三件独立的事：{@code historyBudgetTokens} **同时**是「分给近轮原文的预算」
  * 与「摘要的触发线」（{@link SummaryPlanner}），因为这两句话说的是同一件事——
@@ -24,7 +24,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ContextBudget(
         int historyBudgetTokens, int minRecentTurns, int keepRecentOnSummarize) {
 
-    /** 与方案 §三 的默认值一致；测试与纯函数用这个，不必起 Spring 上下文。 */
+    /** 与默认值一致；测试与纯函数用这个，不必起 Spring 上下文。 */
     public static final ContextBudget DEFAULT = new ContextBudget(12000, 2, 8);
 
     public ContextBudget {

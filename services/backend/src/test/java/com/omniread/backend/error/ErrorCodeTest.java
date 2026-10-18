@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
 /**
- * 错误映射表（M0-01 §7）是网关对外承诺的一部分：
+ * 错误映射表是网关对外承诺的一部分：
  * code 决定 HTTP 状态，判错了前端就分不清「材料不足」与「服务坏了」。
  */
 class ErrorCodeTest {

@@ -1,14 +1,14 @@
 name: CI
 
-# M0-03 §5 的「每次 push」清单。
+# 「每次 push」的检查清单。
 #
 # 命令表只有一份：调 `scripts/verify-all.sh --ci`，不在这里把 uv / pytest / mvn / npm
 # 再抄一遍——两处各写一遍迟早漂移，而漂移的那一侧不会有人发现。
 #
-# `--ci` 跳过依赖 `asset/` 的三步（检索冒烟、回答冒烟、映射链）：语料不入库（M0-00 §6），
+# `--ci` 跳过依赖 `asset/` 的三步（检索冒烟、回答冒烟、映射链）：语料不入库，
 # 远端没有。`eval/` 产物红线那步会自我降级成「只查文件白名单与字段长度」并打印说明。
 #
-# **不进入公共 CI 的**（M0-03 §5）：真实语料、密钥、真实模型调用。
+# **不进入公共 CI 的**：真实语料、密钥、真实模型调用。
 #
 # 远端在 GitHub Actions 上跑（公开仓库 `ymjy-work/Omniread`）。JDK 与 Node 由本文件钉住，
 # 但 **Python 由 uv 在 runner 上自选**（`requires-python` 只写 `>=3.13`，没有 .python-version 或
@@ -46,5 +46,5 @@ jobs:
           enable-cache: true
           cache-dependency-glob: services/rag/uv.lock
 
-      - name: M0-03 §5 的检查序列（跳过依赖语料的三步）
+      - name: 检查序列（跳过依赖语料的三步）
         run: bash scripts/verify-all.sh --ci

@@ -12,10 +12,10 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * 账户管理命令：发放 / 停用 / 列出（`docs/方案.md（用户管理一节）` §三）。
+ * 账户管理命令：发放 / 停用 / 列出。
  *
- * <p>**这是管理方动作的唯一入口**：账户由开发者发放、不开放注册（§一），而 §四 明确
- * 不做管理后台 UI，所以只能是一个命令行工具。包装脚本是 `scripts/account.sh`。
+ * <p>**这是管理方动作的唯一入口**：账户由开发者发放、不开放注册，又明确不做管理后台 UI，
+ * 所以只能是一个命令行工具。包装脚本是 `scripts/account.sh`。
  *
  * <p>**口令只从环境变量读，不接受命令行参数**：argv 会进 shell 历史、会出现在进程列表里，
  * 在同一个终端里按一次上箭头就能原样捞回来。
@@ -117,7 +117,7 @@ public class AccountAdminRunner implements ApplicationRunner {
         if (user == null) {
             throw new IllegalStateException("没有这个账户：" + username);
         }
-        // D15：一个事务里删登录会话 / 对话会话 / 消息 / 进度，账户行留 disabled。
+        // 一个事务里删登录会话 / 对话会话 / 消息 / 进度，账户行留 disabled。
         accountService.disableAndPurge(user.getId());
         report("已停用并清理账户：" + username);
     }

@@ -1,8 +1,8 @@
-"""模型级拒答标记的首部判定（M0-02 §8.3）。
+"""模型级拒答标记的首部判定。
 
 `scan_prefix` 是流式路径上的判定核心，所以这里按「结论」把边界逐条钉死：
 什么算还没法判、什么一定不是、什么已经确定是。判定错一个方向的代价不对称——
-误判成拒答会丢掉一条正常回答，漏判则让 §8.3 的 `context_chapters` 区分失效。
+误判成拒答会丢掉一条正常回答，漏判则让 `context_chapters` 空不空的区分失效。
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from omniread.pipelines.answering.refusal import (
         (REFUSAL_MARKER[:-1], PREFIX_PENDING),
         ("\n\n  " + REFUSAL_MARKER, PREFIX_REFUSAL),
         (REFUSAL_MARKER, PREFIX_REFUSAL),
-        # 标记之后还有正文也算拒答：服务端会用一个固定话术整体替换（§8.3）。
+        # 标记之后还有正文也算拒答：服务端会用一个固定话术整体替换。
         (REFUSAL_MARKER + "\n当前进度内……", PREFIX_REFUSAL),
         # 空白上限只在**还没匹配上**时决定「不再等了」；已经匹配上的不受它影响——
         # 上限管的是缓冲别无限涨，不是「空白太多就不算拒答」。

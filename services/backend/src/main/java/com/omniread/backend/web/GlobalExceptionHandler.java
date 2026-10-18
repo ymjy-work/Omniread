@@ -22,7 +22,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
- * 非 2xx 一律 {request_id, code, message}（M0-02 §8.8）：三字段扁平、不套 error 对象。
+ * 非 2xx 一律 {request_id, code, message}：三字段扁平、不套 error 对象。
  *
  * 这里只覆盖网关自己会产生错误的几条路径。未知 URL 的 404、方法不支持的 405
  * 交给框架默认处理 —— 它们不属于契约里的错误语义，用 RAG 的 code 去描述反而是错的。

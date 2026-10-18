@@ -1,4 +1,4 @@
-"""上下文装配：章去重 + 邻块补位 + 截断 + realm re-check + token budget（M0-01 §4.3）。
+"""上下文装配：章去重 + 邻块补位 + 截断 + realm re-check + token budget。
 
 顺序不可调换，且每一步的判据都独立可查：
 
@@ -114,7 +114,7 @@ def assemble(
     params: RetrievalParams = DEFAULT_PARAMS,
     expand_neighbors: bool = True,
 ) -> AssemblyResult:
-    """按 M0-01 §4.3 把 rerank 候选池装配成最终上下文。
+    """把 rerank 候选池装配成最终上下文。
 
     `candidates` 是 rerank 序的候选池（入口按 `rank` 再排一次，避免调用方传乱序）；
     `chunks` 是本次加载的 chunk 视图，邻块补位只在这里面查，不触发新的检索。

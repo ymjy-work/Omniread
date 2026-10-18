@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 书目录来自 Python；阅读进度按账户落在 Java 的 SQLite 里（M0-01 §1：Python 不保存用户进度）。
+ * 书目录来自 Python；阅读进度按账户落在 Java 的 SQLite 里（Python 不保存用户进度）。
  *
  * 目录端点只做协议转发；进度端点是真正的读写，边界校验留在这一层。
  * 进度**必须带账户**：它是「读到哪」这件事的一部分，缺了 user_id 就退化成所有人共享一份。
@@ -65,7 +65,7 @@ public class CatalogController {
     }
 
     /**
-     * 章节正文：**卷外一律 403**（部署口径 §三-3，产品上的刻意取舍）。
+     * 章节正文：**卷外一律 403**（产品上的刻意取舍）。
      *
      * <p>先判范围再取正文：越界时不必向上游要一次全文，也就没有「取回来了再丢掉」那一步。
      * 前后导航同理往回收——不然读到第 1 卷末尾，界面上的「下一章」会指向卷外那一章，
@@ -95,7 +95,7 @@ public class CatalogController {
      *
      * 路径由客户端传来，目录穿越与扩展名白名单两道防护在 Python 侧（内部契约该端点的要求），
      * 网关只负责不落内存地转出去。这里同步写而不是走异步：流没结束就占住一个请求线程，
-     * M0 单机阅读场景下这点代价换来的是「首字节立刻到、每片即刷」。
+     * 单机阅读场景下这点代价换来的是「首字节立刻到、每片即刷」。
      */
     @GetMapping("/{book_id}/images/{*path}")
     public void getImage(@PathVariable("book_id") int bookId, @PathVariable("path") String path, HttpServletResponse response)
@@ -126,7 +126,7 @@ public class CatalogController {
             @PathVariable("book_id") int bookId,
             @RequestBody @Valid ProgressWrite body,
             @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
-        // 越界与否取决于该书的 chapter_count，只能由 Java 判（M0-01 §7）。
+        // 越界与否取决于该书的 chapter_count，只能由 Java 判。
         RealmValidator.validateProgress(body.progress(), bookCatalog.chapterCount(bookId));
         return progressStore.write(user.userId(), bookId, body.progress());
     }

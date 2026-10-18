@@ -5,8 +5,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 口令哈希。只借 `spring-security-crypto` 的 BCrypt 实现，不引 Spring Security 全家桶——
- * 这个项目要的只有「登录 / 退出 / 401」三件事，过滤器链与它的配置面比它解决的问题大
- * （`docs/方案.md（依赖与选型一节）` §三）。
+ * 这个项目要的只有「登录 / 退出 / 401」三件事，过滤器链与它的配置面比它解决的问题大。
  *
  * <p>BCrypt 自带盐，所以同一个口令两次哈希不相等，比对只能走 {@link #matches}——
  * 想用等号比较哈希的地方都是错的。

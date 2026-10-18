@@ -1,8 +1,8 @@
-"""语料读取、校验与导入清单 / 逐章校验和（M0-02 §2、§4）。
+"""语料读取、校验与导入清单 / 逐章校验和。
 
 `index.jsonl` 是唯一数据源：每行自带 `text` 正文，行号即 `chapter_index`。
 任一行缺字段、正文为空或引用图片缺失都直接抛 `CorpusFormatError`，不静默跳过——
-分母失真的数据比没有数据更危险（M0-02 §2）。
+分母失真的数据比没有数据更危险。
 
 逐章 hash 复用 `omniread.domain.text`，与 `chapters.content_hash` 同源，
 不在这里另写一份实现，避免「同一段正文两个值」。
@@ -63,14 +63,14 @@ class Corpus:
 
 
 def chapter_id(book_id: int, chapter_index: int) -> str:
-    """`book:{book_id}:chapter:{chapter_index}`（M0-02 §1）。"""
+    """`book:{book_id}:chapter:{chapter_index}`。"""
     return f"book:{book_id}:chapter:{chapter_index}"
 
 
 def derive_corpus_version(index_bytes: bytes) -> str:
     """默认语料版本取 index.jsonl 原始字节 sha256 的前 12 位。
 
-    内容定址：语料一改版本即变，与「corpus hash 变化即新基线」（M0-02 §7.3）一致；
+    内容定址：语料一改版本即变，与「corpus hash 变化即新基线」一致；
     调用方可用 `corpus_version` 参数覆盖。
     """
     return "corpus-" + sha256(index_bytes).hexdigest()[:12]
@@ -108,7 +108,7 @@ def read_corpus(
 
 
 def build_manifest(corpus: Corpus, imported_at: datetime) -> dict[str, object]:
-    """导入清单：书名、作者、corpus_version、章节数、卷数、导入时间（M0-02 §4）。"""
+    """导入清单：书名、作者、corpus_version、章节数、卷数、导入时间。"""
     return {
         "book_id": corpus.book_id,
         "title": corpus.title,
@@ -121,7 +121,7 @@ def build_manifest(corpus: Corpus, imported_at: datetime) -> dict[str, object]:
 
 
 def build_checksums(corpus: Corpus) -> dict[str, object]:
-    """逐章 hash 及其汇总 `corpus_manifest_hash`（M0-02 §4、§7）。"""
+    """逐章 hash 及其汇总 `corpus_manifest_hash`。"""
     entries: list[dict[str, object]] = [
         {
             "chapter_index": chapter.chapter_index,

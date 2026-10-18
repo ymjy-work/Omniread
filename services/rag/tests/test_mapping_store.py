@@ -1,4 +1,4 @@
-"""`chunk_mappings` 待写行的构造规则（M0-7b）。
+"""`chunk_mappings` 待写行的构造规则。
 
 这里只测纯函数、不连库：去重规则一旦退回「把 run 产物行原样批量写入」，
 真库会整批拒绝（`ON CONFLICT DO UPDATE command cannot affect row a second time`），

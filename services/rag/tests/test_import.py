@@ -1,4 +1,4 @@
-"""导入映射（M0-3）单测：卷序号首现次序、章行号、chunk 标识与确定性。
+"""导入映射单测：卷序号首现次序、章行号、chunk 标识与确定性。
 
 真库上的幂等与 prev/next 回填由 `scripts/import-corpus.sh` 跑完后的 SQL 抽检验证；
 这里只测不碰库的 `build_import_plan`，以及语料缺正文的硬错误。
@@ -74,7 +74,7 @@ def test_volume_index_follows_first_appearance(counter: TokenCounter) -> None:
 
     plan = build_import_plan(corpus, counter=counter)
 
-    # 次序按 vol 首次出现，不按数字排（M0-02 §1）。
+    # 次序按 vol 首次出现，不按数字排。
     assert [(volume.volume_index, volume.title) for volume in plan.volumes] == [
         (1, "第十卷"),
         (2, "第一卷"),
@@ -99,7 +99,7 @@ def test_chapter_fields_reuse_corpus_normalization_and_hash(counter: TokenCounte
 
 
 def test_chapter_rows_carry_image_paths(counter: TokenCounter) -> None:
-    # 图片路径原样从 index.jsonl[].images 带进 chapters.image_paths（M0-02 §2），
+    # 图片路径原样从 index.jsonl[].images 带进 chapters.image_paths，
     # 目录接口据此重建 marker→url；无图章保持空元组。
     images = ("images/01_第1卷/007.jpg", "images/01_第1卷/008.jpg")
     plan = build_import_plan(

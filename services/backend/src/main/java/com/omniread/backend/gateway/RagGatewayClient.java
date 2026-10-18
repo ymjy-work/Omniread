@@ -24,7 +24,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriUtils;
 
 /**
- * 调用 Python RAG 服务内部契约（M0-01 §7）。
+ * 调用 Python RAG 服务内部契约。
  *
  * 只做传输与错误翻译，不含编排：realm 校验、request_id 生成都在上层。
  * 出错一律抛 {@link RagException}，调用方不必认识 Spring 的 HTTP 异常类型。

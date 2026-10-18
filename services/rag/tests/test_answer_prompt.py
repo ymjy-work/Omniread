@@ -34,7 +34,7 @@ def test_template_file_carries_the_required_disciplines() -> None:
     assert "不得使用材料之外的知识" in prompt.system
     assert "[C17]" in prompt.system
     assert "不得写成 Markdown 链接" in prompt.system
-    # 拒答走结构化标记，不靠模型自述那句话——话术由服务端填（M0-02 §8.3）。
+    # 拒答走结构化标记，不靠模型自述那句话——话术由服务端填。
     # 标记的另一半真相源是 `refusal.REFUSAL_MARKER`，两边对不上就是口径分叉的开始。
     assert REFUSAL_MARKER in prompt.system
 
@@ -91,7 +91,7 @@ def test_parse_rejects_missing_section_or_placeholder() -> None:
         parse_answer_prompt("<system>纪律</system>\n<user>只有材料没有占位符</user>")
 
 
-# ── 多轮：摘要与近轮的插入位置（D1）──
+# ── 多轮：摘要与近轮的插入位置──
 
 
 def test_multi_turn_order_is_fixed() -> None:
@@ -128,7 +128,7 @@ def test_multi_turn_order_is_fixed() -> None:
 def test_single_turn_is_still_exactly_two_messages() -> None:
     """没有历史也没有摘要时，输出与「只有 system / user 两段」逐字节相同。
 
-    86 题评测走的正是这条路——只要它逐字节不变，M1-2 的基线就仍然可比。
+    86 题评测走的正是这条路——只要它逐字节不变，答案层的基线就仍然可比。
     """
     prompt = load_answer_prompt()
     messages = build_answer_messages("问题", PASSAGES)

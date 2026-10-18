@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 清理过期的登录会话行：**启动时一次、之后每日一次**（`docs/方案.md（依赖与选型一节）` §十）。
+ * 清理过期的登录会话行：**启动时一次、之后每日一次**。
  *
  * <p>不清理也不影响正确性——{@link AuthService#resolve} 自己会判过期——清的是磁盘上
  * 越积越多的废行。所以定时任务排在凌晨四点十七分这种没有含义的时刻，

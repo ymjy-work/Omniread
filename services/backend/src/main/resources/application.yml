@@ -17,7 +17,7 @@ mybatis:
 
 omniread:
   context:
-    # 多轮上下文预算（多轮会话落地方案 §三）。三个数不是三件独立的事：
+    # 多轮上下文预算。三个数不是三件独立的事：
     # history-budget-tokens 同时是「近轮原文的预算」与「摘要的触发线」——攒下的对话
     # 超过了模型能看到的量，就有一段谁也看不见；keep-recent 决定那一段从哪里切开。
     #
@@ -28,18 +28,18 @@ omniread:
     min-recent-turns: ${OMNIREAD_MIN_RECENT_TURNS:2}
     keep-recent-on-summarize: ${OMNIREAD_KEEP_RECENT_ON_SUMMARIZE:8}
   store:
-    # 账户 / 会话 / 进度 / 配额都落这一个 SQLite 文件（多轮会话落地方案 §一）。
+    # 账户 / 会话 / 进度 / 配额都落这一个 SQLite 文件。
     # 连接参数（WAL / busy_timeout / foreign_keys）由 StoreConfig 拼进 URL，不在这里。
     file: ${OMNIREAD_DB_FILE:var/omniread.db}
   auth:
-    # 登录 cookie 的 Secure 属性（docs/方案.md（用户管理一节） §三）。默认开，缺省即安全：
+    # 登录 cookie 的 Secure 属性。默认开，缺省即安全：
     # 只有在本机用 http 调试、且浏览器不把 localhost 当可信来源时才关，
     # 而关掉之后 cookie 走明文，**不能进部署环境**。cookie 名不在这里——它由契约钉死。
     cookie-secure: ${OMNIREAD_AUTH_COOKIE_SECURE:true}
-    # 登录态有效期；方案定的是 8 小时，到点重新登录（不做滑动续期）。
+    # 登录态有效期 8 小时，到点重新登录（不做滑动续期）。
     session-ttl: ${OMNIREAD_AUTH_TTL:8h}
   rag:
-    # Python RAG 服务地址。Java 是唯一调用方，前端不直连（M0-00 §4）。
+    # Python RAG 服务地址。Java 是唯一调用方，前端不直连。
     base-url: ${OMNIREAD_RAG_BASE_URL:http://127.0.0.1:8000}
     # 连不上要快速失败：请求已经进来，拖住客户端没有意义。
     connect-timeout: 2s
@@ -59,7 +59,7 @@ omniread:
     # 从仓库根或从 services/backend 启动都能命中；目录不存在时只跳过静态资源托管。
     dist-dir: ${OMNIREAD_WEB_DIST:web/dist}
   quota:
-    # 单账户限频 / 日额度 / 并发与登录失败锁 IP（docs/方案.md（配额与限流一节） §二）。
+    # 单账户限频 / 日额度 / 并发与登录失败锁 IP。
     # **值都进配置是为了验收**：要逐项触发四类 429，得在 2 轮/日、1 轮/分这种小阈值下跑。
     # 一轮 = 一次 /api/v1/query（同步与流式各算一次）；改写与摘要这类附带调用不单独计。
     turns-per-minute: ${OMNIREAD_QUOTA_PER_MINUTE:5}
@@ -73,7 +73,7 @@ omniread:
     retention-days: ${OMNIREAD_USAGE_RETENTION_DAYS:30}
 
   reading:
-    # 阅读页只开放第 1 卷（部署口径 §三-3，产品上的刻意取舍，不是权限 bug）。
+    # 阅读页只开放第 1 卷（产品上的刻意取舍，不是权限 bug）。
     # 章号区间由 Java 从章节表按 volume_index 推导，不在这里写死——语料重导入换了卷结构
     # 时那份写死的区间会静默地挡住或放行错误的章。
     volume-index: ${OMNIREAD_READING_VOLUME:1}

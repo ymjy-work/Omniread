@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""M0-7b 映射链验证：确定性主路径 + 兜底路径 smoke + 产物红线，全程无真实 API 调用。
+"""映射链验证：确定性主路径 + 兜底路径 smoke + 产物红线，全程无真实 API 调用。
 
 覆盖内容：
 
@@ -248,7 +248,7 @@ def check_redline(checker: Checker, result, evidence) -> None:
         (run_dir / "debug.txt").unlink()
 
     section("7b 超长字段在写入前被拒")
-    # 600 字符，明确越过 M0-02 §7.1 的 500 上限；写成乘法是为了让意图一眼可见，
+    # 600 字符，明确越过 500 上限；写成乘法是为了让意图一眼可见，
     # 而不是让人去数字符。
     long_record = replace(result.records[0], overlap_reason="理由" * 300)
     target = Path(tempfile.mkdtemp()) / "run"

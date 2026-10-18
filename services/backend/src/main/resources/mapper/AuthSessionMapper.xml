@@ -17,7 +17,7 @@
     DELETE FROM auth_sessions WHERE token_hash = #{tokenHash}
   </delete>
 
-  <!-- D15 的「停用即失效」：一条 DELETE 吊销该账户的全部登录会话。 -->
+  <!-- 「停用即失效」：一条 DELETE 吊销该账户的全部登录会话。 -->
   <delete id="deleteByUserId">
     DELETE FROM auth_sessions WHERE user_id = #{userId}
   </delete>

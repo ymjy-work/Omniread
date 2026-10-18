@@ -291,7 +291,7 @@ async def test_refusal_in_json_route_is_200_with_fixed_answer(image_root) -> Non
 
 
 def _model_level_refusal_case() -> AnsweringRunner:
-    """模型级拒答（M0-02 §8.3）：有上下文，但模型按模板要求以标记开头作答。
+    """模型级拒答：有上下文，但模型按模板要求以标记开头作答。
 
     `chunk_size=5` 让标记 `[INSUFFICIENT]` 必然被切成多个分片——跨块的判定是这条
     路径最容易写错的地方（只对单块判就会漏）。
@@ -310,7 +310,7 @@ def test_model_level_refusal_replaces_the_answer_and_keeps_context_chapters(
 ) -> None:
     """模型级拒答经两个适配器表达同一件事：固定话术 + **非空** `context_chapters`。
 
-    §8.3 正是用 `context_chapters` 空不空区分「检索为空」与「模型答不了」，
+    `context_chapters` 空不空正是用来区分「检索为空」与「模型答不了」，
     所以这条路径不能把章号清掉。
     """
     expected = [{"chapter_index": 17, "chapter_title": "第17章 标题"}]
@@ -340,7 +340,7 @@ def test_model_level_refusal_replaces_the_answer_and_keeps_context_chapters(
     assert "".join(deltas) == REFUSAL_ANSWER
 
 
-# ---- 模型级拒答标记（M1-2）------------------------------------------------
+# ---- 模型级拒答标记------------------------------------------------
 
 
 def _marker_chat(answer: str, *, chunk_size: int = 4) -> AnsweringRunner:
@@ -382,7 +382,7 @@ async def test_marker_after_leading_whitespace_is_still_a_refusal() -> None:
 
 
 async def test_marker_in_the_middle_is_not_a_refusal_and_is_not_removed() -> None:
-    # 只认开头，且不改写模型输出（M0-04 §4）：中段的标记与越界引用同一条口径，原样保留。
+    # 只认开头，且不改写模型输出：中段的标记与越界引用同一条口径，原样保留。
     answer = f"材料里没有直接说明，[C17] 但这句提到了 {REFUSAL_MARKER} 这个词。"
 
     text, status = await _answer_text_and_status(_marker_chat(answer, chunk_size=3))
@@ -504,7 +504,7 @@ async def test_missing_context_chunk_fails_loudly() -> None:
 
 
 async def test_model_output_is_forwarded_verbatim_even_with_out_of_range_citations() -> None:
-    # 越界引用原样保留：不设引用白名单过滤、不剔除越界引用（M0-04 §4）。
+    # 越界引用原样保留：不设引用白名单过滤、不剔除越界引用。
     # 这条断言防止后来者「顺手加过滤」——过滤只覆盖带引用的越界，覆盖不了真正的泄漏路径。
     answer = "政近离开了 [C99]，文中还出现 [C017] 与 [c17]，以及 [C17,C45]。"
     runner, _ = _runner(
@@ -577,7 +577,7 @@ def _replay(events: Sequence[RagEvent]) -> AsyncIterator[RagEvent]:
     return generator()
 
 
-# ---- 改写：跑在检索之前，且检索用的是改写后的问题（D2）----------------------
+# ---- 改写：跑在检索之前，且检索用的是改写后的问题----------------------
 
 
 class _RewriteChat:

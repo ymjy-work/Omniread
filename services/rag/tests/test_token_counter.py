@@ -1,6 +1,6 @@
 """TokenCounter 的单测：计数、硬切不丢字、尾窗与确定性。
 
-`tokenizer_id` 与 600/60 口径是单向门（M0-03 §3），这里钉住常量值与切分契约。
+`tokenizer_id` 与 600/60 口径是单向门，这里钉住常量值与切分契约。
 """
 
 from __future__ import annotations

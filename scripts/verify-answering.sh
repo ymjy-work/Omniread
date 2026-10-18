@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# M0-5 回答链验证入口：检索 → 装配 → prompt → 流式生成 → 引用 → JSON / SSE 适配器。
+# 回答链验证入口：检索 → 装配 → prompt → 流式生成 → 引用 → JSON / SSE 适配器。
 #
-# 验收对应（M0-03 §2 M0-5）：GLM adapter、拒答、JSON 与 SSE 两个适配器可用。
+# 验收项：GLM adapter、拒答、JSON 与 SSE 两个适配器可用。
 # 默认全程用假 provider，直接从仓库内语料分块，不发真实调用、不连库；
 # 细节与逐项断言在 scripts/verify_answering.py。
 #

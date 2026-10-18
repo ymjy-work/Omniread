@@ -122,7 +122,7 @@ def _scored_chunks(hits: tuple[StageHit, ...]) -> list[schemas.ScoredChunk]:
 def _retrieval_response(
     outcome: RetrievalOutcome, request_id: str
 ) -> schemas.RetrievalOnlyResponse:
-    """逐阶段完整、不截断（M0-02 §8.7）；装配集按 `chunk_index` 升序呈现。"""
+    """逐阶段完整、不截断；装配集按 `chunk_index` 升序呈现。"""
     return schemas.RetrievalOnlyResponse(
         request_id=request_id,
         realm=schemas.RealmBounds(lo=outcome.realm.lo, hi=outcome.realm.hi),

@@ -1,4 +1,4 @@
-# Omniread M0 本地基础设施：PostgreSQL + pgvector、MinIO。
+# Omniread 本地基础设施：PostgreSQL + pgvector、MinIO。
 # 只起数据面；Java / Python 服务由各自的构建流程启动，不在这里编排。
 #
 # 端口避让（本机已有容器占用，不要改回镜像默认端口）：
@@ -44,7 +44,7 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      # 控制台登录凭证；secret 与 M0-01 §5.2 的 MINIO_SECRET_KEY 同一个 keymgr 条目
+      # 控制台登录凭证；secret 与 MINIO_SECRET_KEY 同一个 keymgr 条目
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-MinIO-Omniread}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY 未注入：请先经 keymgr 注入后再执行 compose}
     ports:

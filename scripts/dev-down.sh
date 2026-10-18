@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Omniread M0 停止脚本：先停 Java / Python（可选前端），再按需停基础设施。
+# Omniread 停止脚本：先停 Java / Python（可选前端），再按需停基础设施。
 #
 # 用法（Git Bash）：
 #   bash scripts/dev-down.sh          只停 Java + Python（+ 前端，若在跑）

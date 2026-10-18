@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# M0-7b 映射链验证入口：确定性区间映射 + 兜底路径 smoke + 产物红线，全程不发真实 API 调用。
+# 映射链验证入口：确定性区间映射 + 兜底路径 smoke + 产物红线，全程不发真实 API 调用。
 #
-# 验收对应（M0-03 §2 M0-7b）：evidence→chunk 映射完成且抽样复核可用、数据集 hash 可冻结。
+# 验收项：evidence→chunk 映射完成且抽样复核可用、数据集 hash 可冻结。
 # 细节与逐项断言在 scripts/verify_mapping.py。
 #
 # 用法（Git Bash，仓库根执行，**不需要任何凭据**）：

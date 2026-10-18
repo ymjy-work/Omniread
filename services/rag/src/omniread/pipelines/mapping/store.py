@@ -1,4 +1,4 @@
-"""`chunk_mappings` 的写入、失效与读时校验（M0-02 §3.6）。
+"""`chunk_mappings` 的写入、失效与读时校验。
 
 **五元组主键覆盖不到什么**（这是本模块存在的另一半理由）。主键是
 `(evidence_hash, chunking_version, tokenizer_id, mapper_model, mapper_prompt_version)`，
@@ -137,8 +137,8 @@ def purge_mappings(
 ) -> int:
     """按维度删除映射行；返回删除行数。
 
-    M0-02 §3.6 要求「改映射 prompt 或换 mapper 模型必须显式 purge，否则旧映射被静默复用」，
-    但未给出命令——这就是那条命令。三个维度都可选，不传即整表清空；调用方必须显式说明
+    规则：改映射 prompt 或换 mapper 模型必须显式 purge，否则旧映射被静默复用。
+    三个维度都可选，不传即整表清空；调用方必须显式说明
     自己在清什么，避免「以为只清了 prompt、其实把模型维度也清了」。
     """
     statement = delete(ChunkMapping)

@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
- * 登录失败按 **IP** 限次：窗口内失败到次数就锁一段时间（`docs/方案.md（配额与限流一节）` §二）。
+ * 登录失败按 **IP** 限次：窗口内失败到次数就锁一段时间。
  * 其余三项都按账户计，只有它按 IP——猜口令的人还没有账户，而锁账户等于让攻击者
  * 用几次失败把别人的账户锁死。
  *

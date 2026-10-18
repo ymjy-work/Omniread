@@ -1,6 +1,6 @@
 """模型 provider 适配器：GLM 回答、阿里百炼 embedding / rerank，以及测试用的确定性假 provider。
 
-接口（`ChatModel` / `EmbeddingModel` / `RerankModel`）与 `ModelRegistry` 见 M0-01 §5；
+接口（`ChatModel` / `EmbeddingModel` / `RerankModel`）定义在 `base.py`；
 客户端复用 `httpx`，不引入 LangChain。
 """
 

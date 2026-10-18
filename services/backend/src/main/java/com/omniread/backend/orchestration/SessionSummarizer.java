@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 会话摘要：**阈值触发、后台执行、失败不推进**（`docs/方案.md（多轮会话一节）` §三）。
+ * 会话摘要：**阈值触发、后台执行、失败不推进**。
  *
  * <p>一次问答的收尾处调用 {@link #maybeSummarize}。它只做判定与投递，压缩本身在
  * {@link SummaryExecutor} 的线程上跑——摘要要等多一次模型往返，不能挂在用户等待的那条链上。

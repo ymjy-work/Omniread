@@ -1,4 +1,4 @@
-"""阿里云百炼适配器：embedding 与 rerank（M0-01 §5.2）。
+"""阿里云百炼适配器：embedding 与 rerank。
 
 两个端点协议不同，各按各的写：
 
@@ -200,7 +200,7 @@ class AliEmbeddingAdapter:
 class AliRerankAdapter:
     """`RerankModel` 的百炼实现。
 
-    输入 24 / 输出 24 是管线口径（M0-00 §5），适配器只转发 `top_n`：不替调用方
+    输入 24 / 输出 24 是管线口径，适配器只转发 `top_n`：不替调用方
     做候选截断之外的任何决策。
     """
 

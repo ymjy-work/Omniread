@@ -1,4 +1,4 @@
-"""答案层评测编排（M1-2）。
+"""答案层评测编排。
 
 与检索层同一个 run 目录、同一次跑：`run_eval.py --answer-layer` 先跑检索拿到装配集，
 再让**同一个 `AnsweringRunner`**（线上问答链的那一个，不是它的复刻）逐题作答。
@@ -44,7 +44,7 @@ class GenerationEvalResult:
     records: tuple[GenerationScoreRecord, ...]
     summary: dict[str, object]
     failures: tuple[dict[str, object], ...]
-    #: 逐题回答原文，**只给复核件用**（`M0-02` §7.1：回答原文只落 `temp/`）。
+    #: 逐题回答原文，**只给复核件用**（回答原文只落 `temp/`）。
     #: 它不进任何逐题记录——`GenerationScoreRecord` 里没有放正文的位置是有意的。
     #: 人工抽检与「标记没被认出来」的排查都要看它，所以留着；写盘由调用方决定。
     outcomes: tuple[AnswerOutcome, ...] = ()

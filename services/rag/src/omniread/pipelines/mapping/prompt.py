@@ -1,4 +1,4 @@
-"""映射兜底路径的 prompt 与其版本（M0-02 §6.3）。
+"""映射兜底路径的 prompt 与其版本。
 
 `mapper_prompt_version` 是 `chunk_mappings` 五元组主键的分量，改 prompt 即整体失效。
 因此版本串必须覆盖**模型能看到的全部文本**——模板正文之外，还包括候选 chunk 的渲染格式
@@ -18,7 +18,7 @@ from omniread.pipelines.mapping.types import MapperCandidate
 
 PROMPT_VERSION_LENGTH = 16
 
-# 末行按源码宽度折成两段字面量拼接；拼出来的字符串与 M0-02 §6.3 的原文逐字一致。
+# 末行按源码宽度折成两段字面量拼接。
 MAPPING_PROMPT_TEMPLATE = (
     "你是一个精确的文本定位助手。给定一段证据文本和一组 chunk，"
     "找出与证据文本重叠度最高的 chunk。\n"

@@ -19,6 +19,6 @@ public interface UsageDailyMapper {
     /** 只保留最近若干天；启动时清一次。 */
     int deleteBefore(@Param("day") String day);
 
-    /** 停用账户时随会话与进度一起清理（D15）。 */
+    /** 停用账户时随会话与进度一起清理。 */
     int deleteByUserId(@Param("userId") long userId);
 }

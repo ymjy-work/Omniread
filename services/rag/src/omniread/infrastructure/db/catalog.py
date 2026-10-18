@@ -29,7 +29,7 @@ def build_image_refs(book_id: int, image_paths: Sequence[str]) -> tuple[ImageRef
 
     - marker 取文件主干：`images/01_第1卷/007.jpg` → `"007"`，与正文里 `[插图007]` 的编号对齐；
     - url 去掉语料自带的 `images/` 前缀，拼成 `/api/v1/books/{book_id}/images/{相对路径}`，
-      即 M0-02 §8.8 的契约形状（前端直接用作 `<img src>`）。
+      即对外契约的形状（前端直接用作 `<img src>`）。
     """
     return tuple(
         # 语料路径一律 POSIX 风格，用 PurePosixPath 取主干，不受宿主平台影响。

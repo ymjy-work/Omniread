@@ -1,4 +1,4 @@
-"""装配（M0-01 §4.3）：三道 cap、邻块方向与同章、realm、token budget。
+"""装配：三道 cap、邻块方向与同章、realm、token budget。
 
 语料是合成的小书：章内 chunk 用 prev/next 串成链，与导入后 `chunks` 表的形状一致。
 装配只读这份视图，测试不碰数据库也不需要 provider。
@@ -60,7 +60,7 @@ def _index(records: Sequence[ChunkRecord]) -> dict[str, ChunkRecord]:
 def _params(**overrides: int) -> RetrievalParams:
     """测试自带的参数，**刻意不跟 `RetrievalParams()` 的默认值走**。
 
-    那个默认值就是当前基线，而基线会换：M1 冻结新基线时它从
+    那个默认值就是当前基线，而基线会换：它可能从
     `ask_chunks_per_chapter=2 / ask_top_k=8 / rerank_k=24` 变成 `4 / 12 / 32`，
     照默认值写的断言当场集体变红——可它们要钉的是**装配逻辑本身**
     （上限怎么结算、邻居怎么补、预算怎么让位），与某一版基线的取值无关。

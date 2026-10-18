@@ -1,7 +1,7 @@
--- 用户 / 会话 / 进度 五张表（docs/m1/多轮会话落地方案.md §二）。
+-- 用户 / 会话 / 进度 五张表。
 --
 -- 全部 CREATE ... IF NOT EXISTS：SQLite 没有独立的迁移工具，一期就是启动时幂等建表
--- （选型理由见 docs/m1/java-依赖与选型.md §三：四张表、单实例，引 Flyway / Liquibase
+-- （四张表、单实例，引 Flyway / Liquibase
 -- 要多一个依赖与一套配置）。变更记 schema_version，由 SchemaInitializer 写。
 --
 -- 时间一律存 ISO-8601 字符串而不是 SQLite 的日期类型：避开时区与 typeHandler 依赖。
@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- 登录会话：不透明 token，**库里只存哈希**，原文只在 cookie 里。
--- 不用 JWT 也不用容器 HttpSession 的理由见 java-依赖与选型.md §十——
--- D15 的「停用即失效」要求按用户批量吊销，这里一条 DELETE 就能做到。
+-- 不用 JWT 也不用容器 HttpSession 的理由：
+-- 「停用即失效」要求按用户批量吊销，这里一条 DELETE 就能做到。
 CREATE TABLE IF NOT EXISTS auth_sessions (
   token_hash   TEXT PRIMARY KEY,
   user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages (session_id, seq);
 
--- 每日问答计数（docs/m1/配额与限流方案.md §三）。**跨重启保留**是它的全部理由：
+-- 每日问答计数。**跨重启保留**是它的全部理由：
 -- 分钟窗口在内存里、重启清零可以接受，而「今天已经问了多少轮」清掉就等于白送额度。
 -- 只保留最近若干天，启动时清一次旧行。
 --

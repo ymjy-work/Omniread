@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""生成 Golden 逐题复核件，供 Ready Gate 第 2、3 条人工签认（M0-04 §2.3）。
+"""生成 Golden 逐题复核件，供人工签认。
 
-第 2 条要复核「类型 / 难度 / progress / expect_refusal」，第 3 条要确认
-「`reference_points` 与 `reference_answer` 已重构完成」。这两条都没有机器判据，
+要复核「类型 / 难度 / progress / expect_refusal」，并确认
+「`reference_points` 与 `reference_answer` 已重构完成」。这两项都没有机器判据，
 但**复核件本身可以是可判的**：把每题的这六个字段摊平到一页，复核人不必逐个打开
 86 个 JSON。
 
@@ -49,7 +49,7 @@ def render(questions: list[dict], dataset_hash: str, focus: str | None) -> str:
     refusals = sum(1 for q in shown if q["expect_refusal"])
 
     lines = [
-        "# Golden 逐题复核（Ready Gate 第 2、3 条）",
+        "# Golden 逐题复核",
         "",
         f"- dataset_hash：`{dataset_hash}`",
         f"- 复核 {len(shown)} / {len(questions)} 题"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Omniread M0 一键启动（在 Git Bash 里执行）。
+# Omniread 一键启动（在 Git Bash 里执行）。
 #
 # 启动顺序：基础设施（PostgreSQL + MinIO）→ Python RAG（127.0.0.1:8000）→ Java 网关（127.0.0.1:8080）。
 # 前端构建产物由 Java 托管，因此默认不起前端；需要热更新时加 --web 另起 Vite dev server（5173）。
@@ -16,7 +16,7 @@
 # provider 开关默认钉死为真实适配器（glm / ali）：父 shell 里残留的联调 export 不会带进本次启动，
 # 要联调就显式加 --fake-providers。
 #
-# 凭据只从环境变量读：不写文件、不打印（M0-00 §6）。
+# 凭据只从环境变量读：不写文件、不打印。
 # 缺凭据时若 keymgr 存在 omniread profile，则自动 `keymgr run omniread` 重入本脚本；
 # 没有该 profile 时打印一次性配置方法后退出。
 # --no-infra --local-images 可免凭据启动，但该模式不注入数据库凭据、拿不到数据，
@@ -126,7 +126,7 @@ ensure_creds() {
 凭据未注入，且没有可用的 keymgr profile。任选一种：
 
   A. 配置一次性 keymgr profile（推荐，之后每次启动都不用再管）
-     1) 为 PostgreSQL 口令建一个条目（M0-01 §5.2 的映射表尚未登记它）：
+     1) 为 PostgreSQL 口令建一个条目：
           keymgr set <条目名>
      2) 把 scripts/keymgr-profile.example.json 里的 "omniread" 段合并进
         %USERPROFILE%\\.config\\keymgr\\profiles.json
@@ -138,7 +138,7 @@ ensure_creds() {
       拿不到数据：GET /api/v1/books 返回空列表、章节接口返回 400。
       它只用于验证 API 形状；要看真实数据需要注入 POSTGRES_PASSWORD 并让 infra 在跑。
 
-  说明：凭据只经 keymgr 注入进程环境，不写进任何文件（M0-00 §6）。
+  说明：凭据只经 keymgr 注入进程环境，不写进任何文件。
 EOF
   exit 2
 }
@@ -228,7 +228,7 @@ if [ "$LOCAL_IMAGES" -eq 1 ]; then
 else
   # 端点 / access key / 桶名与 infra/docker 对齐：MinIO 宿主 9100，access key MinIO-Omniread。
   # 桶名显式传，把约定钉在脚本上：config.py 的默认值与 infra 的 minio-init 建桶都已是
-  # omniread-sources（M0-02 §4），显式传是为了不依赖配置默认值。
+  # omniread-sources，显式传是为了不依赖配置默认值。
   RAG_ENV+=(
     OMNIREAD_IMAGE_STORAGE_BACKEND=minio
     OMNIREAD_MINIO_ENDPOINT=127.0.0.1:9100

@@ -15,8 +15,8 @@ from typing import Any
 import pytest
 import yaml
 
-# 仅外部契约有：进度端点在 Java 侧持久化，Python 不暴露（M0-01 §1）；
-# 以及账户与会话——用户数据全在 Java 侧，Python 不感知账户（多轮会话落地方案 §一）。
+# 仅外部契约有：进度端点在 Java 侧持久化，Python 不暴露；
+# 以及账户与会话——用户数据全在 Java 侧，Python 不感知账户。
 EXTERNAL_ONLY = {
     "Progress",
     "ProgressWrite",

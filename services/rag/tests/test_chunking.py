@@ -1,4 +1,4 @@
-"""分块（M0-3）单测：确定性、无跨章、prev/next、token 上限与 overlap。
+"""分块单测：确定性、无跨章、prev/next、token 上限与 overlap。
 
 真实语料抽查在无 `asset/` 的环境自动跳过（语料不入库，公共 CI 不带）。
 """

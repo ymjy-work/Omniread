@@ -1,4 +1,4 @@
-"""分块 profile：冻结的 `m0-placeholder-v1` 参数（M0-01 §3.1）。
+"""分块 profile：冻结的 `m0-placeholder-v1` 参数。
 
 参数值一次定死；改这些值等于换 chunk profile，chunk_key 与 chunk_mappings 全部失效。
 运行参数不要散落成魔法数，统一从这里取。

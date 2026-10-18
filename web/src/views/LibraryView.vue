@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 书库：列出 /api/v1/books 的书，选中后进入阅读。导入入口置灰：M0 不做文件导入。 */
+/** 书库：列出 /api/v1/books 的书，选中后进入阅读。导入入口置灰：暂不做文件导入。 */
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { loadBooks, selectBook, store } from '../store'
@@ -23,7 +23,7 @@ async function enter(book: Book): Promise<void> {
     <div class="mbar">
       <!-- 不放面包屑：这一栏的标题就是「我的书库」，再写一遍「书库」是同义重复 -->
       <div class="title"><span>我的书库</span></div>
-      <!-- M0 不做文件导入：置灰而不是藏起来（藏了会被当成遗漏）。
+      <!-- 文件导入未实现：置灰而不是藏起来（藏了会被当成遗漏）。
            用 aria-disabled 而不是 disabled——disabled 不可聚焦，title 那句说明键盘够不着 -->
       <button class="gobtn is-disabled" aria-disabled="true" title="TXT / EPUB 上传未实现" @click.prevent>
         导入 TXT / EPUB

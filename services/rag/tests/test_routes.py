@@ -78,7 +78,7 @@ def test_chapters_returns_empty_structure(client: TestClient) -> None:
 
 
 def test_progress_route_is_not_registered(client: TestClient) -> None:
-    # 进度由 Java 侧持久化，内部契约没有这条路径（M0-01 §1）。
+    # 进度由 Java 侧持久化，内部契约没有这条路径。
     assert client.get("/internal/v1/books/1/progress").status_code == 404
 
 

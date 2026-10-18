@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""M0-9 检索层评测：跑 Golden 86 题，产出逐题分数、汇总与 run 记录。
+"""检索层评测：跑 Golden 86 题，产出逐题分数、汇总与 run 记录。
 
 用法（仓库根执行）：
 
@@ -96,7 +96,7 @@ from omniread.pipelines.retrieval.pipeline import RetrievalPipeline  # noqa: E40
 from omniread.pipelines.retrieval.store import PgChunkStore  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-# 基线 run 的固定 id：后续 run 的回归门禁按它取基线值（M0-04 §6）。
+# 基线 run 的固定 id：后续 run 的回归门禁按它取基线值。
 BASELINE_RUN_ID = "2026-09-20-m0-baseline"
 
 #: 留出题集（holdout）的标注。它进 `config.json` 的 `trust_note`，因为**它改变了
@@ -171,7 +171,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "把逐题回答原文写到这个路径（jsonl）。**必须落在 run 目录之外**——"
-            "run 目录进 git，回答原文只落 temp/（M0-02 §7.1）。"
+            "run 目录进 git，回答原文只落 temp/。"
             "人工抽检与「拒答标记没被认出来」的排查都要看它"
         ),
     )
@@ -179,7 +179,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--answer-layer",
         action="store_true",
         help=(
-            "同一个 run 里接着跑答案层（M1-2）：逐题让问答链作答，判定引用越界与"
+            "同一个 run 里接着跑答案层：逐题让问答链作答，判定引用越界与"
             "拒答正确性。每题多 1 次回答模型调用；检索结果回放上面那一遍，不再重跑"
         ),
     )
@@ -188,7 +188,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help=(
             "答案层之后再跑一遍裁判（需 --answer-layer）：逐题把「材料 + 问题 + 回答」"
-            "交给裁判模型，产出三态判定。**旁挂，不作门禁**（M0-04 §6），"
+            "交给裁判模型，产出三态判定。**旁挂，不作门禁**，"
             "数字只落 --judge-out，不进 run 目录"
         ),
     )
@@ -214,7 +214,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.judge and not args.answer_layer:
         parser.error("--judge 需要 --answer-layer：没有回答就无从判起")
-    # 默认 run_id 是 M0 基线目录，而基线产物是入库的留痕：`--fake-providers` 不带
+    # 默认 run_id 是基线目录，而基线产物是入库的留痕：`--fake-providers` 不带
     # `--run-id` 跑一次，就会把那份 86 题的基线换成 3 题的假 provider 结果
     # （2026-10-13 真的踩到过一次，靠 git checkout 还原）。这种组合直接拦下来。
     if args.fake_providers and args.run_id == BASELINE_RUN_ID:
@@ -226,7 +226,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def build_params(spec: str) -> RetrievalParams:
-    """把 `k=v,k=v` 解析成参数对象；不传即 M0 基线。
+    """把 `k=v,k=v` 解析成参数对象；不传即基线值。
 
     **刻意不改 `params.py`**：那是单向门，改它就是换基线，而一次实验不该动基线。
     实际生效的值会随 run 落进 `config.json`，所以每个 run 自证用了什么参数；
@@ -362,7 +362,7 @@ def _write_judgments(
     """把裁判结果写成复核件（聚合 + 逐题）；**拒绝写进 run 目录**。
 
     裁判的 `reason` / `issues` / `raw` 是自由文本、**会逐字引用材料**——与回答原文
-    同一条红线（`M0-02` §7.1）。所以这里与 `_write_answers` 同一道闸门：不靠「记得
+    同一条红线。所以这里与 `_write_answers` 同一道闸门：不靠「记得
     别写错」，而是直接拒绝。聚合数字也一并落这里，而不是塞进 `summary.json`：
     run 目录是入库产物，而裁判**不作门禁**，它的数字不该与确定性指标并列成基线。
     """
@@ -502,7 +502,7 @@ async def main_async(args: argparse.Namespace) -> int:
             trust_notes.append(FAKE_ANSWER_TRUST_NOTE)
 
         if args.judge:
-            # 裁判旁挂在确定性指标旁边（**不作门禁**，M0-04 §6）：它的材料从本次 run
+            # 裁判旁挂在确定性指标旁边（**不作门禁**）：它的材料从本次 run
             # 已算好的装配集回放，与回答看到的是同一份，所以判定描述的是「模型当时
             # 看到了什么」，而不是另一次检索。
             judge, judge_provider, judge_model = build_judge(args)
@@ -540,7 +540,7 @@ async def main_async(args: argparse.Namespace) -> int:
             answer_provider=answer_provider,
             answer_model=chat.model,
             prompt_version=answer_prompt_version(),
-            # 这两个字段本来就为裁判留好了（M0-02 的 rag_runs 列，此前恒为
+            # 这两个字段本来就为裁判留好了（rag_runs 列，此前恒为
             # not-exercised）。裁判跑过就如实填，不跑就保持默认值。
             judge_provider=judge_label[0] or config.judge_provider,
             judge_model=judge_label[1] or config.judge_model,
@@ -582,7 +582,7 @@ async def main_async(args: argparse.Namespace) -> int:
         )
     if generation_summary is not None:
         print()
-        print("答案层（M1-2，确定性判定，不调模型判断）：")
+        print("答案层（确定性判定，不调模型判断）：")
         for label, key, denominator_key in (
             ("answered", "answered", "question_count"),
             ("citation_in_set", "citation_in_set", "citation_in_set_denominator"),

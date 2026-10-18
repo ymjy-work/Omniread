@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 登录会话的生命周期：种下、解析、撤销（`docs/方案.md（依赖与选型一节）` §十）。
+ * 登录会话的生命周期：种下、解析、撤销。
  *
  * <p>口令校验不在这里，在 {@link AccountService#authenticate}——那一层已经保证
  * 「账户不存在」与「口令不对」返回同一种结果，这里只是把它的成功结果换成一条登录会话。
@@ -97,7 +97,7 @@ public class AuthService {
             return Optional.empty();
         }
         User user = userMapper.findById(session.getUserId());
-        // 停用时 D15 会删掉登录会话行，但那条 DELETE 与这次查询之间没有时序保证，
+        // 停用账户时会删掉登录会话行，但那条 DELETE 与这次查询之间没有时序保证，
         // 所以状态在这里再判一次——否则「刚被停用」会有一个窗口还能用。
         if (user == null || !user.isActive()) {
             return Optional.empty();

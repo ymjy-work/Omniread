@@ -68,7 +68,7 @@ class AccountAdminRunnerTest {
     }
 
     @Test
-    @DisplayName("disable：按账户 id 走停用即清理（D15），不是只改个状态")
+    @DisplayName("disable：按账户 id 走停用即清理，不是只改个状态")
     void disablePurgesTheAccount() {
         User user = new User();
         user.setUsername("bob");

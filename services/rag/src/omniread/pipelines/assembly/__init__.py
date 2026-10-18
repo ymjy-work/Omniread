@@ -1,7 +1,7 @@
-"""上下文装配（M0-4）：先限章（≤8）→ 每章 ≤2 段（hit 优先、邻居补位）→ 截断 ≤8 段
+"""上下文装配：先限章（≤8）→ 每章 ≤2 段（hit 优先、邻居补位）→ 截断 ≤8 段
 → realm re-check → token budget。
 
-顺序不可调换，参数关系见 M0-00 §5；补位固定一跳、同章、prev 优先，见 M0-01 §4.3。
+顺序不可调换，参数关系见 `params.py` 的 `RetrievalParams`；补位固定一跳、同章、prev 优先。
 """
 
 from __future__ import annotations

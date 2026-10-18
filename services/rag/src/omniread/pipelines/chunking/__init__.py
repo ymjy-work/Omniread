@@ -1,6 +1,6 @@
-"""分块（M0-3）：按章切分、不跨章，token 口径 600 / 60 重叠，profile `m0-placeholder-v1`。
+"""分块：按章切分、不跨章，token 口径 600 / 60 重叠，profile `m0-placeholder-v1`。
 
-规则见 M0-01 §3，`chunk_key` 口径见 M0-02 §1。
+规则与 `chunk_key` 口径见 `chunker.py`。
 """
 
 from __future__ import annotations

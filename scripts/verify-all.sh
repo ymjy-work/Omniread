@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Omniread M0 可复现验证序列：把四个产物（Java / Python / infra / web）的构建与检查串成一条命令。
+# Omniread 可复现验证序列：把四个产物（Java / Python / infra / web）的构建与检查串成一条命令。
 #
 # 用法（Git Bash，仓库根执行）：
 #   bash scripts/verify-all.sh                默认跑第 1–5、8、9、11、12 步（共 9 步）
 #   bash scripts/verify-all.sh --skip-web     跳过第 5 步（没装 node 时）
 #   bash scripts/verify-all.sh --smoke        跑完后再起一次全栈并 curl 端到端，最后自动停掉
 #   bash scripts/verify-all.sh --data-layer   追加第 7 步：真连 PG / MinIO 跑迁移往返与对象读写
-#   bash scripts/verify-all.sh --gateway      追加第 10 步：起 Java + Python 跑 M0-6 网关联调
+#   bash scripts/verify-all.sh --gateway      追加第 10 步：起 Java + Python 跑网关联调
 #   bash scripts/verify-all.sh --ci           公开 CI 用：跳过依赖 asset/ 的三步（8、9、11），
 #                                             语料不入库，远端跑不了那三步
 #
@@ -164,7 +164,7 @@ else
 fi
 
 # 第 8、9 步默认启用：两者都走语料直读 + 假 provider，不连库、不发真实调用，因此不需要凭据。
-# 它们把 M0-4 / M0-5 的冒烟纳入项目级校验。
+# 它们把检索链 / 回答链的冒烟纳入项目级校验。
 if [ "$CI" -eq 1 ]; then
   step 8 "M0-4 检索链：跳过（--ci；语料不入库，远端没有 asset/）"
   step 9 "M0-5 回答链：跳过（--ci；verify-answering 要读语料）"
@@ -198,7 +198,7 @@ else
 fi
 
 # 第 11、12 步默认启用：两者都走语料直读 + 假 provider，不连库、不发真实调用。
-# 它们把 M0-7b 的映射链与 eval/ 产物的入库红线纳入项目级校验。
+# 它们把映射链与 eval/ 产物的入库红线纳入项目级校验。
 if [ "$CI" -eq 1 ]; then
   step 11 "M0-7b 映射链：跳过（--ci；要读 asset/ 语料）"
 else

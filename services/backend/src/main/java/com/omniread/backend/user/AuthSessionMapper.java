@@ -20,7 +20,7 @@ public interface AuthSessionMapper {
     int deleteByTokenHash(@Param("tokenHash") String tokenHash);
 
     /**
-     * 停用账户时按用户批量吊销（D15）。
+     * 停用账户时按用户批量吊销。
      *
      * <p>这正是选「自建会话表」而不是 JWT 的理由：JWT 要做到这一点必须再加一张黑名单表。
      */

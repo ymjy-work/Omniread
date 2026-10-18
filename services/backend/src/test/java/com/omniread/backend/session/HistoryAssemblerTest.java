@@ -9,7 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 上下文拼装的五条规则（`docs/方案.md（多轮会话一节）` §三）。
+ * 上下文拼装的五条规则。
  *
  * <p>纯函数，所以这里不需要 Spring、不需要库：给定一串消息与一份预算，结果必须完全确定。
  * 多轮出问题时最常见的就是「这一轮带了哪些历史」，能拿同一份输入重放才查得动。

@@ -11,12 +11,12 @@ import org.springframework.stereotype.Component;
 /**
  * 往会话里追加消息，负责 `seq` 的取号与冲突重试。
  *
- * <p>方案要求「写入前取 `MAX(seq)`，冲突重试」。之所以不能把取号塞进一条
+ * <p>取号规则是「写入前取 `MAX(seq)`，冲突重试」。之所以不能把取号塞进一条
  * `INSERT ... SELECT MAX(seq)+1`：调用方需要知道这条消息的 `seq`（分叉要按它切、
  * 前端要按它排序），而那种写法算出来的 `seq` 不会回传给调用方，还得再查一次。
  *
- * <p>**判冲突要看 SQLite 自己的错误码，不能只认 Spring 的异常类型**：方案 §九 就提醒过
- * 「Spring 对 SQLite 的约束错误翻译未必到位」。所以这里两种都认——先认
+ * <p>**判冲突要看 SQLite 自己的错误码，不能只认 Spring 的异常类型**：Spring 对 SQLite 的
+ * 约束错误翻译未必到位。所以这里两种都认——先认
  * `DataAccessException`，再回落到 `SQLException` 的错误码。
  */
 @Component

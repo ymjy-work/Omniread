@@ -1,4 +1,4 @@
-"""评测（M0-9）：检索层指标、run 产物与基线（M0-04）。
+"""评测：检索层指标、run 产物与基线。
 
 **离线数字不能进 baseline**：`retrieval_provider=fake` 只换 embedder 与 reranker，
 `dense` 仍拿假查询向量去比对真库向量，排名是确定性噪声。详见 `runner.FAKE_TRUST_NOTE`。

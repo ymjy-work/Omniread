@@ -1,8 +1,8 @@
 """内部事件流：事件名、顺序、负载的唯一来源。
 
 RAG core 只产生本模块定义的事件，`api.adapters` 里的两个适配器只负责把它们编码成
-JSON 对象或 SSE 帧，不含业务逻辑。字段口径见
-`docs/规格.md（M0-02 一节）` §8.5，事件名集合由契约 `EventStream.event` 冻结。
+JSON 对象或 SSE 帧，不含业务逻辑。字段口径见本模块各事件构造函数，
+事件名集合由契约 `EventStream.event` 冻结。
 """
 
 from __future__ import annotations

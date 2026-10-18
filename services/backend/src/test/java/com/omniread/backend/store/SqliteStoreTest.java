@@ -253,7 +253,7 @@ class SqliteStoreTest {
         duplicate.setCreatedAt(Instant.now().toString());
 
         // 这条断言的作用不是「它会抛」，而是**把异常形状钉住**：ChatMessageStore 判
-        // 「可重试」要靠它。方案 §九 提醒过「Spring 对 SQLite 的约束错误翻译未必到位」，
+        // 「可重试」要靠它。Spring 对 SQLite 的约束错误翻译未必到位，
         // 所以这里同时记录 Spring 的异常类型与底层的 SQLite 错误码——
         // 换驱动、换 Spring 版本时，这条会先红，而不是让并发路径在别处以「少写几条」的形式失败。
         assertThatThrownBy(() -> chatMessageMapper.insert(duplicate))

@@ -69,7 +69,7 @@ class SqliteMyBatisSmokeTest {
         assertThat(mapper.insert(first)).isEqualTo(1);
         assertThat(mapper.insert(second)).isEqualTo(1);
 
-        // 自增主键必须被回填进入参对象——SQLite 驱动支持 useGeneratedKeys，但方案要求实测。
+        // 自增主键必须被回填进入参对象——SQLite 驱动支持 useGeneratedKeys，但要实测。
         // 这条要求正是实体不能写成 record 的原因：回填靠 setter。
         assertThat(first.getId()).isNotNull();
         assertThat(second.getId()).isEqualTo(first.getId() + 1);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# M0-3 导入后确定性抽检（真连 PostgreSQL 55432，不属于日常快速校验）。
+# 导入后确定性抽检（真连 PostgreSQL 55432，不属于日常快速校验）。
 #
-# 抽检项（对应 M0-03 §2 M0-3 验收）：
+# 抽检项：
 #   1 chunk 总数与每章 chunk 数的最小 / 中位 / 最大值；
 #   2 无跨章：prev/next 不得指向别的章，也不得有悬空指针；
 #   3 prev/next 闭环：各章首块沿 next 走到末块、反向走回，长度等于该章 chunk 数；
@@ -14,7 +14,7 @@
 #   bash scripts/verify-import.sh --corpus-root "<dir>" --book-id 1
 #   bash scripts/verify-import.sh --help
 #
-# 凭据只从环境变量读：POSTGRES_PASSWORD 供连库，不写文件、不打印（M0-00 §6）。
+# 凭据只从环境变量读：POSTGRES_PASSWORD 供连库，不写文件、不打印。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

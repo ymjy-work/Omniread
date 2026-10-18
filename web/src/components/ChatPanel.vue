@@ -567,7 +567,7 @@ async function jumpTo(chapterIndex: number | null): Promise<void> {
 
 /**
  * 切档位：**没在对话里**时改的是下一场的默认档位；看着对话时走分叉
- * （会话内档位固定，见契约与方案 §四）。
+ * （会话内档位固定）。
  */
 function pickLevel(level: QueryLevel): void {
   if (level === store.level) return

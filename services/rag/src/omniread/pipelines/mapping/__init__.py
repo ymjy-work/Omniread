@@ -1,6 +1,6 @@
-"""Golden evidence → chunk 映射（M0-7b，口径见 M0-02 §6）。
+"""Golden evidence → chunk 映射。
 
-主路径是**确定性区间包含**：evidence 按 `M0-04` §2.2 必须是原文片段，是原文就由区间精确
+主路径是**确定性区间包含**：evidence 必须是原文片段，是原文就由区间精确
 给出归属，不经过模型判断（`deterministic`）。模型只在 evidence 不是精确子串时兜底
 （`fallback`），本项目当前 357 条全部由主路径解决。
 

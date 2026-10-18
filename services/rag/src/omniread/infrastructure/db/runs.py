@@ -1,4 +1,4 @@
-"""`rag_runs` 落库（M0-02 §7.1「与 run 目录的分工」）。
+"""`rag_runs` 落库（与 run 目录的分工）。
 
 DB 存**可查询的元数据**（供 baseline diff 与「哪次跑用了什么」），run 目录存逐题明细。
 两者记的是同一件事的两面，所以这里只接 `EvalRunConfig`——它已经是白名单字段集，
@@ -6,7 +6,7 @@ DB 存**可查询的元数据**（供 baseline diff 与「哪次跑用了什么�
 
 `rag_runs` 的 21 列全部 `NOT NULL` 且无列默认值，漏一列即插入失败——这是有意的，
 它逼调用方把「这次跑用了什么」说全。检索层 run 用不到回答模型与 judge，
-按规格里的实际语义写 `NOT_EXERCISED` 而不是留空或编一个型号。
+按实际语义写 `NOT_EXERCISED` 而不是留空或编一个型号。
 """
 
 from __future__ import annotations

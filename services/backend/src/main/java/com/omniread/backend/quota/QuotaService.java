@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.stereotype.Service;
 
 /**
- * 单账户的限频 / 日额度 / 并发（`docs/方案.md（配额与限流一节）`）。判断全在网关这一层：
+ * 单账户的限频 / 日额度 / 并发。判断全在网关这一层：
  * 身份已经在手，超限不必调下游。
  *
  * <p>三笔账的存放位置不同，各有各的理由：

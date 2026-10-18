@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
- * 阅读范围：**阅读页只开放配置的那一卷**（部署口径 §三-3，产品上的刻意取舍，
+ * 阅读范围：**阅读页只开放配置的那一卷**（产品上的刻意取舍，
  * 不是权限 bug）。问答不受它限制——「读有边界、问无边界」。
  *
  * <p>过滤在 Java 侧做：Python 不感知账户与阅读范围，内部契约因此不必新增字段。

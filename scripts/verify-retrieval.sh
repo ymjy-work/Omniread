@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# M0-4 检索链验证入口：真库语料 + 假 provider，全程不发真实 API 调用。
+# 检索链验证入口：真库语料 + 假 provider，全程不发真实 API 调用。
 #
-# 验收对应（M0-03 §2 M0-4）：dense / BM25 / RRF / rerank / 装配 cap / leak；
+# 验收项：dense / BM25 / RRF / rerank / 装配 cap / leak；
 # full 与 past 下 in-realm 排名同源；迭代索引扫描的会话 GUC 已启用。
 # 细节与逐项断言在 scripts/verify_retrieval.py。
 #

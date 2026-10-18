@@ -1,4 +1,4 @@
-"""TokenCounter：token 计数与硬切，口径绑定 Qwen 248k 词表（M0-01 §3）。
+"""TokenCounter：token 计数与硬切，口径绑定 Qwen 248k 词表。
 
 `tokenizer_id` 承载词表身份、进 chunk 标识，更换实现即全量 chunk 重算；
 运行期实现用 `qwen-tokenizer==0.3.0`（词表内嵌、只依赖已有 `tiktoken`）。
@@ -12,7 +12,7 @@ from typing import Any
 
 from qwen_tokenizer import get_tokenizer
 
-# 词表身份，不是实现库版本：`实现名:编码/模型名:版本`（M0-01 §3.2），不掺误差值。
+# 词表身份，不是实现库版本：`实现名:编码/模型名:版本`，不掺误差值。
 TOKENIZER_ID = "tokenizers:Qwen/Qwen3.6-27B:6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
 
 # qwen-tokenizer 内置词表别名，对应 TOKENIZER_ID 里的 revision。

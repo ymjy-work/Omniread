@@ -92,7 +92,7 @@ export type QueryLevel = 'past' | 'full'
 
 export interface QueryOptions {
   /**
-   * 是否做查询改写（D2 已实现，默认 true）。请求侧的开关，不是结果的回传位——
+   * 是否做查询改写（默认 true）。请求侧的开关，不是结果的回传位——
    * 改写的前后文走 `rewrite_completed` 事件。无历史时没有可消解的指代，Java 自己跳过。
    */
   rewrite?: boolean

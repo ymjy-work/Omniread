@@ -1,4 +1,4 @@
-"""BM25 关键词检索（M0-01 §4.1 / §4.2）。
+"""BM25 关键词检索。
 
 **这个通道在契约与事件里叫 `kw`，与这里的 `bm25` 是同一个东西**：`params.py` 的 `kw_k`、
 `RetrievalOutcome.kw`、`ScoredStage` 的 `"kw"`、契约 `RetrievalCompletedPayload` 的 `kw`
@@ -8,7 +8,7 @@
 `bm25s` + `jieba`：jieba 的分词结果直接作为 token 序列交给 `BM25.index`，
 不走 `bm25s.tokenize` 的默认英文正则与英文停用词表——中文语料上那套分词会把
 整句切成一个词。分词只丢弃纯空白 token，保留标点与大小写：标点折叠会改变 BM25 的
-匹配面，属于检索行为变更（M0-01 §4.1）。
+匹配面，属于检索行为变更。
 
 **统计量全局、realm 只过滤候选**：索引一次构建，IDF 与平均文档长度取自全书；
 `search(..., allowed_keys=...)` 在选取与排序前把候选收窄到 realm 允许的 chunk。
@@ -30,7 +30,7 @@ import jieba
 # 服务日志统一走 logging，把 jieba 自己的输出压到 WARNING 以上。
 jieba.setLogLevel(logging.WARNING)
 
-# 关键词召回的候选数（M0-00 §5）。这里给默认值，实际值由管线显式传入。
+# 关键词召回的候选数。这里给默认值，实际值由管线显式传入。
 DEFAULT_KW_K = 60
 
 

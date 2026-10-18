@@ -1,4 +1,4 @@
-"""查询归一化口径与 realm 区间解析（M0-01 §4.1 / §4.2）。"""
+"""查询归一化口径与 realm 区间解析。"""
 
 from __future__ import annotations
 

@@ -47,7 +47,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         // SameSite=Strict 之外再加一道：要求发起方能设置自定义头，而跨站页面做不到
         // （要发这样的请求就绕不开 CORS 预检，而预检不会带上 cookie）。
-        // 两道都在，才不必引 Spring Security 的过滤器链（java-依赖与选型 §三）。
+        // 两道都在，才不必引 Spring Security 的过滤器链。
         if (!SAFE_METHODS.contains(request.getMethod()) && request.getHeader(CSRF_HEADER) == null) {
             throw new RagException(ErrorCode.RAG_FORBIDDEN, "缺少 " + CSRF_HEADER + " 请求头");
         }

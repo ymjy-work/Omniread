@@ -1,9 +1,9 @@
-"""答案层的**确定性**指标（M0-04 §5.2，M1-2）。
+"""答案层的**确定性**指标。
 
-判据全部由程序算出，不调用模型判断（D1），因此可复现、可离线重算。三个数：
+判据全部由程序算出，不调用模型判断，因此可复现、可离线重算。三个数：
 
 - **`citation_in_set`**：回答里的每一个 `[C数字]` 是否落在本次装配集的章号内。
-  这是**评测指标，不是运行时过滤**——服务端不改写模型输出，越界引用如实保留（`M0-04` §4）。
+  这是**评测指标，不是运行时过滤**——服务端不改写模型输出，越界引用如实保留。
 - **`refusal_correct`**：`expect_refusal=true` 的题里，有多少条真的拒答了。
 - **`refusal_false_positive`**：`expect_refusal=false` 的题里被拒答的条数。
 
@@ -15,9 +15,8 @@
 拒答题与生成失败的题不在其中——它们没有引用可判，算「通过」会虚高、算「失败」又不对。
 代价是分母会随结果缩水，所以 `generation_failed` 与分母一起报，缩了多少一眼可见。
 
-**已知盲区**（D1 的代价）：两段引用都在集合内、错在语义关系的那类错误（把第 9 章与
-第 18 章的剧情焊成一条时间线）这里抓不到——`M1-backlog.md` 记着真实错例，
-M1 内只能人工抽检。
+**已知盲区**（只看确定性指标的代价）：两段引用都在集合内、错在语义关系的那类错误（把第 9 章与
+第 18 章的剧情焊成一条时间线）这里抓不到，只能人工抽检。
 """
 
 from __future__ import annotations
@@ -35,8 +34,8 @@ from omniread.pipelines.evaluation.types import (
     GenerationScoreRecord,
 )
 
-#: 拒答状态的两个来源（检索为空 / 模型级）在记录里是同一个值——`M0-02` §8.3 用
-#: `context_chapters` 空不空区分它们，而拒答**正确性**只问「该拒的拒了没有」。
+#: 拒答状态的两个来源（检索为空 / 模型级）在记录里是同一个值——`context_chapters`
+#: 空不空区分它们，而拒答**正确性**只问「该拒的拒了没有」。
 _REFUSAL_STATUSES = frozenset({STATUS_INSUFFICIENT_EVIDENCE})
 
 
@@ -57,7 +56,7 @@ class AnswerOutcome:
 def fold_answer(events: Sequence[RagEvent]) -> AnswerOutcome:
     """把一条事件流折成 `AnswerOutcome`。
 
-    成功以 `query_done` 收尾、失败以 `query_error` 收尾，两者互斥（`M0-02` §8.5）。
+    成功以 `query_done` 收尾、失败以 `query_error` 收尾，两者互斥。
     `query_error` 一律记 `generation_failed`：provider 故障不降级成拒答，记成拒答会让
     `refusal_correct` 跟着失真。
 

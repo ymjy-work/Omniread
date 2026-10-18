@@ -1,4 +1,4 @@
-"""把语料原始件归档到 MinIO（M0-02 §4）。
+"""把语料原始件归档到 MinIO。
 
 对象布局与 key 构造成对放在 `layout.py`，这里只负责读语料、算清单 / 校验和并上传：
 
@@ -61,7 +61,7 @@ def book_prefix(book_id: int) -> str:
 
 
 def source_key(book_id: int, filename: str) -> str:
-    """原始语料 key，`books/{book_id}/source/{filename}`（M0-02 §4）。"""
+    """原始语料 key，`books/{book_id}/source/{filename}`。"""
     return f"{book_prefix(book_id)}source/{filename}"
 
 
@@ -194,7 +194,7 @@ def build_minio_writer(settings: Settings) -> MinioObjectWriter:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="把语料原始件归档到 MinIO（M0-02 §4）")
+    parser = argparse.ArgumentParser(description="把语料原始件归档到 MinIO")
     parser.add_argument("--corpus-root", required=True, type=Path, help="语料根目录")
     parser.add_argument("--book-id", type=int, default=1, help="书籍 ID，M0 恒为 1")
     parser.add_argument(

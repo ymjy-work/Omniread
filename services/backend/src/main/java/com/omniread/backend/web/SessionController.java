@@ -24,8 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 会话的列表 / 新建 / 详情 / 删除。
  *
- * <p>契约里**没有消息写端点**：消息只在会话详情里读、在 `/query` 那一轮里写
- * （那是 D 阶段的事）。所以这里的「会话 CRUD」实际是这四条。
+ * <p>契约里**没有消息写端点**：消息只在会话详情里读、在 `/query` 那一轮里写。
+ * 所以这里的「会话 CRUD」实际是这四条。
  *
  * <p>账户一律从 {@link AuthInterceptor#USER_ATTRIBUTE} 取，不从请求体或查询参数取——
  * 后者等于让调用方声明自己是谁。

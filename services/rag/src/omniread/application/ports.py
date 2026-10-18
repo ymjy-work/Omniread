@@ -24,7 +24,7 @@ class StoredObject:
 
 
 class CatalogRepository(Protocol):
-    """书籍 / 章节元数据与正文的来源。M0-2 接 PostgreSQL。"""
+    """书籍 / 章节元数据与正文的来源，接 PostgreSQL。"""
 
     def list_books(self) -> Sequence[BookSummary]: ...
 
@@ -42,7 +42,7 @@ class ImageStorage(Protocol):
 class RetrievalService(Protocol):
     """只跑检索链，产出逐阶段明细与最终装配集。
 
-    `retrieval-only` 端点与离线评测 runner 走这里；问答路径（M0-5）在同一份
+    `retrieval-only` 端点与离线评测 runner 走这里；问答路径在同一份
     `RetrievalOutcome` 之后接生成，不另起一条检索实现。
     """
 

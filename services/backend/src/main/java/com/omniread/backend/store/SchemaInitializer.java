@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 /**
  * 启动时建表（幂等）并把版本记进 {@code schema_version}。
  *
- * <p>没有用迁移框架（`docs/方案.md（依赖与选型一节）` §三）：五张表、单实例，启动时
+ * <p>没有用迁移框架：五张表、单实例，启动时
  * {@code CREATE TABLE IF NOT EXISTS} 够用。代价是**表结构的变更要靠人记住改 {@code schema.sql}**，
  * 所以这里加一道反向闸门：**库里的版本比代码新就拒绝启动**——那是「代码比库旧」，
  * 继续跑只会以难以定位的方式写坏数据，不如当场停下。
@@ -64,7 +64,7 @@ public class SchemaInitializer implements ApplicationRunner {
                             + "这份代码配不上这个库，换回新版本再启动");
         }
         if (current > 0 && current < SCHEMA_VERSION) {
-            // 本项目没有迁移框架（选型见 java-依赖与选型.md §三：五张表、单实例，
+            // 本项目没有迁移框架（五张表、单实例，
             // 引 Flyway 要多一个依赖与一套配置）。代价就落在这里：**加了列不会自己生效**，
             // 因为 DDL 全是 CREATE TABLE IF NOT EXISTS——表已存在就整条跳过，
             // 于是新列静默不存在，直到某次查询才报「no such column」。

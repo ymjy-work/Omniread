@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Param;
  * 账户表的读写。语句在 {@code resources/mapper/UserMapper.xml}，
  * namespace 与语句 id 必须与这里逐字一致（`Invalid bound statement` 九成出在对不上）。
  *
- * <p>**没有按 username 改口令的方法**：口令重置是管理方动作，等 C 阶段连着「停用即清理」
+ * <p>**没有按 username 改口令的方法**：口令重置是管理方动作，等「停用即清理」
  * 一起做，不在这里先开一个没人用的口子。
  */
 @Mapper

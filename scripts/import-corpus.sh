@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M0-3 导入入口：读语料 index.jsonl，写 books/volumes/chapters/chunks，回填 prev/next。
+# 导入入口：读语料 index.jsonl，写 books/volumes/chapters/chunks，回填 prev/next。
 #
 # 幂等：同一份语料重跑不产生重复行（单事务内整批替换该书的行）。
 # 可重复执行，语料只按行读、不拷贝进任何入库路径。
@@ -10,7 +10,7 @@
 #   bash scripts/import-corpus.sh --corpus-root "<dir>" --book-id 1
 #   bash scripts/import-corpus.sh --help
 #
-# 凭据只从环境变量读：POSTGRES_PASSWORD 供连库，不写文件、不打印（M0-00 §6）。
+# 凭据只从环境变量读：POSTGRES_PASSWORD 供连库，不写文件、不打印。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

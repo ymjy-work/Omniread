@@ -1,4 +1,4 @@
-"""重排：融合结果入 24、出 24（M0-01 §4.1，M0-00 §5）。
+"""重排：融合结果入 24、出 24。
 
 适配器只认 `documents` 的下标（`RerankResult.index`），chunk 标识由这里回填——
 provider 不接触 chunk_key，换 provider 不影响链路语义。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""M0-5 回答链冒烟：检索 → 装配 → prompt → 流式生成 → 引用 → 两个适配器。
+"""回答链冒烟：检索 → 装配 → prompt → 流式生成 → 引用 → 两个适配器。
 
 默认全程用假 provider、直接从仓库内语料分块，不发真实 API 调用、不连库；`--real` 才把
 回答模型换成 GLM 适配器（需 `GLM_API_KEY`，经 `keymgr run omniread` 注入，由用户单独批准）。

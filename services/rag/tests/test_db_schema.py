@@ -1,4 +1,4 @@
-"""数据层表结构：逐条对齐 M0-02 §3（离线，不连库）。
+"""数据层表结构：逐条钉住表与列（离线，不连库）。
 
 这些断言读的是 SQLAlchemy 元数据，跑单测不需要 PostgreSQL；真库上的实际形态由
 `scripts/verify-data-layer.sh` 在迁移往返后核对。
@@ -99,7 +99,7 @@ def test_table_set_is_exactly_the_frozen_six() -> None:
 
 
 def test_progress_is_not_in_this_database() -> None:
-    # M0-02 §3.7：阅读进度由 Java 侧持久化，Python 库里没有这张表。
+    # 阅读进度由 Java 侧持久化，Python 库里没有这张表。
     assert "progress" not in Base.metadata.tables
 
 
@@ -116,7 +116,7 @@ def test_primary_keys() -> None:
     assert [c.name for c in tables["chapters"].primary_key.columns] == ["chapter_id"]
     assert [c.name for c in tables["chunks"].primary_key.columns] == ["chunk_key"]
     assert [c.name for c in tables["rag_runs"].primary_key.columns] == ["run_id"]
-    # chunk_mappings 主键 = 五元组（M0-02 §3.6）
+    # chunk_mappings 主键 = 五元组
     assert {c.name for c in tables["chunk_mappings"].primary_key.columns} == {
         "evidence_hash",
         "chunking_version",
@@ -165,7 +165,7 @@ def test_embedding_is_nullable_for_unembedded_rows() -> None:
 
 
 def test_chunks_keeps_redundant_chapter_index_for_realm_filter() -> None:
-    # realm 过滤直接 WHERE chapter_index <= progress，冗余列省一次 JOIN（M0-02 §3.4 / §3.8）
+    # realm 过滤直接 WHERE chapter_index <= progress，冗余列省一次 JOIN
     chunk_columns = Base.metadata.tables["chunks"].c
     assert isinstance(chunk_columns.chapter_index.type, Integer)
     assert isinstance(chunk_columns.chunk_index.type, Integer)
@@ -218,7 +218,7 @@ def test_plain_indexes_for_realm_and_neighbor_lookups() -> None:
 def test_runtime_hnsw_gucs_cover_dense_k() -> None:
     from omniread.infrastructure.db.session import HNSW_SESSION_SETTINGS
 
-    # dense_k = 60，pgvector 默认 ef_search = 40；会话参数必须显式覆盖默认值（M0-01 §4.2）
+    # dense_k = 60，pgvector 默认 ef_search = 40；会话参数必须显式覆盖默认值
     joined = " ".join(HNSW_SESSION_SETTINGS)
     assert "hnsw.iterative_scan = relaxed_order" in joined
     assert "hnsw.max_scan_tuples = 20000" in joined

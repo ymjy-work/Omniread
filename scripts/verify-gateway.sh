@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# M0-6 Java 网关联调验证：起真实 Python（假 provider）+ 真实 Java 网关，逐条跑外部 API。
+# Java 网关联调验证：起真实 Python（假 provider）+ 真实 Java 网关，逐条跑外部 API。
 #
-# 验收对应（M0-03 §2 M0-6）：`Client → Java → Python` 端到端通过。
+# 验收项：`Client → Java → Python` 端到端通过。
 # 覆盖：六组 GET 的 Java/Python 一致性、插图字节与目录穿越防护、同步与流式问答透传、
 # request_id 生成与透传、SSE 逐帧到达、进度由 Java 本地读写、400/502/504/503 错误路径。
 #

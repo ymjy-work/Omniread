@@ -15,6 +15,6 @@ public interface UserProgressMapper {
 
     List<UserProgress> findByUserId(@Param("userId") long userId);
 
-    /** 停用账户时随会话一起清理（D15）。 */
+    /** 停用账户时随会话一起清理。 */
     int deleteByUserId(@Param("userId") long userId);
 }

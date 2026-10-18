@@ -1,6 +1,6 @@
-"""语料导入（M0-3）：读语料 → 映射 → 落库 → 回填 prev/next。
+"""语料导入：读语料 → 映射 → 落库 → 回填 prev/next。
 
-映射规则见 M0-02 §2，落库口径与幂等语义见 `importer` 模块 docstring。
+落库口径与幂等语义见 `importer` 模块 docstring。
 """
 
 from __future__ import annotations

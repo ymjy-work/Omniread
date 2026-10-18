@@ -1,4 +1,4 @@
-"""查询链编排（M0-01 §4.1）。
+"""查询链编排。
 
 ```text
 normalize（NFC → trim → 空白折叠）
@@ -103,7 +103,7 @@ class RetrievalPipeline:
             record.chunk_key for record in records if realm.contains(record.chapter_index)
         }
 
-        # BM25：统计量全局，realm 只收窄候选（M0-01 §4.2）。
+        # BM25：统计量全局，realm 只收窄候选。
         index = await asyncio.to_thread(self._bm25_index, request.book_id, records)
         kw_ranked = _stage_hits(
             user=index.search(query, k=params.kw_k, allowed_keys=realm_keys),

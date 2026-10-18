@@ -1,4 +1,4 @@
-"""评测指标口径单测（M0-04 §5.1）。
+"""评测指标口径单测。
 
 这些函数是纯计算，不连库、不调模型——指标口径一旦滑掉，整条评测线的数字都不可比，
 所以每条口径都单独钉住，而不是只测一个「端到端跑通」。
@@ -97,7 +97,7 @@ def _mapping(chapter_id: str, content: str, chunk_key: str | None) -> dict[str, 
 
 
 class TestEvidenceRecall:
-    """逐条证据的召回：命中判定以 `assembled` 为准（M0-04 §5.1）。"""
+    """逐条证据的召回：命中判定以 `assembled` 为准。"""
 
     def test_every_evidence_recalled(self) -> None:
         question = _question(

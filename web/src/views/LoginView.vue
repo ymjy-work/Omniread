@@ -45,8 +45,8 @@ function redirectTarget(): string {
 
 /**
  * 401 在这里的含义与别处不同：别处是「会话过期了」，这里是「这一对账户口令不对」。
- * 服务端刻意不区分「没这个账户」与「口令错」（区分开等于给了枚举账户名的接口，
- * 见 C2），所以文案也必须模糊。
+ * 服务端刻意不区分「没这个账户」与「口令错」（区分开等于给了枚举账户名的接口），
+ * 所以文案也必须模糊。
  */
 function describeLoginFailure(cause: unknown): { code: string; text: string } {
   if (cause instanceof ApiError) {

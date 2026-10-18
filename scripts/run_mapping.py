@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""M0-7b：跑 evidence→chunk 映射，产出 run 产物、人工复核件与（可选）落库。
+"""跑 evidence→chunk 映射，产出 run 产物、人工复核件与（可选）落库。
 
 用法（仓库根执行）：
 
@@ -10,7 +10,7 @@
 
 产物分两处：
 
-- `eval/runs/<run_id>/`：进 git 的审计副本，只带指针与指标值（M0-02 §7.1）。
+- `eval/runs/<run_id>/`：进 git 的审计副本，只带指针与指标值。
 - `temp/mapping-review/`：需要正文的人工复核件，**不进 git**——它含整段 chunk 正文。
 
 `--source corpus` 与 `--source db` 走同一个区间还原函数，差别只在数据取自哪里：

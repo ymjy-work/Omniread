@@ -1,4 +1,4 @@
-"""评测 run 产物落盘（M0-02 §7.1）；`eval/` 进 git，按红线约束写法。
+"""评测 run 产物落盘；`eval/` 进 git，按红线约束写法。
 
 与映射侧同一套规矩（`domain.artifacts`）：**字段白名单 + 长度上限**，两半都要。
 逐题记录是 frozen dataclass，`asdict` 出来的字段集就是允许进 git 的全部内容；
@@ -26,7 +26,7 @@ from omniread.pipelines.evaluation.types import (
 NOT_EXERCISED = "not-exercised"
 
 #: 检索层之外的字段在本 run 里一律 `NOT_EXERCISED`；`rag_runs` 有对应的列
-#: （`M0-02` §3.5），列留着、值写「没跑」，不要为了少一列去改库表。
+#: 列留着、值写「没跑」，不要为了少一列去改库表。
 PHASE_RETRIEVAL = "retrieval"
 
 
@@ -37,7 +37,7 @@ class EvalRunConfig:
     只列白名单字段。**不要**改成 `Mapping[str, Any]`、也不要塞 `Settings.model_dump()`：
     `minio_access_key` 是普通 str，整体 dump 会把凭据写进仓库。
 
-    `answer_*` / `judge_*` / `prompt_version` 是 `rag_runs` 的列（`M0-02` §3.5），
+    `answer_*` / `judge_*` / `prompt_version` 是 `rag_runs` 的列，
     本层不产它们，一律留 `NOT_EXERCISED`。`rag_runs` 那一行直接由这份 config 派生
     （`build_run_row`）——「同一次跑用了什么」只有一个来源。
     """
@@ -57,14 +57,14 @@ class EvalRunConfig:
     embedding_dim: int
     rerank_provider: str
     rerank_model: str
-    # ── 生成层与 judge（`M0-02` §3.5 的对应列）：检索层 run 一律 NOT_EXERCISED ──
+    # ── 生成层与 judge（对应配置列）：检索层 run 一律 NOT_EXERCISED ──
     answer_provider: str = NOT_EXERCISED
     answer_model: str = NOT_EXERCISED
     judge_provider: str = NOT_EXERCISED
     judge_model: str = NOT_EXERCISED
     #: 答案 prompt 的内容 sha256 短串，随模板语义变更而变。改它即新基线。
     prompt_version: str = NOT_EXERCISED
-    # 检索参数整体快照（M0-00 §5 的旋钮），改一个即新基线。
+    # 检索参数整体快照（全部旋钮），改一个即新基线。
     retrieval_params: dict[str, object] = field(default_factory=dict)
     # 只有真 provider 才谈得上「结果可信」；离线跑必须显式记下来，
     # 免得日后把噪声数字当成 baseline。
@@ -107,7 +107,7 @@ def write_eval_run_dir(
             guard_payload(name, row)
         _write_jsonl(run_dir / name, rows)
 
-    # 失败清单只落 `failures.md`（M0-02 §7.1 的目录布局里没有 failures.jsonl）。
+    # 失败清单只落 `failures.md`（目录布局里没有 failures.jsonl）。
     # 逐条内容仍是「指针 + 阶段 + 指标快照」，渲染时由 `_render_failures_markdown` 限制。
     for item in failures:
         guard_payload("failures.md", dict(item))

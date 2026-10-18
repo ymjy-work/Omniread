@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# M0-2 数据层端到端验证：迁移升级 / 回滚往返 + 对象读写。
+# 数据层端到端验证：迁移升级 / 回滚往返 + 对象读写。
 #
-# 验收对应（M0-03 §2 M0-2）：迁移可升级回滚，对象读写通过。
+# 验收项：迁移可升级回滚，对象读写通过。
 # 本脚本会真连 PostgreSQL（55432）与 MinIO（9100），因此不属于日常快速校验，
 # 只在显式调用时跑；`scripts/verify-all.sh --data-layer` 会转发到这里。
 #
@@ -12,7 +12,7 @@
 #   bash scripts/verify-data-layer.sh --help
 #
 # 凭据只从环境变量读：POSTGRES_PASSWORD 供迁移连库；MINIO_ROOT_USER / MINIO_SECRET_KEY
-# 供对象读写。两者都不写文件、不打印（M0-00 §6）。
+# 供对象读写。两者都不写文件、不打印。
 # 起不来时的排查提示会直接打在下面对应步骤里。
 set -u
 
@@ -131,7 +131,7 @@ export OMNIREAD_MINIO_ACCESS_KEY="${OMNIREAD_MINIO_ACCESS_KEY:-$MINIO_USER}"
 export OMNIREAD_MINIO_SECRET_KEY="${OMNIREAD_MINIO_SECRET_KEY:-$MINIO_SECRET_KEY}"
 # Windows 控制台默认不是 UTF-8，Python 子进程统一按 UTF-8 输出，避免中文提示变乱码。
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
-# 对象样本默认用 M0 的 book 1；桶里已有 book 1 的正式导入产物时，可用它换一个空 book 前缀，
+# 对象样本默认用 book 1；桶里已有 book 1 的正式导入产物时，可用它换一个空 book 前缀，
 # 避免验证覆盖真实数据（脚本自身也会在发现 manifest.json 时拒绝写入）。
 export OMNIREAD_VERIFY_BOOK_ID="${OMNIREAD_VERIFY_BOOK_ID:-1}"
 
@@ -150,11 +150,12 @@ TABLES="$(psql_t "SELECT string_agg(tablename, ',' ORDER BY tablename) FROM pg_t
 if [ "$TABLES" = "books,chapters,chunk_mappings,chunks,rag_runs,volumes" ]; then
   ok "六张表就位：$TABLES"
 else
-  bad "表集合与 M0-02 §3 不一致（实际：$TABLES）" "对照 docs/规格.md（M0-02 一节） §3.1–§3.6"
+  bad "表集合与预期不一致" "实际：$TABLES
+期望：books,chapters,chunk_mappings,chunks,rag_runs,volumes"
 fi
 
 if [ "$(psql_t "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename='progress';")" = "0" ]; then
-  ok "progress 不在本库（M0-02 §3.7）"
+  ok "progress 不在本库"
 else
   bad "progress 表不该存在于 RAG 库" "阅读进度由 Java 侧持久化；删表并修迁移"
 fi
@@ -210,7 +211,7 @@ PY
 then
   ok "会话 GUC：hnsw.iterative_scan / max_scan_tuples / ef_search 已下发"
 else
-  bad "会话 GUC 未按 M0-01 §4.2 下发" "看 infrastructure/db/session.py 的 HNSW_SESSION_SETTINGS"
+  bad "会话 GUC 未按约定下发" "看 infrastructure/db/session.py 的 HNSW_SESSION_SETTINGS"
 fi
 
 # ---------- 2. 迁移回滚 ----------
@@ -225,7 +226,7 @@ REMAINING="$(psql_t "SELECT coalesce(string_agg(tablename, ',' ORDER BY tablenam
 if [ -z "$REMAINING" ]; then
   ok "回滚后业务表清空（仅剩 alembic_version）"
 else
-  bad "回滚后有残留表：$REMAINING" "downgrade 的 DROP 顺序或遗漏；对照 M0-02 §3"
+  bad "回滚后有残留表：$REMAINING" "downgrade 的 DROP 顺序或遗漏"
 fi
 
 # ---------- 3. 再升级（往返） ----------
@@ -257,7 +258,7 @@ from omniread.config import Settings
 from omniread.infrastructure.objectstore.minio_storage import build_minio_client
 
 BOOK = int(os.environ.get("OMNIREAD_VERIFY_BOOK_ID", "1"))
-# 对象布局照 M0-02 §4；这里只写验证样本，键沿用真实布局以同时校验路径约定。
+# 对象布局照真实导入布局；这里只写验证样本，键沿用真实布局以同时校验路径约定。
 PAYLOADS = {
     f"books/{BOOK}/source/index.jsonl": b'{"id":"verify-only"}\n',
     f"books/{BOOK}/source/说明.md": "# 验证样本\n".encode(),

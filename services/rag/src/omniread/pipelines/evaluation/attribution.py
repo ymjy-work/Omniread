@@ -1,4 +1,4 @@
-"""未命中 evidence 的逐条归因（M1-1 步骤 1）。
+"""未命中 evidence 的逐条归因。
 
 **它比 summary / failures 多要两路输入，这不是疏漏。** 那两者是
 `retrieval.scores.jsonl` 的确定性函数（所以能离线零费用重算）；归因做不到，因为
@@ -96,7 +96,7 @@ class LossAttribution:
     by_type_total: Mapping[str, int]
     #: 题型 → 阶段 → 条数。
     by_type_stage: Mapping[str, Mapping[str, int]]
-    #: 题型 → 阶段 → 去重后的 chunk_key 数（与 `docs/阶段.md` M0 一节里的 41/19/13 同单位）。
+    #: 题型 → 阶段 → 去重后的 chunk_key 数。
     by_type_unique_keys: Mapping[str, Mapping[str, int]]
 
     @property

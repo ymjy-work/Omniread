@@ -1,6 +1,6 @@
 """数据库连接：从环境变量装配 URL，并在每条连接上设置 pgvector 的 HNSW 会话参数。
 
-凭据只从环境变量读，不写默认值、不落盘（M0-00 §6）。非凭据项（主机 / 端口 / 库名 / 用户）
+凭据只从环境变量读，不写默认值、不落盘。非凭据项（主机 / 端口 / 库名 / 用户）
 给与 `infra/docker/docker-compose.yml` 一致的默认值，便于本机直接使用；口令没有默认值，
 缺失即显式失败，不做静默降级。
 """
@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 from sqlalchemy import Engine, create_engine, event
 
-# pgvector 运行时参数（M0-01 §4.2 / M0-02 §3.8）。
+# pgvector 运行时参数。
 #
 # 落点选「连接建立时 SET」而不是迁移里的 ALTER DATABASE / ROLE SET：
 # 这三项是会话级 GUC，随连接生命周期走；定在连接层则应用进程、评测 runner、

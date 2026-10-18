@@ -51,7 +51,7 @@ class RetrievalOutcome:
 
     `assembled` 是最终进入 prompt 的集合（realm re-check 与 token budget 均已结算），
     按 `chunk_index` 升序呈现；被裁项在 `dropped`。逐阶段列表是诊断用，指标命中判定
-    以 `assembled` 为准（M0-02 §8.7）。
+    以 `assembled` 为准。
     """
 
     query: str

@@ -1,8 +1,8 @@
-"""查询归一化与 realm 解析（M0-01 §4.1 / §4.2）。
+"""查询归一化与 realm 解析。
 
 归一化：Unicode NFC → trim → 连续空白折叠为单空格。**不折叠全半角、大小写与标点**——
-折叠标点会改变 BM25 的匹配面，那属于检索行为变更，不该藏在「归一化」里；模型改写同理由
-M0 不接（`options.rewrite` 字段保留，不接模型）。
+折叠标点会改变 BM25 的匹配面，那属于检索行为变更，不该藏在「归一化」里；模型改写同理
+不接（`options.rewrite` 字段保留，不接模型）。
 
 realm：`past` → `chapter_index <= progress`；`full` → 全书章节。区间下界取书中最小
 `chapter_index`，上界在 `past` 下取 progress、`full` 下取最大 `chapter_index`；越界即

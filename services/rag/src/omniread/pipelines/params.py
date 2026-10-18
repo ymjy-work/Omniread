@@ -1,6 +1,6 @@
 """检索链的冻结参数（当前为 **M1 新基线**，2026-10-08 冻结）。
 
-一次定死的基线值：改其中任何一个都等于换基线，必须走 run 对比（M0-02 §7.3）。
+一次定死的基线值：改其中任何一个都等于换基线，必须走 run 对比。
 检索与装配两个子包都从这里取参，不各自复制常量——两处各写一个数就会漂移。
 
 **相对 M0 基线只动三个装配旋钮**，其余不动：
@@ -11,7 +11,7 @@
 | `ask_top_k` | 8 | **12** | 唯一能直接换回命中的旋钮，且无副作用 |
 | `ask_chunks_per_chapter` | 2 | **4** | 主要瓶颈：跨章题需要同章的多段证据 |
 
-依据是 `eval/runs/2026-10-08-m1-*` 的七组单变量对照（`docs/阶段.md 的 M1-1 一节` 的方法）：
+依据是 `eval/runs/2026-10-08-m1-*` 的七组单变量对照（召回上下界阶梯 + 分题型 + 被裁原因归因）：
 总体 `evidence_recall` 0.7003 → **0.8179**、`cross` 0.5417 → **0.6562**，`leak` 全程保持 0。
 机理可解释：`ask_chunks_per_chapter=2` 时「未进装配的映射 key」里有 32 个是被每章上限
 切掉的，提到 4 之后只剩 5 个——是逻辑上的改进，不是随机波动。
@@ -33,7 +33,7 @@ from dataclasses import asdict, dataclass
 # 查询归一化口径标识，写入 `rag_runs.retrieval_params.normalizer_id`。
 NORMALIZER_ID = "nfc-trim-collapse-space"
 
-# token budget 的下限：8 段 × 单段上限 600 token（M0-00 §5）。
+# token budget 的下限：8 段 × 单段上限 600 token。
 _MIN_PROMPT_TOKEN_BUDGET = 4800
 
 

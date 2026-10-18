@@ -1,4 +1,4 @@
-"""答案 prompt：模板资源、消息组装与 `prompt_version`（M0-01 §5.5）。
+"""答案 prompt：模板资源、消息组装与 `prompt_version`。
 
 模板以**仓库内文件** `prompts/answer.md` 存在，不是代码里的字符串。文件用两个标记行切成
 两段，标记行本身不进模型可见文本：
@@ -101,7 +101,7 @@ class AnswerPrompt:
         prompt 会在 run 记录里并列成同一个版本，而两边都不会报错。
 
         没有历史也没有摘要时（单轮），返回值与「只有 system / user 两段」**逐字节相同**
-        ——86 题评测走的正是这条路，所以 M1-2 的基线仍然可比。
+        ——86 题评测走的正是这条路，所以既有基线仍然可比。
         """
         messages = [ChatMessage(role="system", content=self.system)]
         if summary:
@@ -133,7 +133,7 @@ def prompt_version(template_text: str) -> str:
 
     不能只算模板文件：材料段的标题格式、段间分隔与空材料占位句都写在代码里，
     它们同样是模型可见文本。只算模板会让「改了格式却不换版本」成立，
-    于是两份不同的 prompt 在 run 记录里并列成同一个版本（M0-01 §5.5 的判据是
+    于是两份不同的 prompt 在 run 记录里并列成同一个版本（判据是
     「是否改变模型可见文本或判据」，不是「模板文件是否变化」）。
     """
     payload = _VERSION_INPUT_SEPARATOR.join(

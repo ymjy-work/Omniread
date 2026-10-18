@@ -27,7 +27,7 @@ CONTEXT_CHAPTERS = [
 
 
 def fake_event_sequence() -> list[RagEvent]:
-    """一段完整的成功事件序列，字段取自 M0-02 §8.5 的负载表。"""
+    """一段完整的成功事件序列，字段名与 `domain/events.py` 的构造函数一致。"""
     return [
         query_started(request_id=REQUEST_ID, book_id=1, level="past", progress=45),
         realm_resolved(lo=1, hi=45),

@@ -5,7 +5,7 @@ import com.omniread.backend.error.ErrorCode;
 import com.omniread.backend.error.RagException;
 
 /**
- * level / progress 在 Java 边界校验（M0-01 §7）：Python 不重复校验，
+ * level / progress 在 Java 边界校验：Python 不重复校验，
  * 因为校验需要 chapter_count，而 chapter_count 来自 GET /books —— 让 Java 当唯一的裁判，
  * 非法输入就不会先跑到检索层再被拒。
  *
