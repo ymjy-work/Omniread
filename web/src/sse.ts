@@ -1,5 +1,5 @@
 /**
- * 契约 `POST /api/v1/query/stream` 的 SSE 客户端，手写。
+ * 契约 `POST /api/v1/query-stream` 的 SSE 客户端，手写。
  *
  * 用 fetch + ReadableStream 而不是 EventSource：EventSource 只能 GET，
  * 而问答请求体是 JSON。代价是帧解析要自己做，好处是能带请求体、能主动 abort。
@@ -8,7 +8,7 @@
  * 1. 本模块**不向调用方抛异常** —— 网络错误、非 2xx、非法帧全部走 onError；
  * 2. 出错后不再回调 onEvent，也不重复回调 onError。
  */
-import type { ErrorBody, ErrorCode, SessionQueryRequest, SseFrame } from './types'
+import type { ErrorCode, SessionQueryRequest, SseFrame } from './types'
 import { ERROR_CODES, SSE_EVENT_NAMES } from './types'
 import { CSRF_HEADERS, notifyUnauthorized } from './api'
 
@@ -95,7 +95,7 @@ export function openQueryStream(
   void (async () => {
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
     try {
-      const response = await fetch('/api/v1/query/stream', {
+      const response = await fetch('/api/v1/query-stream', {
         method: 'POST',
         // 写操作要带 CSRF 头，流式这一条也不例外（契约对 queryStream 同样声明了它）
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...CSRF_HEADERS },
@@ -228,9 +228,4 @@ function readCode(source: unknown): ErrorCode | SseLocalErrorCode {
   // 认不认识这个码查契表的闭枚举（types.ts 的 ERROR_CODES）——
   // 原先按四个码白名单，别的契约码会被错标成「流断了」，而它其实好好地送来了一个业务错误
   return ERROR_CODES.includes(code as ErrorCode) ? (code as ErrorCode) : 'SSE_STREAM_ERROR'
-}
-
-/** 供调用方按契约字段判断错误体形状（与 api.ts 的 ApiError 同源语义） */
-export function isErrorBody(value: unknown): value is ErrorBody {
-  return typeof value === 'object' && value !== null && 'code' in value && 'message' in value
 }

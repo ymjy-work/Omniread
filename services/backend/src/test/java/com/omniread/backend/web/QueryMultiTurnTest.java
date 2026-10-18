@@ -188,7 +188,7 @@ class QueryMultiTurnTest {
         Cookie cookie = login(newAccount("stream"));
         String sessionId = createSession(cookie);
 
-        String body = mvc.perform(post("/api/v1/query/stream").cookie(cookie).header(CSRF, "1")
+        String body = mvc.perform(post("/api/v1/query-stream").cookie(cookie).header(CSRF, "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(askBody(sessionId, "她后来回去了吗？")))
                 .andExpect(status().isOk())
@@ -300,6 +300,9 @@ class QueryMultiTurnTest {
         assertThat(result.getResponse().getStatus()).as("响应体：" + body).isEqualTo(200);
         assertThat(body).contains("\"session_id\":\"" + sessionId + "\"").contains("\"message_id\":");
         assertThat(body).contains(ANSWER);
+        // 上游那几个字段必须是**展开**的，不能裹在 `upstream` 键下面。
+        // 只比字段值的话「展开」与「嵌套」都能过——而两者对前端是两种契约。
+        assertThat(body).doesNotContain("\"upstream\"");
     }
 
     private static String askBody(String sessionId, String question) {

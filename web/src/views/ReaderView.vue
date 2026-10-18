@@ -106,9 +106,8 @@ async function markRead(): Promise<void> {
         <div class="chapter-head">
           <span class="vol-tag">卷 {{ store.chapter.volume_index }}</span>
           <!--
-            把全书章序号摆到标题旁边，是为了让它与回答里的 `[C数字]` 对得上号。
-            两者不同源：`[C数字]` 用全书连续序号，章节标题里的「第N话」按卷重新编号——
-            全书第 7 章的标题恰恰写着「第6话」。不摆出来，用户按话数去找就会找错章。
+            把全书章序号摆到标题旁边，是为了让它与回答里的 `[C数字]` 对得上号——
+            标题里的「第N话」按卷重新编号，两者不是一套编号。
           -->
           <span class="vol-tag">全书第 {{ store.chapter.chapter_index }} 章</span>
           <h1>{{ store.chapter.chapter_title }}</h1>
@@ -123,7 +122,7 @@ async function markRead(): Promise<void> {
 
         <div class="meta-note loc">
           卷 {{ store.chapter.volume_index }} · 全局 seq {{ store.chapter.chapter_index }}/{{ chapterCount }} ·
-          ◎ 进度 {{ store.progress?.max_seq ?? 0 }}
+          ◎ 进度 {{ store.reading?.progress ?? 0 }}
         </div>
       </template>
     </article>

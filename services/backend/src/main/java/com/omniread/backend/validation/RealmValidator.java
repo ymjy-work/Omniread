@@ -24,9 +24,9 @@ public final class RealmValidator {
         }
     }
 
-    public static void validateProgress(int maxSeq, int chapterCount) {
-        if (maxSeq < 1 || maxSeq > chapterCount) {
-            throw invalid("progress 必须在 1.." + chapterCount + " 内，收到 " + maxSeq);
+    public static void validateProgress(int progress, int chapterCount) {
+        if (progress < 1 || progress > chapterCount) {
+            throw invalid("progress 必须在 1.." + chapterCount + " 内，收到 " + progress);
         }
     }
 

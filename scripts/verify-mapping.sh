@@ -16,7 +16,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RAG_DIR="$ROOT/services/rag"
 
 case "${1:-}" in
-  -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+  -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
 esac
 
 if [ ! -d "$ROOT/asset/《不时轻声地以俄语遮羞的邻座艾莉同学》" ]; then

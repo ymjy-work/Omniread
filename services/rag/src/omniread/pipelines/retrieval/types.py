@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from omniread.pipelines.assembly import AssembledChunk, DroppedChunk
-from omniread.pipelines.params import M0_PARAMS, RetrievalParams
+from omniread.pipelines.params import DEFAULT_PARAMS, RetrievalParams
 from omniread.pipelines.retrieval.query import RealmBounds
 
 # 逐阶段列表的元素：`rank` 从 1 起，`score` 是该阶段自己的量纲（余弦相似度 / BM25 分 /
@@ -63,7 +63,7 @@ class RetrievalOutcome:
     assembled: tuple[AssembledChunk, ...]
     dropped: tuple[DroppedChunk, ...]
     token_estimate: int
-    params: RetrievalParams = M0_PARAMS
+    params: RetrievalParams = DEFAULT_PARAMS
 
 
 __all__ = ["ChunkRecord", "RetrievalOutcome", "ScoredStage", "StageHit"]

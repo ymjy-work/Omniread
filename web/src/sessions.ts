@@ -13,7 +13,7 @@
 import { ref } from 'vue'
 import * as api from './api'
 import { ApiError } from './api'
-import { raiseBlocking } from './blocking'
+import { divertForbidden } from './blocking'
 import { formatErrorLine } from './errors'
 import type { ChatSessionSummary, QueryLevel, SessionDetail } from './types'
 
@@ -24,9 +24,8 @@ export const sessionsError = ref<string | null>(null)
 
 function noteError(cause: unknown): void {
   if (cause instanceof ApiError) {
-    // 403 走弹窗，不落这一行：同一个码在三条路上要表现一致（见 blocking.ts）
-    if (cause.code === 'RAG_FORBIDDEN') {
-      raiseBlocking(cause.code, cause.message)
+    // 403 走弹窗，不落这一行：同一个码在四条路上要表现一致（见 blocking.ts）
+    if (divertForbidden(cause.code, cause.message)) {
       sessionsError.value = null
       return
     }

@@ -30,7 +30,7 @@ for arg in "$@"; do
     --data-layer) DATA_LAYER=1 ;;
     --gateway) GATEWAY=1 ;;
     --ci) CI=1 ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
     *) echo "未知参数：$arg（用 --help 看用法）" >&2; exit 2 ;;
   esac
 done

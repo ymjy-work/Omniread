@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Omniread M0 Golden 数据集校验器（权威）。
 
 职责
@@ -265,11 +265,14 @@ def _validate_structure_native(obj: object, rep: Report) -> None:
         rep.error("", "题目必须是 JSON 对象")
         return
     required = [
-        "schema_version", "id", "type", "difficulty", "book_id",
+        "schema_version", "id", "type", "book_id",
         "question", "reference_points", "level", "expect_refusal",
         "must_cite_groups",
     ]
-    allowed = set(required) | {"reference_answer", "progress"}
+    # `difficulty` 在 allowed 里而不是 required 里：维度已退役（存量题还带着它，
+    # 新题不写），所以「有就校验取值、没有也不报缺」。漏放这里会让兜底路径
+    # 把**存量题**判成「不允许的字段」，而 schema.json 那条路径放行——同一个数据集两种结论。
+    allowed = set(required) | {"reference_answer", "progress", "difficulty"}
 
     for key in required:
         if key not in obj:
@@ -284,8 +287,10 @@ def _validate_structure_native(obj: object, rep: Report) -> None:
         rep.error("id", "必须是非空字符串")
     if obj.get("type") not in TYPES:
         rep.error("type", f"必须属于 {list(TYPES)}，实际为 {obj.get('type')!r}")
-    if obj.get("difficulty") not in DIFFICULTIES:
-        rep.error("difficulty", f"必须属于 {list(DIFFICULTIES)}，实际为 {obj.get('difficulty')!r}")
+    # 难度维度已砍（2026-10-13，见 docs/决策与变更.md 的「Golden 难度维度迁移」一节）：**存量题面不迁移**，
+    # 字段在就还得合法（防手改出拼写错），新题不写它。统计与报表一概不再读这个字段。
+    if "difficulty" in obj and obj.get("difficulty") not in DIFFICULTIES:
+        rep.error("difficulty", f"写了就必须属于 {list(DIFFICULTIES)}，实际为 {obj.get('difficulty')!r}")
     book_id = obj.get("book_id")
     if not (_is_int(book_id) and book_id == BOOK_ID_M0):
         rep.error("book_id", f"M0 恒为 {BOOK_ID_M0}，实际为 {book_id!r}")
@@ -492,7 +497,17 @@ def validate_question(
             )
 
 
-def validate_directory(target: Path) -> Report:
+def validate_directory(target: Path, *, allow_incomplete: bool = False) -> Report:
+    """校验整个数据集目录。
+
+    `allow_incomplete` 把**数量目标**从错误降成警告，其余校验一条不放松。
+
+    它存在是因为数量目标描述的是「交付一份完整 Golden」，而不是「这份题集合不合法」：
+    留出题集（holdout，用来验「0.8179 里有多少是过拟合」）刻意只抽 30 题，结构与命名
+    都合规，但永远达不到 ≥60 / 单桶 ≥8 / 拒答 ≥10。没有这个开关，留出题集连
+    `dataset_hash` 都算不出来——而 hash 恰恰是它必须落进 run 记录的东西。
+    **结构、命名、id 唯一、evidence 的 chapter 上界一条都不降级**，降级的只有数量。
+    """
     rep = Report()
     schema = load_schema(target, rep)
 
@@ -538,16 +553,23 @@ def validate_directory(target: Path) -> Report:
     print(f"== 数据集校验：{target} ==")
     print(f"题目文件数：{total}")
     print("-- 数量目标 --")
+    # 数量目标：默认是错误（交付一份完整 Golden 才算过），`--allow-incomplete` 下只警告。
+    def _quota(where: str, message: str) -> None:
+        if allow_incomplete:
+            rep.warn(f"{message}（--allow-incomplete：数量目标不判失败）")
+        else:
+            rep.error(where, message)
+
     _print_quota("总量", total, TOTAL_MIN)
     if total < TOTAL_MIN:
-        rep.error("(数据集)", f"总量 {total} 未达目标 ≥{TOTAL_MIN}")
+        _quota("(数据集)", f"总量 {total} 未达目标 ≥{TOTAL_MIN}")
     for t in TYPES:
         _print_quota(f"  {t}", per_type[t], PER_TYPE_MIN)
         if per_type[t] < PER_TYPE_MIN:
-            rep.error("(数据集)", f"类型 {t} 数量 {per_type[t]} 未达目标 ≥{PER_TYPE_MIN}")
+            _quota("(数据集)", f"类型 {t} 数量 {per_type[t]} 未达目标 ≥{PER_TYPE_MIN}")
     _print_quota("拒答题", refusal, REFUSAL_MIN)
     if refusal < REFUSAL_MIN:
-        rep.error("(数据集)", f"拒答题数量 {refusal} 未达目标 ≥{REFUSAL_MIN}")
+        _quota("(数据集)", f"拒答题数量 {refusal} 未达目标 ≥{REFUSAL_MIN}")
 
     print("-- dataset_hash --")
     print(f"dataset_hash: {dataset_hash(dataset_entries, rep)}")
@@ -612,14 +634,20 @@ def _force_utf8_stdout() -> None:
             pass
 
 
+USAGE = "用法：python validate_golden.py [--allow-incomplete] [目录或单个 .json]"
+
+
 def main(argv: list[str]) -> int:
     _force_utf8_stdout()
-    if len(argv) > 2:
-        print("用法：python validate_golden.py [目录或单个 .json]", file=sys.stderr)
+    flags = [item for item in argv[1:] if item.startswith("--")]
+    positional = [item for item in argv[1:] if not item.startswith("--")]
+    if [flag for flag in flags if flag != "--allow-incomplete"] or len(positional) > 1:
+        print(USAGE, file=sys.stderr)
         return 2
 
-    if len(argv) == 2:
-        target = Path(argv[1]).resolve()
+    allow_incomplete = "--allow-incomplete" in flags
+    if positional:
+        target = Path(positional[0]).resolve()
     else:
         target = Path(__file__).resolve().parent.parent / "eval" / "golden"
 
@@ -629,7 +657,7 @@ def main(argv: list[str]) -> int:
 
     print("注意：evidence 的 content 是否为原文片段（非转述）无法机器判定，仍需人工/映射阶段复核。")
     if target.is_dir():
-        rep = validate_directory(target)
+        rep = validate_directory(target, allow_incomplete=allow_incomplete)
     else:
         rep = validate_single_file(target)
     _report(rep)

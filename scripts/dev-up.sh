@@ -55,7 +55,7 @@ for arg in "$@"; do
     --web) START_WEB=1 ;;
     --force) FORCE=1 ;;
     --build) REBUILD=1 ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
     *) echo "未知参数：$arg（用 --help 看用法）" >&2; exit 2 ;;
   esac
 done
@@ -216,6 +216,10 @@ RAG_ENV=(
   "OMNIREAD_RETRIEVAL_PROVIDER=$RETRIEVAL_PROVIDER"
   OMNIREAD_FAKE_ANSWER_FAULT=none
   OMNIREAD_FAKE_ANSWER_DELAY_MS=0
+  # 日志是中文，而这个进程的 stdout 重定向进 rag.log：不指定时 Python 按系统代码页
+  # （中文 Windows 是 GBK）编码，编不出的字符会让 logging 打出 "--- Logging error ---"
+  # 并丢掉那一行。与其余 verify-* 脚本同一个做法。
+  PYTHONIOENCODING=utf-8
 )
 if [ "$LOCAL_IMAGES" -eq 1 ]; then
   # 本地图片目录：不读 MinIO 凭据，目录固定放在被 git 忽略的 temp/ 下

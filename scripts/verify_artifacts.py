@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """扫描 `eval/runs/` 下的全部 run 产物，核对入库红线（M0-02 §7.1）。
 
-规格要求「CI 检查 JSONL 内任一字符串字段长度上限 500 字符」，但仓库里既没有 CI
-也没有实现这条检查的脚本——本文件就是那个载体。
+规格要求「CI 检查 JSONL 内任一字符串字段长度上限 500 字符」——本文件就是那个载体，
+由 `.github/workflows/ci.yml` 经 `verify-all.sh --ci` 调起（`verify-all.sh` 第 12 步）。
 
 检查三件事，缺一不可：
 

@@ -25,11 +25,11 @@ function openChapter(chapterIndex: number): void {
 }
 
 function chapterClass(chapterIndex: number): Record<string, boolean> {
-  const maxSeq = store.progress?.max_seq ?? null
+  const readUpTo = store.reading?.progress ?? null
   return {
     active: chapterIndex === currentIndex.value,
-    cur: maxSeq !== null && chapterIndex === maxSeq,
-    done: maxSeq !== null && chapterIndex < maxSeq
+    cur: readUpTo !== null && chapterIndex === readUpTo,
+    done: readUpTo !== null && chapterIndex < readUpTo
   }
 }
 
@@ -75,7 +75,7 @@ async function pickProgress(event: Event): Promise<void> {
               <span class="ct">{{ chapter.chapter_title }}</span>
               <span v-if="chapter.chapter_index === currentIndex" class="tag-cur">◉ 当前</span>
               <span
-                v-else-if="store.progress && chapter.chapter_index === store.progress.max_seq"
+                v-else-if="store.reading && chapter.chapter_index === store.reading.progress"
                 class="tag-cur cur"
                 >读到</span
               >
@@ -112,16 +112,15 @@ async function pickProgress(event: Event): Promise<void> {
     <div v-if="inReader" class="foot">
       <div class="progress-bar"><i :style="{ width: `${Math.round(readProgressRatio * 100)}%` }"></i></div>
       <div class="pg-line">
-        阅读进度 <b style="font-family: var(--mono)">{{ store.progress?.max_seq ?? 0 }}/{{ chapterCount }}</b>
+        阅读进度 <b style="font-family: var(--mono)">{{ store.reading?.progress ?? 0 }}/{{ chapterCount }}</b>
       </div>
       <label class="pg-pick">
         调整进度
-        <select class="gobtn" :value="store.progress?.max_seq ?? 1" @change="pickProgress">
+        <select class="gobtn" :value="store.reading?.progress ?? 1" @change="pickProgress">
           <option v-for="chapter in store.chapters" :key="chapter.chapter_index" :value="chapter.chapter_index">
             <!--
-              这个数字是 `chapter_index`（全书连续序号），**不是话数**——标题里的「第N话」
-              按卷重新编号，全书第 7 章的标题写着「第6话」。此前这里写「第 N 话」，
-              渲染出来就是「第 7 话 · 第6话 …」，同一行两个打架的号码。
+              这个数字是 `chapter_index`（全书连续序号），**不是话数**——两者不同源，
+              写成「第 N 话」会渲染出「第 7 话 · 第6话」这种同一行两个打架的号码。
             -->
             全书第 {{ chapter.chapter_index }} 章 · {{ chapter.chapter_title }}
           </option>

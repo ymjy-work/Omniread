@@ -25,6 +25,21 @@ export function raiseBlocking(code: AnyErrorCode, message: string): void {
   blockingError.value = { title: describeErrorCode(code), detail: message.trim() }
 }
 
+/**
+ * 403 的统一处置，四处调用点共用这一份判断。
+ *
+ * **返回 true = 已经弹过窗了**，调用方据此把本地那行文案置 `null` 并收工——不重复显示
+ * 是这条口径的一半：弹窗与状态栏同时出现，用户会以为发生了两件事。
+ *
+ * 收口在这里而不是各调用点各写一遍，是因为四处漏一处就退化成「有时弹有时不弹」，
+ * 而那种缺陷在单个调用点上看不出来。
+ */
+export function divertForbidden(code: AnyErrorCode, message: string): boolean {
+  if (code !== 'RAG_FORBIDDEN') return false
+  raiseBlocking(code, message)
+  return true
+}
+
 export function dismissBlocking(): void {
   blockingError.value = null
 }

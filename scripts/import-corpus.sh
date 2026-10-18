@@ -22,7 +22,7 @@ BOOK_ID=1
 CORPUS_VERSION=""
 RUN_MIGRATIONS=1
 
-usage() { sed -n '2,16p' "$0"; }
+usage() { awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in

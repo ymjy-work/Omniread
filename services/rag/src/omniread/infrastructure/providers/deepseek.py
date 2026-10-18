@@ -16,7 +16,7 @@ query 失败**：改写与摘要是增强步骤，缺凭据只降级。那个「
 from __future__ import annotations
 
 from omniread.infrastructure.providers.openai_compat import (
-    DEFAULT_TIMEOUT_SECONDS,
+    CHAT_TIMEOUT_SECONDS,
     OpenAiCompatibleChatAdapter,
 )
 
@@ -38,9 +38,9 @@ class DeepSeekChatAdapter(OpenAiCompatibleChatAdapter):
 
 
 __all__ = [
+    "CHAT_TIMEOUT_SECONDS",
     "DEEPSEEK_API_KEY_ENV",
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
-    "DEFAULT_TIMEOUT_SECONDS",
     "DeepSeekChatAdapter",
 ]

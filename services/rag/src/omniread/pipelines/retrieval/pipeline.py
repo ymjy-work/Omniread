@@ -38,7 +38,7 @@ from omniread.infrastructure.db.models import EMBEDDING_DIM
 from omniread.infrastructure.providers.base import EmbeddingModel, RerankModel
 from omniread.infrastructure.providers.errors import ProviderResponseError
 from omniread.pipelines.assembly import ChunkCandidate, assemble
-from omniread.pipelines.params import M0_PARAMS, RetrievalParams
+from omniread.pipelines.params import DEFAULT_PARAMS, RetrievalParams
 from omniread.pipelines.retrieval.bm25 import Bm25Index
 from omniread.pipelines.retrieval.dense import DenseIndex
 from omniread.pipelines.retrieval.query import normalize_query, resolve_realm
@@ -60,7 +60,7 @@ class RetrievalPipeline:
         dense: DenseIndex,
         embedder: EmbeddingModel,
         reranker: RerankModel,
-        params: RetrievalParams = M0_PARAMS,
+        params: RetrievalParams = DEFAULT_PARAMS,
     ) -> None:
         if embedder.dim != EMBEDDING_DIM:
             raise ValueError(

@@ -7,9 +7,14 @@ import org.apache.ibatis.annotations.Param;
 /**
  * 对话会话表的读写。
  *
- * <p>**每个按 id 取会话的方法都带 `userId`**：跨用户访问要判 403，而判定的前提是能区分
- * 「不存在」与「不是你的」。把 `user_id` 放进 `WHERE` 里，越权查询自然返回空，
- * 上层再按「找不到」还是「找到了但不是你的」给不同响应——不需要先查出来再比对。
+ * <p>**鉴权路径是「先按 id 取、再比 `userId`」，不是把 `user_id` 放进 `WHERE`**：
+ * 跨用户访问要判 403、不存在要判 404，而「带 userId 的按 id 查询」会把这两种情况都变成
+ * 「查不到」，上层就再也分不开了。所以按 id 取单个会话一律用 {@link #findById}，
+ * 取出来自己比 `userId`（`SessionService` 里那几条 403 / 404 用例钉的就是这件事）。
+ * **没有 `findByIdForUser` 这个方法**，别再把它加回来。
+ *
+ * <p>反过来，**批量与列表操作按用户过滤是对的**：它们不需要区分「哪一条不是你的」，
+ * 用 `WHERE user_id = ?` 一条 SQL 收口，比取出来再筛更省也更容易写对。
  */
 @Mapper
 public interface ChatSessionMapper {
@@ -17,8 +22,6 @@ public interface ChatSessionMapper {
     int insert(ChatSession session);
 
     ChatSession findById(@Param("id") String id);
-
-    ChatSession findByIdForUser(@Param("id") String id, @Param("userId") long userId);
 
     /** 列表按最近活跃倒序；`last_active_at` 是会话被继续时刷新的那个字段。 */
     List<ChatSession> findByUserId(@Param("userId") long userId);

@@ -8,7 +8,7 @@
  * 记一个「我以为登录了」的布尔值只会与 cookie 的真实状态漂移——每次启动问一次服务端，
  * 是唯一不会说谎的判定。
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import * as api from './api'
 import type { CurrentUser } from './types'
 
@@ -66,3 +66,11 @@ export function expiryLabel(): string {
   if (Number.isNaN(at.getTime())) return '—'
   return at.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
+
+/**
+ * 账户名与会话有效期这两个展示值有两个消费点（账户菜单、设置页），共用一份计算。
+ * 各写各的时候两边连兜底文案都不一样（`未登录` vs `—`），同一个账户在两张页面上长得不同。
+ */
+export const username = computed(() => current.value?.username ?? '未登录')
+
+export const expiry = computed(() => expiryLabel())

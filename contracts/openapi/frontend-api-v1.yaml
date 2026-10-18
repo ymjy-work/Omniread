@@ -111,6 +111,10 @@ paths:
       responses:
         "401":
           $ref: "#/components/responses/Error"
+        # 卷外章节一律 403：阅读页只开放第 1 卷，这是产品上的刻意取舍。
+        # 它由网关自己判（读章节表推出可读区间），不是上游返回的。
+        "403":
+          $ref: "#/components/responses/Error"
         "200":
           description: OK
           content:
@@ -141,6 +145,9 @@ paths:
       responses:
         "401":
           $ref: "#/components/responses/Error"
+        # 同上：插图按「可读章节引用了它」判，不在可读范围内即 403（也是网关自己判的）。
+        "403":
+          $ref: "#/components/responses/Error"
         "200":
           description: 图片字节
           content:
@@ -156,6 +163,9 @@ paths:
       tags: [catalog]
       operationId: getProgress
       summary: 读取当前账户的阅读进度
+      description: |
+        只读网关本机的进度表，**不经过上游**——所以没有 503（上游不可用影响不到它）。
+        与 `putProgress` 不同：写那一侧要问上游拿 `chapter_count` 才能判越界，读不需要。
       parameters:
         - $ref: "#/components/parameters/BookId"
       responses:
@@ -167,8 +177,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Progress"
-        "503":
-          $ref: "#/components/responses/Error"
     put:
       tags: [catalog]
       operationId: putProgress
@@ -203,7 +211,7 @@ paths:
       tags: [rag]
       operationId: query
       summary: 一轮问答（JSON 同步）
-      description: 供脚本使用；前端走 `/api/v1/query/stream`。两者除编码方式外行为一致。
+      description: 供脚本使用；前端走 `/api/v1/query-stream`。两者除编码方式外行为一致。
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
@@ -227,6 +235,10 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+        # `book_id` / `level` 与会话不符：前端在「切会话」与「切档位」之间串味了。
+        # 当场拒掉而不是猜用户想要哪一个——猜错的症状是防剧透约束被绕过。
+        "409":
+          $ref: "#/components/responses/Error"
         "429":
           $ref: "#/components/responses/Error"
         "502":
@@ -236,7 +248,7 @@ paths:
         "504":
           $ref: "#/components/responses/Error"
 
-  /api/v1/query/stream:
+  /api/v1/query-stream:
     post:
       tags: [rag]
       operationId: queryStream
@@ -293,6 +305,10 @@ paths:
         "502":
           $ref: "#/components/responses/Error"
         "503":
+          $ref: "#/components/responses/Error"
+        # 开流之前就失败（拿不到上游流）仍是普通状态码：`setStatus(200)` 在 `openStream`
+        # **之后**才调，所以超时/上游不可用在这里走 504，与 JSON 路径一致。
+        "504":
           $ref: "#/components/responses/Error"
 
   /api/v1/auth/login:
@@ -679,19 +695,23 @@ components:
 
     Progress:
       type: object
-      required: [book_id, max_seq]
+      required: [book_id, progress]
       properties:
         book_id: { type: integer, format: int32 }
-        max_seq:
+        progress:
           type: integer
           format: int32
-          description: 已读到的章（= chapter_index），1..chapter_count
+          description: |
+            已读到的章（= `chapter_index`），1..chapter_count。
+            **与 `QueryRequest.progress` 是同一个量、同一个名**——`level=past` 的防剧透过滤
+            用的就是它。此前这里叫 `max_seq`，与 `ChatMessage.seq`（会话内消息序号，
+            完全不相干的另一个量）共用 `seq` 词根，读的人容易把两者当成一回事。
 
     ProgressWrite:
       type: object
-      required: [max_seq]
+      required: [progress]
       properties:
-        max_seq: { type: integer, format: int32, minimum: 1 }
+        progress: { type: integer, format: int32, minimum: 1 }
 
     LoginRequest:
       type: object

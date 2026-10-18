@@ -19,6 +19,7 @@ from typing import Any
 
 import httpx
 
+from omniread.infrastructure.db.models import EMBEDDING_DIM
 from omniread.infrastructure.providers.base import RerankResult
 from omniread.infrastructure.providers.errors import (
     ProviderConfigError,
@@ -27,10 +28,9 @@ from omniread.infrastructure.providers.errors import (
     ProviderTimeoutError,
 )
 
+# `EMBEDDING_DIM` 从 `db/models.py` 取（真相源是 `chunks.embedding` 那一列），
+# 这里只 re-export：向量维度与列宽不一致时入库即污染索引，所以只能有一处能改。
 DASHSCOPE_API_KEY_ENV = "DASHSCOPE_API_KEY"
-
-# 与 `chunks.embedding` 的列维度绑定（M0-02 §3.4）；不一致的向量入库即污染索引。
-EMBEDDING_DIM = 1024
 
 EMBEDDING_MODEL = "qwen3.7-text-embedding"
 RERANK_MODEL = "qwen3.7-text-rerank"
@@ -43,7 +43,10 @@ DASHSCOPE_RERANK_URL = (
 # 百炼兼容面单次 embedding 请求的文本条数上限。
 EMBEDDING_BATCH_SIZE = 10
 
-DEFAULT_TIMEOUT_SECONDS = 30.0
+# embedding 与 rerank 都是单次短请求，30 秒足够。**生成那一侧是另一个值**——
+# `openai_compat.CHAT_TIMEOUT_SECONDS`（60.0，要等一整段回答吐完）。两个常量**刻意不同名**：
+# 同名时「从哪个模块 import」就决定了拿到 60 还是 30，而两处都叫 DEFAULT_* 的话看不出来。
+EMBEDDING_TIMEOUT_SECONDS = 30.0
 
 _PROVIDER_NAME = "dashscope"
 
@@ -126,7 +129,7 @@ class AliEmbeddingAdapter:
         model: str = EMBEDDING_MODEL,
         dim: int = EMBEDDING_DIM,
         batch_size: int = EMBEDDING_BATCH_SIZE,
-        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout: float = EMBEDDING_TIMEOUT_SECONDS,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if batch_size <= 0:
@@ -207,7 +210,7 @@ class AliRerankAdapter:
         api_key: str | None = None,
         url: str = DASHSCOPE_RERANK_URL,
         model: str = RERANK_MODEL,
-        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout: float = EMBEDDING_TIMEOUT_SECONDS,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.model = model

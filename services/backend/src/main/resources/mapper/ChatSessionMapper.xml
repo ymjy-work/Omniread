@@ -16,11 +16,8 @@
     SELECT * FROM chat_sessions WHERE id = #{id}
   </select>
 
-  <!-- 把 user_id 放进 WHERE：越权查询自然返回空，上层不必先查出来再比对。 -->
-  <select id="findByIdForUser" resultType="com.omniread.backend.session.ChatSession">
-    SELECT * FROM chat_sessions WHERE id = #{id} AND user_id = #{userId}
-  </select>
-
+  <!-- 按 id 取**不带用户过滤**：鉴权要能区分「不是你的」(403) 与「不存在」(404)，
+       带上 user_id 两者就都成了「查不到」。越权判定由 SessionService 取出后比对完成。 -->
   <select id="findByUserId" resultType="com.omniread.backend.session.ChatSession">
     SELECT * FROM chat_sessions WHERE user_id = #{userId} ORDER BY last_active_at DESC
   </select>

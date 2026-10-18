@@ -1,4 +1,4 @@
-"""M0 数据层的 SQLAlchemy 模型：字段逐列照 `M0-02-数据结构设计.md` §3 建。
+"""M0 数据层的 SQLAlchemy 模型：字段逐列照 `docs/规格.md`（M0-02 一节）§3 建。
 
 表集合固定为 `books` / `volumes` / `chapters` / `chunks` / `rag_runs` / `chunk_mappings`。
 阅读进度 `progress` **不进本库**——它由 Java 侧持久化后随请求传入（M0-02 §3.7）。

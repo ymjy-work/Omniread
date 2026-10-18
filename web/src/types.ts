@@ -67,11 +67,11 @@ export interface ChapterDetail {
 export interface Progress {
   book_id: number
   /** 已读到的章（= chapter_index），1..chapter_count */
-  max_seq: number
+  progress: number
 }
 
 export interface ProgressWrite {
-  max_seq: number
+  progress: number
 }
 
 // ---------- 认证 ----------
@@ -91,7 +91,10 @@ export interface CurrentUser {
 export type QueryLevel = 'past' | 'full'
 
 export interface QueryOptions {
-  /** M0 不实现模型改写，字段保留但不接模型 */
+  /**
+   * 是否做查询改写（D2 已实现，默认 true）。请求侧的开关，不是结果的回传位——
+   * 改写的前后文走 `rewrite_completed` 事件。无历史时没有可消解的指代，Java 自己跳过。
+   */
   rewrite?: boolean
   neighbor_expand?: boolean
 }

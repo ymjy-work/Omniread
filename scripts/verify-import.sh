@@ -30,7 +30,7 @@ CORPUS_ROOT="$DEFAULT_CORPUS_ROOT"
 BOOK_ID=1
 SKIP_REIMPORT=0
 
-usage() { sed -n '2,19p' "$0"; }
+usage() { awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in

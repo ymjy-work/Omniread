@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>`retention-days` 只管 usage_daily 的旧行：日额度表按天累加，不清的话它只涨不落。
  */
-@ConfigurationProperties("omniread.quota")
+@ConfigurationProperties(prefix = "omniread.quota")
 public record QuotaProperties(
         int turnsPerMinute,
         int turnsPerDay,

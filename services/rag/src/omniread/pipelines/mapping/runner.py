@@ -213,7 +213,6 @@ def summarize(
         "match_status": dict(sorted(status.items())),
         "decision_tiers": dict(sorted(tiers.items())),
         "per_type": _breakdown(pairs, lambda item: item.question_type),
-        # 按难度分列。**只分列、不加权**：难度是评测者给的主观标签，权重会把它乘进
         "multi_cover_count": tiers.get(TIER_MAX_COVERAGE, 0),
     }
 

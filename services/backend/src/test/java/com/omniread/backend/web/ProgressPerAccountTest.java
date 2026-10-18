@@ -115,11 +115,11 @@ class ProgressPerAccountTest {
         userProgressMapper.upsert(row);
     }
 
-    private void expectProgress(Cookie cookie, int maxSeq) throws Exception {
+    private void expectProgress(Cookie cookie, int progress) throws Exception {
         mvc.perform(get("/api/v1/books/1/progress").cookie(cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.book_id").value(1))
-                .andExpect(jsonPath("$.max_seq").value(maxSeq));
+                .andExpect(jsonPath("$.progress").value(progress));
     }
 
     private Cookie login(User user) throws Exception {

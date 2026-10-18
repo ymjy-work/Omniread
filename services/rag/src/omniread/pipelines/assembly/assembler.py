@@ -23,7 +23,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Protocol
 
-from omniread.pipelines.params import M0_PARAMS, RetrievalParams
+from omniread.pipelines.params import DEFAULT_PARAMS, RetrievalParams
 
 if TYPE_CHECKING:
     # 只在类型注解里用到：运行期装配靠 `realm.contains()` 鸭子调用。写进运行期 import
@@ -111,7 +111,7 @@ def assemble(
     *,
     chunks: Mapping[str, Neighborhood],
     realm: RealmBounds,
-    params: RetrievalParams = M0_PARAMS,
+    params: RetrievalParams = DEFAULT_PARAMS,
     expand_neighbors: bool = True,
 ) -> AssemblyResult:
     """按 M0-01 §4.3 把 rerank 候选池装配成最终上下文。

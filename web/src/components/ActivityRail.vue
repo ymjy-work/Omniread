@@ -18,7 +18,7 @@ function openLibrary(): void {
 function openReader(): void {
   const bookId = store.bookId
   if (bookId === null) return
-  const chapter = store.chapter?.chapter_index ?? store.progress?.max_seq ?? 1
+  const chapter = store.chapter?.chapter_index ?? store.reading?.progress ?? 1
   void router.push({ name: 'reader', params: { bookId, chapterIndex: chapter } })
 }
 

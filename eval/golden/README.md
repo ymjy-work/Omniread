@@ -64,9 +64,14 @@ evidence 的 `chapter_index ≤ progress`（§5）、`id` 数据集内唯一、�
 必填字段集：
 
 ```text
-schema_version / id / type / difficulty / book_id / question
+schema_version / id / type / book_id / question
 / reference_points / level / expect_refusal / must_cite_groups
 ```
+
+**`difficulty` 不要写**：这个维度 2026-10-13 已退役（它与 `type` 几乎完全冗余，
+不承载额外信息），新题一律不标。存量 86 题里那个字段一字未动，是为了不动
+`dataset_hash`——校验器仍接受它、且写了就必须合法（防手改出拼写错），但统计与报表
+一概不再读它。
 
 可选字段：`reference_answer`。字段集**不含** `source_seqs` / `must_not_claim` / `forbidden_patterns` / `notes`，
 也不含其他任何未列出的键——出现即校验失败。
@@ -76,7 +81,7 @@ schema_version / id / type / difficulty / book_id / question
 | `schema_version` | string | 是 | 固定 `"m0.1.0"` | 数据集格式版本，不要改 |
 | `id` | string | 是 | `<type>-<三位数字>` | 全局唯一，且必须等于文件名 |
 | `type` | string | 是 | 六桶之一 | 见 §3 |
-| `difficulty` | string | 是 | `easy` / `medium` / `hard` | 难度，用于分层统计 |
+| `difficulty` | string | **否** | `easy` / `medium` / `hard` | **已废弃（2026-10-13），新题不要写**；存量题保留，写了仍需合法 |
 | `book_id` | int | 是 | 固定 `1` | 书目 id |
 | `question` | string | 是 | 非空 | 题面 |
 | `reference_points` | string[] | 是 | 至少 1 条 | 评分要点，逐条列出回答必须命中的事实，建议 2–3 条 |
@@ -140,7 +145,8 @@ schema_version / id / type / difficulty / book_id / question
 照抄占位符不构成有效证据。这个模板的 id 只是示例，出题时换成你自己的、数据集内唯一的 id。
 
 本地数据集目录里的 `example.json` 是一道跨第 34 章与第 45 章的真实示例，可直接参考；它的 id 是
-`cross-001`，作为辅助文件被校验器跳过，不参与 id 唯一性检查与数量统计。
+`example-001`（**不是** `cross-001`——那是目录里另一道真题），作为辅助文件被校验器跳过，
+不参与 id 唯一性检查与数量统计。
 **它不随仓库发布**（含原文片段），所以 clone 之后没有这道示例可看——上面两个模板就是全部示例。
 
 ## 3. 六桶判据

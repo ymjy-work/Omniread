@@ -11,7 +11,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 /**
  * 单账户的限频 / 日额度 / 并发（`docs/方案.md（配额与限流一节）`）。判断全在网关这一层：
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
  * <p>检查顺序是**日额度 → 并发 → 分钟**。三者同时命中时先说日额度：它是唯一
  * 「等一会儿也没用」的，另外两条都可以重试。
  */
-@Component
+@Service
 public class QuotaService {
 
     private static final long MINUTE_MS = 60_000L;
@@ -91,7 +91,7 @@ public class QuotaService {
         if (lease == null) {
             return;
         }
-        AtomicInteger slot = inFlight.get(lease.userId());
+        AtomicInteger slot = inFlight.get(lease.getUserId());
         if (slot != null) {
             slot.decrementAndGet();
         }
@@ -107,7 +107,7 @@ public class QuotaService {
         if (lease == null || !lease.claimRefund()) {
             return;
         }
-        usage.refund(lease.day(), lease.userId());
+        usage.refund(lease.getDay(), lease.getUserId());
     }
 
     /** 今天已经问了几轮。审计与提示都用它。 */

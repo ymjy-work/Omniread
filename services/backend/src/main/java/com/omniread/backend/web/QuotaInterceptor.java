@@ -48,9 +48,9 @@ public class QuotaInterceptor implements HandlerInterceptor {
             // 未登录的请求由登录门先拦下（它挂在前面）。走到这里说明注册顺序被改过了。
             return true;
         }
-        QuotaLease lease = quota.acquire(user.id());
+        QuotaLease lease = quota.acquire(user.userId());
         request.setAttribute(LEASE_ATTRIBUTE, lease);
-        audit.query(user.username(), quota.turnsToday(user.id()), properties.turnsPerDay());
+        audit.query(user.username(), quota.turnsToday(user.userId()), properties.turnsPerDay());
         return true;
     }
 

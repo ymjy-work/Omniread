@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from typing import Any
 
@@ -27,7 +28,7 @@ from omniread.infrastructure.providers import (
     RerankModel,
     to_rag_error,
 )
-from omniread.infrastructure.providers.ali import DASHSCOPE_API_KEY_ENV, EMBEDDING_DIM
+from omniread.infrastructure.providers.ali import DASHSCOPE_API_KEY_ENV
 
 TEST_KEY = "test-key-not-a-real-credential"
 
@@ -69,8 +70,15 @@ async def test_fake_embedding_query_matches_document_vector() -> None:
     assert query == documents[0]
 
 
-def test_fake_and_ali_embedding_dim_follow_the_column() -> None:
-    assert EMBEDDING_DIM == DB_EMBEDDING_DIM
+def test_embedding_dim_follows_the_column() -> None:
+    """维度只有一个来源：`chunks.embedding` 那一列（`db/models.py`）。
+
+    这条以前是「两份常量必须相等」的守卫，而两份已经合成一份——`providers/ali.py`
+    从 `db.models` re-export。所以改守「取到的确实来自那一列」：适配器签名里的默认值
+    在 `def` 时求值，绑的就是 db 那个常量；假 provider 也必须跟着列走。
+    """
+    default = inspect.signature(AliEmbeddingAdapter.__init__).parameters["dim"].default
+    assert default == DB_EMBEDDING_DIM
     assert FakeEmbeddingModel().dim == DB_EMBEDDING_DIM
 
 

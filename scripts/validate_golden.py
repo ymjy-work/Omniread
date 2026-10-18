@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Omniread M0 Golden 数据集校验器（权威）。
 
 职责
@@ -269,7 +269,10 @@ def _validate_structure_native(obj: object, rep: Report) -> None:
         "question", "reference_points", "level", "expect_refusal",
         "must_cite_groups",
     ]
-    allowed = set(required) | {"reference_answer", "progress"}
+    # `difficulty` 在 allowed 里而不是 required 里：维度已退役（存量题还带着它，
+    # 新题不写），所以「有就校验取值、没有也不报缺」。漏放这里会让兜底路径
+    # 把**存量题**判成「不允许的字段」，而 schema.json 那条路径放行——同一个数据集两种结论。
+    allowed = set(required) | {"reference_answer", "progress", "difficulty"}
 
     for key in required:
         if key not in obj:

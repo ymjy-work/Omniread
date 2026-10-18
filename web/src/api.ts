@@ -12,13 +12,11 @@ import type {
   CurrentUser,
   ErrorBody,
   ErrorCode,
-  Health,
   Progress,
+  ProgressWrite,
   QueryLevel,
-  QueryResponse,
   SessionDetail,
-  SessionList,
-  SessionQueryRequest
+  SessionList
 } from './types'
 
 const BASE = '/api/v1'
@@ -119,11 +117,6 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
   return (await response.json()) as T
 }
 
-/** 存活探针：只报 Java 自身存活 */
-export function health(): Promise<Health> {
-  return request<Health>('/health')
-}
-
 export function listBooks(): Promise<BookList> {
   return request<BookList>('/books')
 }
@@ -140,18 +133,11 @@ export function getProgress(bookId: number): Promise<Progress> {
   return request<Progress>(`/books/${bookId}/progress`)
 }
 
-export function putProgress(bookId: number, maxSeq: number): Promise<Progress> {
+export function putProgress(bookId: number, progress: number): Promise<Progress> {
+  const body: ProgressWrite = { progress }
   return request<Progress>(`/books/${bookId}/progress`, {
     method: 'PUT',
-    body: JSON.stringify({ max_seq: maxSeq })
-  })
-}
-
-/** 单轮问答（JSON 同步）。前端走 sse.ts 的流式路径，这个留给脚本与调试。 */
-export function query(payload: SessionQueryRequest): Promise<QueryResponse> {
-  return request<QueryResponse>('/query', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+    body: JSON.stringify(body)
   })
 }
 

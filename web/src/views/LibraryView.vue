@@ -13,7 +13,7 @@ onMounted(() => {
 
 async function enter(book: Book): Promise<void> {
   await selectBook(book.book_id)
-  const chapterIndex = store.progress?.max_seq ?? 1
+  const chapterIndex = store.reading?.progress ?? 1
   void router.push({ name: 'reader', params: { bookId: book.book_id, chapterIndex } })
 }
 </script>

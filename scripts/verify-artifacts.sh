@@ -16,7 +16,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RAG_DIR="$ROOT/services/rag"
 
 case "${1:-}" in
-  -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+  -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
 esac
 
 # Windows 控制台默认不是 UTF-8，Python 子进程统一按 UTF-8 输出，避免中文提示变乱码。

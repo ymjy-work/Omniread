@@ -121,10 +121,10 @@ def _count_leaks(hits: Sequence[object], progress: int | None) -> int:
 
 
 def aggregate(records: Sequence[RetrievalScoreRecord]) -> dict[str, object]:
-    """汇总成 `summary.json` 的口径：总体 + 按题型 / 难度 / realm 分列。
+    """汇总成 `summary.json` 的口径：总体 + 按题型 / realm 分列（`per_type` / `per_level`）。
 
-    **只分列、不加权**：难度是评测者给的主观标签，权重会把它乘进被测系统的分数，
-    改一个标签就悄悄挪动总分。分列既能看到「难题差在哪」，又不会让标签动了带走头条数字。
+    **只分列、不加权**：分列让「哪一类题差」看得见，又不会让某一类的题量挪动头条数字。
+    没有 `per_difficulty`——难度维度 2026-10-13 已退役（它与 `type` 冗余，不承载额外信息）。
     """
     scored = list(records)
     return {

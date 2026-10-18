@@ -87,7 +87,7 @@ from omniread.pipelines.mapping.runner import (  # noqa: E402
 )
 from omniread.pipelines.mapping.types import MATCH_MATCHED  # noqa: E402
 from omniread.pipelines.params import (  # noqa: E402
-    M0_PARAMS,
+    DEFAULT_PARAMS,
     RetrievalParams,
     retrieval_params_record,
 )
@@ -247,7 +247,7 @@ def build_params(spec: str) -> RetrievalParams:
         except ValueError:
             raise SystemExit(f"--set {name} 的值不是整数：{raw!r}") from None
     try:
-        return replace(M0_PARAMS, **overrides)
+        return replace(DEFAULT_PARAMS, **overrides)
     except ValueError as exc:
         raise SystemExit(f"--set 的参数不合法：{exc}") from exc
 

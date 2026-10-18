@@ -68,12 +68,12 @@ class CatalogControllerTest {
 
         mvc.perform(progress(put("/api/v1/books/1/progress"), ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":194}"))
+                        .content("{\"progress\":194}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RAG_INVALID_REALM"));
 
         mvc.perform(progress(get("/api/v1/books/1/progress"), ALICE))
-                .andExpect(jsonPath("$.max_seq").value(1));
+                .andExpect(jsonPath("$.progress").value(1));
     }
 
     @Test
@@ -85,7 +85,7 @@ class CatalogControllerTest {
         // 两者同为 400，前端按 code 分支，所以这条要钉住它们**不一样**。
         mvc.perform(progress(put("/api/v1/books/1/progress"), ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":0}"))
+                        .content("{\"progress\":0}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RAG_INVALID_REQUEST"));
     }
@@ -97,15 +97,15 @@ class CatalogControllerTest {
 
         mvc.perform(progress(put("/api/v1/books/1/progress"), ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":42}"))
+                        .content("{\"progress\":42}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.book_id").value(1))
-                .andExpect(jsonPath("$.max_seq").value(42));
+                .andExpect(jsonPath("$.progress").value(42));
 
         mvc.perform(progress(get("/api/v1/books/1/progress"), ALICE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.book_id").value(1))
-                .andExpect(jsonPath("$.max_seq").value(42));
+                .andExpect(jsonPath("$.progress").value(42));
     }
 
     @Test
@@ -113,7 +113,7 @@ class CatalogControllerTest {
     void getBeforeAnyWrite() throws Exception {
         mvc.perform(progress(get("/api/v1/books/1/progress"), ALICE))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.max_seq").value(1));
+                .andExpect(jsonPath("$.progress").value(1));
     }
 
     @Test
@@ -123,13 +123,13 @@ class CatalogControllerTest {
 
         mvc.perform(progress(put("/api/v1/books/1/progress"), ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":100}"))
+                        .content("{\"progress\":100}"))
                 .andExpect(status().isOk());
 
         mvc.perform(progress(get("/api/v1/books/1/progress"), ALICE))
-                .andExpect(jsonPath("$.max_seq").value(100));
+                .andExpect(jsonPath("$.progress").value(100));
         mvc.perform(progress(get("/api/v1/books/1/progress"), BOB))
-                .andExpect(jsonPath("$.max_seq").value(1));
+                .andExpect(jsonPath("$.progress").value(1));
     }
 
     // ── 夹具 ──

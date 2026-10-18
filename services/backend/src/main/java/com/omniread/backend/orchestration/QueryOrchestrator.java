@@ -83,10 +83,7 @@ public class QueryOrchestrator {
                 toUpstream(request, prepared.session(), prepared.history()), requestId);
 
         ChatMessage replied = recordAnswer(prepared.session(), answer);
-        return new SessionQueryResponse()
-                .setUpstream(answer)
-                .setSessionId(prepared.session().getId())
-                .setMessageId(replied.getId());
+        return SessionQueryResponse.of(answer, prepared.session().getId(), replied.getId());
     }
 
     /**

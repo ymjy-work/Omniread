@@ -10,6 +10,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>`refunded` 是幂等的闸门：流式路径由控制器在收到错误帧时退一次，拦截器的收尾
  * 也可能按响应状态再退一次——两条路都可能走到，而**退两次就是白送一轮**。
+ *
+ * <p>**这里的 `final class` 不是「静态工具类」那个意思**（对照 {@code session/Turns} 与
+ * {@code web/Streams}）：它是一个**有身份的对象**，每个请求一个，只是不该被继承——
+ * 额度的判定与退还都靠它自己的状态，子类改掉 `claimRefund` 就等于绕开幂等闸门。
+ * 之所以是 class 而不是 record：`refunded` 必须可变，而 record 的字段是 final 的。
  */
 public final class QuotaLease {
 
@@ -24,11 +29,11 @@ public final class QuotaLease {
         this.day = day;
     }
 
-    public long userId() {
+    public long getUserId() {
         return userId;
     }
 
-    public String day() {
+    public String getDay() {
         return day;
     }
 

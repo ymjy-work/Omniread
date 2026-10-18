@@ -213,7 +213,7 @@ def check_stream(client: httpx.Client, checker: Checker, java_base: str, delay_m
     first_frame_at: float | None = None
     lines: list[str] = []
     with client.stream(
-        "POST", external_url(java_base, "/query/stream"), json=QUESTION_BODY, timeout=60
+        "POST", external_url(java_base, "/query-stream"), json=QUESTION_BODY, timeout=60
     ) as response:
         checker.check(response.status_code == 200, f"流式响应状态 200（实际 {response.status_code}）")
         checker.check(
@@ -268,17 +268,17 @@ def check_progress(
     # 上面那条 404 探测本身就是一次进度路径的请求，日志里当然会有；基准点取在它之后，
     # 只检查「Java 的读写有没有在 Python 侧留下新请求」。
     baseline = python_log.stat().st_size if python_log.is_file() else 0
-    put = client.put(external_url(java_base, "/books/1/progress"), json={"max_seq": 42})
+    put = client.put(external_url(java_base, "/books/1/progress"), json={"progress": 42})
     get = client.get(external_url(java_base, "/books/1/progress"))
     checker.check(put.status_code == 200 and get.status_code == 200, "PUT / GET progress 都 200")
-    checker.check(get.json() == {"book_id": 1, "max_seq": 42}, "进度写入后能读回", str(get.json()))
+    checker.check(get.json() == {"book_id": 1, "progress": 42}, "进度写入后能读回", str(get.json()))
     checker.check(
         progress_file.is_file() and json.loads(progress_file.read_text(encoding="utf-8")) == get.json(),
         "进度落在 Java 本地文件",
         str(progress_file),
     )
     checker.check(
-        client.put(external_url(java_base, "/books/1/progress"), json={"max_seq": 999}).status_code == 400,
+        client.put(external_url(java_base, "/books/1/progress"), json={"progress": 999}).status_code == 400,
         "progress 越界 → 400（Java 边界校验）",
     )
 
@@ -325,7 +325,7 @@ def check_fault(client: httpx.Client, checker: Checker, java_base: str, fault: s
         bool(REQUEST_ID_PATTERN.fullmatch(response.headers.get("x-request-id", ""))),
         "故障响应仍带 Java 生成的 X-Request-Id",
     )
-    stream = client.post(external_url(java_base, "/query/stream"), json=QUESTION_BODY)
+    stream = client.post(external_url(java_base, "/query-stream"), json=QUESTION_BODY)
     frames = parse_sse(stream.text)
     names = [event for event, _ in frames]
     # 生成阶段才抛故障：前面几条检索事件已经发出，失败只能用末尾的 error 帧表达。
@@ -358,7 +358,7 @@ def check_offline(client: httpx.Client, checker: Checker, java_base: str, progre
 
     progress = client.get(external_url(java_base, "/books/1/progress"))
     checker.check(
-        progress.status_code == 200 and progress.json() == {"book_id": 1, "max_seq": 42},
+        progress.status_code == 200 and progress.json() == {"book_id": 1, "progress": 42},
         "Python 停止后 GET progress 仍 200（证明进度完全落在 Java 本地）",
         f"{progress.status_code} {progress.text[:120]}",
     )

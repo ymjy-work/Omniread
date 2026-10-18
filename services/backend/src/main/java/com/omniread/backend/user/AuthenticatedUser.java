@@ -9,5 +9,5 @@ import java.time.Instant;
  * 随手写进日志或响应体的机会很多，所以这里不放任何不该外流的东西。
  * `expiresAt` 是登录会话的到期时刻，`/auth/me` 要原样回给前端。
  */
-public record AuthenticatedUser(long id, String username, Instant expiresAt) {
+public record AuthenticatedUser(long userId, String username, Instant expiresAt) {
 }

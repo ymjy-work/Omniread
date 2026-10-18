@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from omniread.infrastructure.providers.openai_compat import (
-    DEFAULT_TIMEOUT_SECONDS,
+    CHAT_TIMEOUT_SECONDS,
     OpenAiCompatibleChatAdapter,
 )
 
@@ -49,7 +49,7 @@ class GlmChatAdapter(OpenAiCompatibleChatAdapter):
 
 
 __all__ = [
-    "DEFAULT_TIMEOUT_SECONDS",
+    "CHAT_TIMEOUT_SECONDS",
     "GLM_ANSWER_MODEL",
     "GLM_API_KEY_ENV",
     "GLM_BASE_URL",

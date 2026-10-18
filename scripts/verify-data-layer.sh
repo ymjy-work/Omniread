@@ -31,7 +31,7 @@ for arg in "$@"; do
   case "$arg" in
     --start-infra) START_INFRA=1 ;;
     --keep-objects) KEEP_OBJECTS=1 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
     *) echo "未知参数：$arg（用 --help 看用法）" >&2; exit 2 ;;
   esac
 done

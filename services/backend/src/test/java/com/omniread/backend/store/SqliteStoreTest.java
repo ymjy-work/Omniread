@@ -268,9 +268,11 @@ class SqliteStoreTest {
         User bob = newUser("owner-bob");
         ChatSession session = newSession(alice.getId(), "past");
 
-        assertThat(chatSessionMapper.findByIdForUser(session.getId(), alice.getId()))
-                .isNotNull();
-        assertThat(chatSessionMapper.findByIdForUser(session.getId(), bob.getId())).isNull();
+        // 按 id 取是**不带用户过滤**的（生产刻意如此：要能区分「不是你的」与「不存在」），
+        // 所以越权判定得自己比 userId——这正是 SessionService 鉴权路径的形状。
+        assertThat(chatSessionMapper.findById(session.getId()).getUserId()).isEqualTo(alice.getId());
+        assertThat(chatSessionMapper.findById(session.getId()).getUserId()).isNotEqualTo(bob.getId());
+        // 批量与删除按用户过滤是对的：删不掉就是没删掉，不需要区分原因。
         assertThat(chatSessionMapper.deleteForUser(session.getId(), bob.getId())).isZero();
         assertThat(chatSessionMapper.findById(session.getId())).isNotNull();
     }

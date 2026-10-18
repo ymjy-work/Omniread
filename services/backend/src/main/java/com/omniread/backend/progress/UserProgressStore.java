@@ -14,12 +14,12 @@ import org.springframework.stereotype.Component;
  * `user_id`，归属不到任何账户——迁移的前提是先有一个「这份进度是谁的」的答案，
  * 而那个答案不存在。
  *
- * <p>这里不判 `max_seq` 的边界：上界要 `chapter_count`，只有 Controller 拿得到。
+ * <p>这里不判 `progress` 的边界：上界要 `chapter_count`，只有 Controller 拿得到。
  */
 @Component
 public class UserProgressStore {
 
-    /** 没写过进度时读到第 1 章：契约 `max_seq` 下界是 1，0 不在合法范围。 */
+    /** 没写过进度时读到第 1 章：契约 `progress` 下界是 1，0 不在合法范围。 */
     static final int FIRST_CHAPTER = 1;
 
     private final UserProgressMapper mapper;
@@ -35,13 +35,13 @@ public class UserProgressStore {
     }
 
     /** 有则更新、无则插入：`(user_id, book_id)` 是主键，也是冲突目标。 */
-    public Progress write(long userId, int bookId, int maxSeq) {
+    public Progress write(long userId, int bookId, int progress) {
         UserProgress row = new UserProgress();
         row.setUserId(userId);
         row.setBookId(bookId);
-        row.setProgress(maxSeq);
+        row.setProgress(progress);
         mapper.upsert(row);
-        return new Progress(bookId, maxSeq);
+        return new Progress(bookId, progress);
     }
 
     private static Progress initial(int bookId) {

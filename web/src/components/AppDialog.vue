@@ -15,7 +15,7 @@ const props = withDefaults(
   defineProps<{ open: boolean; title?: string; width?: number; dismissible?: boolean }>(),
   { title: '', width: 380, dismissible: true }
 )
-const emit = defineEmits<{ (e: 'close'): void }>()
+const emit = defineEmits<{ close: [] }>()
 
 const card = ref<HTMLElement | null>(null)
 

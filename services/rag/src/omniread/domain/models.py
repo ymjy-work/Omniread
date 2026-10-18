@@ -92,6 +92,11 @@ class ContextChunk:
 
     `chunk_key` 与 `context_assembled.chunks[]` 对齐，调用方据它把正文按装配顺序摆好；
     `chapter_title` 供 `context_chapters[]` 渲染角标，正文本身不带标题。
+
+    **与 `answering.prompt.ContextPassage` 是两个类型，不要合并**：这个是**跨层搬运**的形状
+    （装配结果 → API → 调用方），所以多带 `chunk_key` 与 `chapter_title`；模型实际看到的
+    只有「章号 + 正文」，渲染前转成 `ContextPassage`（转换点在 `application/query_service.py`）。
+    合并会把两个内部字段漏进 prompt，而 prompt 版本跟着搬运格式一起变。
     """
 
     chunk_key: str

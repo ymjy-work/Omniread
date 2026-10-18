@@ -40,11 +40,11 @@ PYTHON_LOG=""
 STREAM_DELAY_MS=200
 
 case "${1:-}" in
-  -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+  -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
 esac
 
 log()  { printf '[gateway] %s\n' "$*"; }
-die()  { printf '[gateway] 失败：%s\n' "$*" >&2; exit 2; }
+die()  { printf '[gateway] 失败：%s\n' "$*" >&2; exit 1; }
 
 if command -v uv >/dev/null 2>&1; then
   UV="uv"

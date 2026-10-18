@@ -42,7 +42,7 @@ from omniread.pipelines.assembly import (
     REASON_TOP_K_CAP,
 )
 from omniread.pipelines.importing import ChunkPlan, build_import_plan
-from omniread.pipelines.params import M0_PARAMS
+from omniread.pipelines.params import DEFAULT_PARAMS
 from omniread.pipelines.retrieval.bm25 import Bm25Index, tokenize
 from omniread.pipelines.retrieval.dense import PgVectorDenseIndex
 from omniread.pipelines.retrieval.pipeline import RetrievalPipeline
@@ -208,7 +208,7 @@ async def check_dense_recall(
 
     vector = await FakeEmbeddingModel().embed_query("艾莉 俄语")
     hits = PgVectorDenseIndex(session_factory).search(
-        vector, book_id=book_id, lo=1, hi=10**9, k=M0_PARAMS.dense_k
+        vector, book_id=book_id, lo=1, hi=10**9, k=DEFAULT_PARAMS.dense_k
     )
     if embedded == 0:
         # 全库尚未嵌入时 dense 必然 0 条：这不是通过项，必须显式报出，避免误判「召回变少」。
@@ -220,10 +220,10 @@ async def check_dense_recall(
         checker.bad("dense 有已嵌入行却召回 0 条", "检查 HNSW 索引与会话 GUC")
     else:
         checker.ok(f"dense 召回 {len(hits)} 条（库中已嵌入 {embedded} 行）")
-    if hits and len(hits) != min(embedded, M0_PARAMS.dense_k):
+    if hits and len(hits) != min(embedded, DEFAULT_PARAMS.dense_k):
         checker.bad(
             "dense 召回数与可检索行不匹配",
-            f"期望 {min(embedded, M0_PARAMS.dense_k)}，实际 {len(hits)}",
+            f"期望 {min(embedded, DEFAULT_PARAMS.dense_k)}，实际 {len(hits)}",
         )
 
     # 迭代索引扫描 + ef_search：realm 过滤无法下推进 HNSW 索引，窄域时靠这两项补召回。
@@ -263,9 +263,9 @@ def check_bm25_realm_equivalence(
 ) -> None:
     section("2 in-realm 排名同源：full 与 past 下 BM25 排名一致")
     chapter_of = {record.chunk_key: record.chapter_index for record in records}
-    full = index.search(query, k=M0_PARAMS.kw_k, allowed_keys=None)
+    full = index.search(query, k=DEFAULT_PARAMS.kw_k, allowed_keys=None)
     in_realm_keys = {key for key, chapter in chapter_of.items() if chapter <= progress}
-    past = index.search(query, k=M0_PARAMS.kw_k, allowed_keys=in_realm_keys)
+    past = index.search(query, k=DEFAULT_PARAMS.kw_k, allowed_keys=in_realm_keys)
 
     full_in_realm = [hit for hit in full if chapter_of[hit.chunk_key] <= progress]
     print(

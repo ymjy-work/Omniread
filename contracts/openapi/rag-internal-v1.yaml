@@ -141,6 +141,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QueryResponse"
+        # 白名单直连时 Python 是**唯一**校验点：请求体校验失败 → `RAG_INVALID_REQUEST`，
+        # realm 越界（`level=past` 没带 progress、progress 超出本书章节数）→ `RAG_INVALID_REALM`。
+        "400":
+          $ref: "#/components/responses/Error"
         "502":
           $ref: "#/components/responses/Error"
         "503":
@@ -183,6 +187,13 @@ paths:
                 $ref: "#/components/schemas/EventStream"
         # **帧开始发之前**失败是普通状态码，只有帧开始之后才只能走 `error` 终止帧
         # ——两个列表覆盖不同时间段，不是重复（同外部契约 queryStream 的说明）。
+        #
+        # **这里刻意没有 502 / 504**，不是漏写：本端点的 provider 错误与超时都发生在
+        # 生成器开始迭代之后，被 `SseResponseAdapter.stream` 收成 `event: error` 帧，
+        # 到不了状态码那一层。开帧前只剩两种失败——请求体不合法（400）与整条链未接线
+        # （依赖注入就抛，503）。另外三条内部 rag 路径是 JSON，它们**会**真发 502 / 504。
+        "400":
+          $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
 
@@ -215,6 +226,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SummarizeResponse"
+        # 同 rag/query：请求体校验失败与 realm 越界都由 Python 判，两者都是 400。
+        "400":
+          $ref: "#/components/responses/Error"
         "502":
           $ref: "#/components/responses/Error"
         "503":
@@ -245,6 +259,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetrievalOnlyResponse"
+        # 同 rag/query：请求体校验失败与 realm 越界都由 Python 判，两者都是 400。
+        "400":
+          $ref: "#/components/responses/Error"
         "502":
           $ref: "#/components/responses/Error"
         "503":

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # 真 provider 缺凭据时构造即失败，端点以 503 暴露未接线，绝不因为缺 key 静默换成 fake。
     answer_provider: Literal["glm", "fake"] = "glm"
     retrieval_provider: Literal["ali", "fake"] = "ali"
-    # **增强步骤**（查询改写与摘要，`多轮会话落地方案` §5.1 / §5.2）共用的模型。
+    # **增强步骤**（查询改写与摘要，`docs/方案.md`「多轮会话落地方案」一节 §5.1 / §5.2）共用的模型。
     # 一个开关而不是两个：两者走同一个 provider、同一个模型、同一把 key。
     #
     # 它们的失败口径与其他链**不同**，所以共用开关不会混淆什么：

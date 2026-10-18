@@ -20,7 +20,7 @@ RAG_DIR="$ROOT/services/rag"
 PG_CONTAINER="omniread-postgres"
 
 case "${1:-}" in
-  -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+  -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/,""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
 esac
 
 # corpus 模式不连库：跳过凭据与容器前置检查。

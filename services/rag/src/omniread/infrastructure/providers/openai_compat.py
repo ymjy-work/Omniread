@@ -33,8 +33,9 @@ from omniread.infrastructure.providers.errors import (
     ProviderTimeoutError,
 )
 
-# 生成比 embedding / rerank 慢，超时留足一次完整回答的时间。
-DEFAULT_TIMEOUT_SECONDS = 60.0
+# 生成比 embedding / rerank 慢，超时留足一次完整回答的时间。检索那两侧是另一个值
+# （`ali.EMBEDDING_TIMEOUT_SECONDS` = 30.0）——**两个常量不同名**，见那边的注释。
+CHAT_TIMEOUT_SECONDS = 60.0
 
 _SSE_DATA_PREFIX = "data:"
 _SSE_DONE = "[DONE]"
@@ -64,7 +65,7 @@ class OpenAiCompatibleChatAdapter:
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
-        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout: float = CHAT_TIMEOUT_SECONDS,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.model = model or self.default_model
@@ -272,4 +273,4 @@ def _sse_data(line: str) -> str | None:
     return stripped[len(_SSE_DATA_PREFIX) :].strip()
 
 
-__all__ = ["DEFAULT_TIMEOUT_SECONDS", "OpenAiCompatibleChatAdapter"]
+__all__ = ["CHAT_TIMEOUT_SECONDS", "OpenAiCompatibleChatAdapter"]

@@ -211,7 +211,7 @@ class AuthGateTest {
         // 逐个验证」就会出现一个「POST 且没带头时是 403」的例外。
         mvc.perform(put("/api/v1/books/1/progress")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":5}"))
+                        .content("{\"progress\":5}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("RAG_UNAUTHENTICATED"));
     }
@@ -232,7 +232,7 @@ class AuthGateTest {
         mvc.perform(put("/api/v1/books/1/progress")
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":5}"))
+                        .content("{\"progress\":5}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("RAG_FORBIDDEN"));
 
@@ -242,7 +242,7 @@ class AuthGateTest {
                         .cookie(cookie)
                         .header(CSRF_HEADER, "1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"max_seq\":5}"))
+                        .content("{\"progress\":5}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("RAG_UNAVAILABLE"));
     }

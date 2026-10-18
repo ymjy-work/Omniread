@@ -1,5 +1,10 @@
 """BM25 关键词检索（M0-01 §4.1 / §4.2）。
 
+**这个通道在契约与事件里叫 `kw`，与这里的 `bm25` 是同一个东西**：`params.py` 的 `kw_k`、
+`RetrievalOutcome.kw`、`ScoredStage` 的 `"kw"`、契约 `RetrievalCompletedPayload` 的 `kw`
+与 `bm25_count` 指的都是它。名字分叉是历史（模块按算法命名、契约按通道命名），
+**改契约字段名要走单向门**，所以两边都保留、在这里点明对应关系。
+
 `bm25s` + `jieba`：jieba 的分词结果直接作为 token 序列交给 `BM25.index`，
 不走 `bm25s.tokenize` 的默认英文正则与英文停用词表——中文语料上那套分词会把
 整句切成一个词。分词只丢弃纯空白 token，保留标点与大小写：标点折叠会改变 BM25 的

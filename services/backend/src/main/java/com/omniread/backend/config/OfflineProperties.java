@@ -9,6 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 而 `/opt/omniread` 下 `touch` 一个文件是一次 `stat` 就能查到的动作。
  * 两个开关是**或**的关系，取哪个都行。
  */
-@ConfigurationProperties("omniread.offline")
+@ConfigurationProperties(prefix = "omniread.offline")
 public record OfflineProperties(boolean enabled, String markerFile) {
 }

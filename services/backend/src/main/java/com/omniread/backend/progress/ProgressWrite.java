@@ -1,6 +1,5 @@
 package com.omniread.backend.progress;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
@@ -15,6 +14,5 @@ import jakarta.validation.constraints.NotNull;
  * `193` 是**这本书**的上界。Python 那一侧同一条口径（`progress` 的 `ge/le` 归 REQUEST、
  * 「超出本书章节数」归 REALM），两侧对同一个值给同一个码。
  */
-public record ProgressWrite(
-        @JsonProperty("max_seq") @NotNull @Min(1) Integer maxSeq) {
+public record ProgressWrite(@NotNull @Min(1) Integer progress) {
 }

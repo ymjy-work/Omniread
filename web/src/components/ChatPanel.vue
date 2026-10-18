@@ -2,7 +2,7 @@
 /**
  * 剧情问答：会话（新建 / 切换 / 删除 / 切档位分叉）+ 提问 → SSE 流式回答。
  *
- * 数据路径固定为 /api/v1/query/stream（经 Java 网关），失败一律走 sse.ts 的 onError，
+ * 数据路径固定为 /api/v1/query-stream（经 Java 网关），失败一律走 sse.ts 的 onError，
  * 这里只负责把事件翻译成界面上的一行行状态。
  *
  * 三条口径：
@@ -18,7 +18,7 @@ import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AnswerBody from './AnswerBody.vue'
 import AppDialog from './AppDialog.vue'
-import { raiseBlocking } from '../blocking'
+import { divertForbidden } from '../blocking'
 import { noticeFor } from '../errors'
 import { openQueryStream } from '../sse'
 import type { SseConnection } from '../sse'
@@ -461,7 +461,7 @@ async function send(): Promise<void> {
       question,
       level,
       // level=past 时必填，由 Java 在 API 边界校验
-      progress: level === 'past' ? store.progress?.max_seq ?? null : null
+      progress: level === 'past' ? store.reading?.progress ?? null : null
     },
     {
       onEvent: (frame) => {
@@ -520,9 +520,9 @@ async function send(): Promise<void> {
             break
           case 'query_error': {
             const code = frame.data.code
-            if (code === 'RAG_FORBIDDEN') raiseBlocking(code, frame.data.message)
+            const diverted = divertForbidden(code, frame.data.message)
             patch(aiId, {
-              error: code === 'RAG_FORBIDDEN' ? null : { text: noticeFor(code, frame.data.message), code },
+              error: diverted ? null : { text: noticeFor(code, frame.data.message), code },
               streaming: false,
               phase: '',
               doneAt: Date.now()
@@ -535,9 +535,9 @@ async function send(): Promise<void> {
         }
       },
       onError: (error) => {
-        if (error.code === 'RAG_FORBIDDEN') raiseBlocking(error.code, error.message)
+        const diverted = divertForbidden(error.code, error.message)
         patch(aiId, {
-          error: error.code === 'RAG_FORBIDDEN' ? null : { text: noticeFor(error.code, error.message), code: error.code },
+          error: diverted ? null : { text: noticeFor(error.code, error.message), code: error.code },
           streaming: false,
           phase: '',
           doneAt: Date.now()

@@ -128,7 +128,7 @@ def score_answer(
 
 
 def aggregate_generation(records: Sequence[GenerationScoreRecord]) -> dict[str, object]:
-    """汇总成 `summary.json` 的 `generation` 一节：总体 + 按题型 / 难度分列。
+    """汇总成 `summary.json` 的 `generation` 一节：一组**扁平**的总数，不分列。
 
     **失败的题留在拒答的分母里**，不让分母随结果塌缩：一次 provider 抖动就让
     `refusal_correct` 掉下来，正是想要的——带故障的 run 本来就该重跑而不是被评分。

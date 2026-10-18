@@ -19,7 +19,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JAR="$ROOT/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar"
 
 usage() {
-  cat >&2 <<'USAGE'
+  cat <<'USAGE'
 用法：
   OMNIREAD_ADMIN_PASSWORD=... bash scripts/account.sh create <账户名>
   bash scripts/account.sh disable <账户名>
@@ -30,17 +30,19 @@ USAGE
 action="${1:-}"
 username=""
 case "$action" in
+  # `--help` 是正常输出（stdout、退出码 0），与「参数给错了」（stderr、退出码 2）分开
+  -h|--help) usage; exit 0 ;;
   create|disable)
     username="${2:-}"
     if [ -z "$username" ]; then
       echo "缺少账户名。" >&2
-      usage
+      usage >&2
       exit 2
     fi
     ;;
   list) ;;
   *)
-    usage
+    usage >&2
     exit 2
     ;;
 esac

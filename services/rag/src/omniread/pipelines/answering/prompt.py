@@ -53,7 +53,12 @@ _VERSION_INPUT_SEPARATOR = "\x00"
 
 @dataclass(frozen=True, slots=True)
 class ContextPassage:
-    """进入 prompt 的一段材料。`chapter_index` 决定它可以被引用的编号。"""
+    """进入 prompt 的一段材料。`chapter_index` 决定它可以被引用的编号。
+
+    只保留**模型真正看到的两样**：章号与正文。`domain.ContextChunk` 上的 `chunk_key` 与
+    `chapter_title` 是跨层搬运用的，渲染进 prompt 只会变成模型看得见却无意义的噪音——
+    所以那两个字段在转换时就丢掉（转换点 `application/query_service.py`）。
+    """
 
     chapter_index: int
     text: str

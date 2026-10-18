@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """把尚未嵌入的 chunk 批量写入 `chunks.embedding`（真实调用阿里百炼）。
 
 这是 M0 里唯一一处对全部 chunk 的批量向量化，会真实计费，所以设计成：

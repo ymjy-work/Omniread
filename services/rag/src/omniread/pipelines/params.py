@@ -39,7 +39,7 @@ _MIN_PROMPT_TOKEN_BUDGET = 4800
 
 @dataclass(frozen=True, slots=True)
 class RetrievalParams:
-    """查询链与装配的全部旋钮，默认值即 M0 基线。"""
+    """查询链与装配的全部旋钮，默认值即**当前冻结基线**（M1，见模块 docstring）。"""
 
     rrf_k: int = 60
     dense_k: int = 60
@@ -73,12 +73,13 @@ class RetrievalParams:
                 raise ValueError(f"{name} 必须为正整数")
 
 
-# M0 基线实例；调用方直接用这个，不要现场构造。
-M0_PARAMS = RetrievalParams()
+# 默认（当前冻结基线）实例；调用方直接用这个，不要现场构造。
+# 名字不叫 M0_PARAMS：它的值从 2026-10-08 起就是 M1 新基线，叫 M0 会被读成「这是 M0 的参数」。
+DEFAULT_PARAMS = RetrievalParams()
 
 
 def retrieval_params_record(
-    params: RetrievalParams = M0_PARAMS, *, neighbor_expand: bool = True
+    params: RetrievalParams = DEFAULT_PARAMS, *, neighbor_expand: bool = True
 ) -> dict[str, object]:
     """写进 `rag_runs.retrieval_params` 的记录。
 
@@ -95,4 +96,4 @@ def retrieval_params_record(
     return record
 
 
-__all__ = ["M0_PARAMS", "NORMALIZER_ID", "RetrievalParams", "retrieval_params_record"]
+__all__ = ["DEFAULT_PARAMS", "NORMALIZER_ID", "RetrievalParams", "retrieval_params_record"]

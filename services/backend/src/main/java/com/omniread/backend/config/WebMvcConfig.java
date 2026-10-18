@@ -76,7 +76,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns("/api/v1/health", "/api/v1/auth/login");
         registry.addInterceptor(quotaInterceptor)
-                .addPathPatterns("/api/v1/query", "/api/v1/query/stream");
+                .addPathPatterns("/api/v1/query", "/api/v1/query-stream");
     }
 
     @Override

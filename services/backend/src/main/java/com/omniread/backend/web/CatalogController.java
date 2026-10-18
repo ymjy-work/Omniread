@@ -57,8 +57,8 @@ public class CatalogController {
         return gateway.listBooks();
     }
 
-    @GetMapping("/{bookId}/chapters")
-    public ChapterList listChapters(@PathVariable int bookId) {
+    @GetMapping("/{book_id}/chapters")
+    public ChapterList listChapters(@PathVariable("book_id") int bookId) {
         // 列表**不筛**：全部章节的序号与标题照发（列表项不含正文），前端不做锁定标记
         // （2026-10-13 用户定：不做标记，只留 403）。挡内容的是下面两个端点。
         return gateway.listChapters(bookId);
@@ -71,8 +71,8 @@ public class CatalogController {
      * 前后导航同理往回收——不然读到第 1 卷末尾，界面上的「下一章」会指向卷外那一章，
      * 点下去才 403。
      */
-    @GetMapping("/{bookId}/chapters/{chapterIndex}")
-    public ChapterDetail getChapter(@PathVariable int bookId, @PathVariable int chapterIndex) {
+    @GetMapping("/{book_id}/chapters/{chapter_index}")
+    public ChapterDetail getChapter(@PathVariable("book_id") int bookId, @PathVariable("chapter_index") int chapterIndex) {
         ReadingRange.ChapterRange range = readingRange.rangeOf(bookId);
         if (!range.contains(chapterIndex)) {
             throw new RagException(
@@ -97,8 +97,8 @@ public class CatalogController {
      * 网关只负责不落内存地转出去。这里同步写而不是走异步：流没结束就占住一个请求线程，
      * M0 单机阅读场景下这点代价换来的是「首字节立刻到、每片即刷」。
      */
-    @GetMapping("/{bookId}/images/{*path}")
-    public void getImage(@PathVariable int bookId, @PathVariable String path, HttpServletResponse response)
+    @GetMapping("/{book_id}/images/{*path}")
+    public void getImage(@PathVariable("book_id") int bookId, @PathVariable("path") String path, HttpServletResponse response)
             throws IOException {
         // 插图按「可读章节引用了它」判，不按目录名猜：口径只有一个来源（章节详情里的 images）
         if (!readingRange.imageReadable(bookId, path)) {
@@ -115,19 +115,19 @@ public class CatalogController {
         Streams.forward(stream, response.getOutputStream());
     }
 
-    @GetMapping("/{bookId}/progress")
+    @GetMapping("/{book_id}/progress")
     public Progress getProgress(
-            @PathVariable int bookId, @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
-        return progressStore.read(user.id(), bookId);
+            @PathVariable("book_id") int bookId, @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
+        return progressStore.read(user.userId(), bookId);
     }
 
-    @PutMapping("/{bookId}/progress")
+    @PutMapping("/{book_id}/progress")
     public Progress putProgress(
-            @PathVariable int bookId,
+            @PathVariable("book_id") int bookId,
             @RequestBody @Valid ProgressWrite body,
             @RequestAttribute(AuthInterceptor.USER_ATTRIBUTE) AuthenticatedUser user) {
         // 越界与否取决于该书的 chapter_count，只能由 Java 判（M0-01 §7）。
-        RealmValidator.validateProgress(body.maxSeq(), bookCatalog.chapterCount(bookId));
-        return progressStore.write(user.id(), bookId, body.maxSeq());
+        RealmValidator.validateProgress(body.progress(), bookCatalog.chapterCount(bookId));
+        return progressStore.write(user.userId(), bookId, body.progress());
     }
 }

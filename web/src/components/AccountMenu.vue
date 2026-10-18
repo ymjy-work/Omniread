@@ -9,7 +9,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { current, expiryLabel, signOut } from '../auth'
+import { current, expiry, signOut, username } from '../auth'
 
 const router = useRouter()
 
@@ -18,8 +18,6 @@ const anchor = ref<HTMLButtonElement | null>(null)
 const pos = ref({ left: 0, bottom: 0 })
 
 const initial = computed(() => (current.value?.username ?? '?').slice(0, 1).toUpperCase())
-const username = computed(() => current.value?.username ?? '未登录')
-const expiry = computed(() => expiryLabel())
 
 function toggle(): void {
   if (!open.value && anchor.value) {

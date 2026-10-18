@@ -7,8 +7,8 @@
 import { computed, reactive } from 'vue'
 import * as api from './api'
 import { ApiError } from './api'
-import { raiseBlocking } from './blocking'
-import { describeErrorCode } from './errors'
+import { divertForbidden } from './blocking'
+import { formatErrorLine } from './errors'
 import { readStored, writeStored } from './storage'
 import type { Book, ChapterDetail, ChapterMeta, Progress, QueryLevel } from './types'
 
@@ -27,7 +27,7 @@ export const store = reactive({
   bookId: null as number | null,
   chapters: [] as ChapterMeta[],
   chapter: null as ChapterDetail | null,
-  progress: null as Progress | null,
+  reading: null as Progress | null,
   /**
    * 问答档位：回顾 / 剧透，状态栏与问答面板共用。
    *
@@ -69,19 +69,19 @@ export const volumes = computed<VolumeGroup[]>(() => {
 
 export const readProgressRatio = computed<number>(() => {
   const total = chapterCount.value
-  if (total <= 0 || store.progress === null) return 0
-  return Math.min(1, Math.max(0, store.progress.max_seq / total))
+  if (total <= 0 || store.reading === null) return 0
+  return Math.min(1, Math.max(0, store.reading.progress / total))
 })
 
 function setError(cause: unknown): void {
   if (cause instanceof ApiError) {
     // 403 走弹窗，不落状态栏：那一行太容易被当成噪音，而「这次操作不被允许」得让人看见
-    if (cause.code === 'RAG_FORBIDDEN') {
-      raiseBlocking(cause.code, cause.message)
+    if (divertForbidden(cause.code, cause.message)) {
       store.error = null
       return
     }
-    store.error = `${cause.code}（${describeErrorCode(cause.code)}）`
+    // 与会话栏同一个格式化函数：状态栏也是排障行，服务端那句更具体的原因要带上
+    store.error = formatErrorLine(cause.code, cause.message)
     return
   }
   store.error = cause instanceof Error ? cause.message : String(cause)
@@ -105,7 +105,7 @@ export async function selectBook(bookId: number): Promise<void> {
     store.bookId = bookId
     store.chapters = []
     store.chapter = null
-    store.progress = null
+    store.reading = null
   }
   // 直接打开阅读页（刷新、分享链接）时书库列表还没拉过，而书名与总章数都从它取——
   // 缺了就先补一次，否则界面会一路显示「未选书」
@@ -127,7 +127,7 @@ async function loadChapters(bookId: number): Promise<void> {
 
 async function loadProgress(bookId: number): Promise<void> {
   try {
-    store.progress = await api.getProgress(bookId)
+    store.reading = await api.getProgress(bookId)
   } catch (cause) {
     // 进度读不到不阻塞阅读，只在状态栏留一条错误
     setError(cause)
@@ -149,11 +149,11 @@ export async function openChapter(chapterIndex: number): Promise<void> {
 }
 
 /** 把进度设为指定章；写成功后以服务端回值为准 */
-export async function setProgress(maxSeq: number): Promise<boolean> {
+export async function setProgress(progress: number): Promise<boolean> {
   const bookId = store.bookId
   if (bookId === null) return false
   try {
-    store.progress = await api.putProgress(bookId, maxSeq)
+    store.reading = await api.putProgress(bookId, progress)
     store.error = null
     return true
   } catch (cause) {

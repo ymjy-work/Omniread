@@ -43,12 +43,6 @@ export function themeLabel(name: ThemeName): string {
   return THEME_LABELS[name]
 }
 
-/** 下一个主题（按钮上要写「切换到 X」）。 */
-export function nextThemeName(current: ThemeName): ThemeName {
-  const i = THEME_NAMES.indexOf(current)
-  return THEME_NAMES[(i + 1) % THEME_NAMES.length]
-}
-
 export const theme = ref<ThemeName>(
   readStored(THEME_STORAGE_KEY, THEME_NAMES, DEFAULT_THEME)
 )
@@ -62,8 +56,3 @@ watchEffect(() => {
 watch(theme, (value) => {
   writeStored(THEME_STORAGE_KEY, value)
 })
-
-export function toggleTheme(): void {
-  // 转一圈，不是两值取反——三个主题之后取反就不成立了
-  theme.value = nextThemeName(theme.value)
-}
