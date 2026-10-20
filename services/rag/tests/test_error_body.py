@@ -54,16 +54,15 @@ def test_missing_required_field_returns_flat_error_body(client: TestClient) -> N
         {"book_id": 1, "question": "", "level": "past"},
         {"book_id": 1, "question": "q", "level": "future"},
         {"book_id": 1, "question": "q", "level": "past", "progress": 0},
-        {"book_id": 1, "question": "q", "level": "past", "progress": 194},
     ],
 )
 def test_schema_violations_are_invalid_request(client: TestClient, body: dict) -> None:
     """**与 schema 对不上的取值归 REQUEST，不归 REALM**。
 
     判据不是「这个字段叫什么」而是「这一条是不是 schema 里写明的约束」：`progress` 的
-    `ge=1 / le=193` 是 schema 写的，越界即请求本身不合法；而「`level=past` 却没带
-    progress」「progress 超出这本书的章节数」只有拿到书目录才判得了，那才是 REALM。
-    两者同为 400，前端按 code 分支——混在一起就分不出该提示谁。
+    `ge=1` 是 schema 写的固定下界，越界即请求本身不合法。**上界不写进 schema**——
+    「这本书有多少章」只有拿到书目录才知道，那是 REALM，由 Java 在 API 边界判
+    （`RealmValidator`）。两者同为 400，前端按 code 分支——混在一起就分不出该提示谁。
     """
     response = client.post("/internal/v1/rag/query", json=body)
 

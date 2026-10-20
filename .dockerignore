@@ -1,0 +1,31 @@
+# 构建上下文是仓库根（compose 里 context: ../..），而镜像只需要源码与契约。
+# 不排除这些的话，`COPY web ./web` / `COPY services/rag ./` 会把宿主机的
+# node_modules、.venv、target 一起带进镜像——Windows 的二进制产物在 Linux 容器里不能用，
+# 而且镜像会大出几百 MB。
+
+.git
+.github
+.venv
+**/.venv
+
+**/node_modules
+**/dist
+services/backend/target
+
+# 语料与评测产物：语料不进任何镜像（版权红线），产物也不该进构建上下文。
+asset
+eval
+temp
+docs
+var
+
+# 本地配置与凭据
+.env
+**/.env
+
+# 编辑器 / 系统杂物
+.idea
+.vscode
+**/__pycache__
+**/*.pyc
+*.log

@@ -14,7 +14,7 @@ import re
 
 from omniread.domain.errors import UnsafeImagePath
 
-# 白名单只列 MinIO 里实际可能出现的图片格式，不认识的扩展名一律拒绝。
+# 白名单只列对象存储里实际可能出现的图片格式，不认识的扩展名一律拒绝。
 IMAGE_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"})
 
 _MEDIA_TYPES: dict[str, str] = {

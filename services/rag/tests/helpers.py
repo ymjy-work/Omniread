@@ -64,6 +64,7 @@ def fake_event_sequence() -> list[RagEvent]:
                 "answer_provider": "glm",
                 "answer_model": "glm-5.3-flash",
                 "latency_ms": 1830,
+                "context_tokens": 4321,
             },
         ),
     ]

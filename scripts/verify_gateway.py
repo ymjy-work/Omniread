@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -31,12 +32,25 @@ import httpx
 REQUEST_ID_PATTERN = re.compile(r"^req_[0-9a-f]{32}$")
 SECRET_MARKER = "omniread-e2e-secret-should-never-be-served"
 
-QUESTION_BODY = {
+# 写操作一律要这个头；服务端只查带没带，值不参与判断（`AuthInterceptor`）。
+CSRF_HEADER = "X-Omniread-Csrf"
+CSRF_VALUE = "1"
+
+# 内部契约的请求体（Python 那份）；外部请求要在它之上加 session_id。
+QUESTION_CORE = {
     "book_id": 1,
     "question": "艾莉 俄语",
     "level": "past",
     "progress": 45,
 }
+
+# 每个阶段进程自己建一个会话：D1 之后外部查询请求必须带 session_id，
+# 且 book_id / level 是与会话的一致性断言（不符即 409）。
+SESSION_ID = ""
+
+
+def external_question() -> dict:
+    return {**QUESTION_CORE, "session_id": SESSION_ID}
 
 # 目录穿越候选：反斜杠、百分号转义、归一化后越界三类，任何一条被服务端读取都算失败。
 TRAVERSAL_PATHS = (
@@ -106,9 +120,55 @@ def external_url(java_base: str, suffix: str) -> str:
     return f"{java_base}/api/v1{suffix}"
 
 
+def check_login_gate(client: httpx.Client, checker: Checker, java_base: str) -> None:
+    """未登录的客户端要拿到 401——这是登录门最直接的断言。
+
+    单独开一个 client：主 client 一会儿要登录，它的 cookie 会让这条断言失去意义。
+    """
+    section("0 登录门：未登录 401")
+    with httpx.Client(timeout=10.0, follow_redirects=False) as anonymous:
+        response = anonymous.get(external_url(java_base, "/books"))
+    checker.check(
+        response.status_code == 401,
+        "未登录 GET /api/v1/books → 401",
+        f"{response.status_code} {response.text[:120]}",
+    )
+
+
+def login(client: httpx.Client, checker: Checker, java_base: str) -> None:
+    """用 shell 建好的联调账户登录；cookie 由 httpx.Client 自己保存并回送。"""
+    username = os.environ.get("OMNIREAD_E2E_USER", "")
+    password = os.environ.get("OMNIREAD_E2E_PASSWORD", "")
+    response = client.post(
+        f"{java_base}/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    checker.check(
+        response.status_code == 200,
+        f"联调账户登录成功（{username}）",
+        f"{response.status_code} {response.text[:120]}",
+    )
+
+
+def create_session(client: httpx.Client, checker: Checker, java_base: str) -> None:
+    global SESSION_ID
+    response = client.post(
+        f"{java_base}/api/v1/sessions", json={"book_id": 1, "level": "past"}
+    )
+    checker.check(
+        response.status_code == 201,
+        "建立联调会话（查询请求要带 session_id）",
+        f"{response.status_code} {response.text[:120]}",
+    )
+    if response.status_code == 201:
+        SESSION_ID = response.json()["id"]
+
+
 def check_catalog_parity(client: httpx.Client, checker: Checker, java_base: str, python_base: str) -> None:
     section("1 六组 GET：Java 与 Python 直连一致")
-    for suffix in ("/books", "/books/1/chapters", "/books/1/chapters/17"):
+    # 章号取第 1 卷内的 5：Java 侧有阅读范围（第 1 卷 = 章 1–11），卷外章节是 403，
+    # 而 Python 内部不感知阅读范围——拿卷外章节比「两侧一致」会永远失败。
+    for suffix in ("/books", "/books/1/chapters", "/books/1/chapters/5"):
         java_status, java_body = get_json(client, external_url(java_base, suffix))
         py_status, py_body = get_json(client, internal_url(python_base, suffix))
         checker.check(
@@ -132,6 +192,17 @@ def check_catalog_parity(client: httpx.Client, checker: Checker, java_base: str,
         f"Java={java_body} Python={py_body}",
     )
 
+    # 阅读范围是 Java 侧的外边界：第 1 卷（章 1–11）可读，卷外一律 403。
+    # Python 内部没有这个概念，所以这一条只能对外部断言，不能拿两侧比。
+    inside = client.get(external_url(java_base, "/books/1/chapters/11"))
+    outside = client.get(external_url(java_base, "/books/1/chapters/12"))
+    checker.check(inside.status_code == 200, "第 1 卷最后一章（11）可读", str(inside.status_code))
+    checker.check(
+        outside.status_code == 403,
+        "卷外章节（12）→ 403（阅读范围在 Java 侧收口）",
+        str(outside.status_code),
+    )
+
 
 def check_image(client: httpx.Client, checker: Checker, java_base: str, python_base: str) -> None:
     section("2 插图端点：字节级一致、Content-Type 正确、目录穿越被拒")
@@ -151,8 +222,10 @@ def check_image(client: httpx.Client, checker: Checker, java_base: str, python_b
         # 直接拼字符串交给 httpx：默认不做 dot-segment 归一化，等价于 curl --path-as-is。
         response = client.get(external_url(java_base, f"/books/1/images/{path}"))
         leaked = SECRET_MARKER.encode() in response.content
+        # 400 / 403 / 404 都算拒绝：具体归哪个码是分层实现细节（路径不合法 / 越权 / 不存在），
+        # 这条断言要的是「没读到诱饵」。
         checker.check(
-            response.status_code in (400, 404) and not leaked,
+            response.status_code in (400, 403, 404) and not leaked,
             f"目录穿越被拒：{path} → {response.status_code}",
             f"状态 {response.status_code}，正文泄漏={leaked}",
         )
@@ -160,32 +233,34 @@ def check_image(client: httpx.Client, checker: Checker, java_base: str, python_b
 
 def check_query(client: httpx.Client, checker: Checker, java_base: str, python_base: str) -> None:
     section("3 同步问答：Java 透传 Python")
-    java = client.post(external_url(java_base, "/query"), json=QUESTION_BODY)
-    py = client.post(internal_url(python_base, "/rag/query"), json=QUESTION_BODY)
+    java = client.post(external_url(java_base, "/query"), json=external_question())
+    py = client.post(internal_url(python_base, "/rag/query"), json=QUESTION_CORE)
 
     checker.check(java.status_code == 200 and py.status_code == 200, "POST /query：两侧都 200")
-    java_body = java.json()
-    py_body = py.json()
+    # 非 200 时不要按成功体去取键：那会抛 KeyError 把整个阶段打断，
+    # 后面的断言（含进度）就一个都跑不到，症状是「只有一条莫名其妙的失败」。
+    java_body = java.json() if java.status_code == 200 else {}
+    py_body = py.json() if py.status_code == 200 else {}
     checker.check(
-        java_body["status"] == py_body["status"]
-        and java_body["answer"] == py_body["answer"]
-        and java_body["context_chapters"] == py_body["context_chapters"],
+        java_body.get("status") == py_body.get("status")
+        and java_body.get("answer") == py_body.get("answer")
+        and java_body.get("context_chapters") == py_body.get("context_chapters"),
         "同步问答：status / answer / context_chapters 与 Python 直连一致",
         f"Java={java_body.get('status')} Python={py_body.get('status')}",
     )
     checker.check(
-        java_body["status"] in ("answered", "insufficient_evidence"),
+        java_body.get("status") in ("answered", "insufficient_evidence"),
         "同步问答：200 是 answered / insufficient_evidence 的正常业务结果",
         str(java_body.get("status")),
     )
-    print(f"  status={java_body['status']} answer={java_body['answer']!r}")
+    print(f"  status={java_body.get('status')} answer={java_body.get('answer')!r}")
 
 
 def check_request_id(client: httpx.Client, checker: Checker, java_base: str, python_log: Path) -> str:
     section("4 request_id：Java 生成、透传、响应头与响应体一致")
     response = client.post(
         external_url(java_base, "/query"),
-        json=QUESTION_BODY,
+        json=external_question(),
         headers={"X-Request-Id": "req_ffffffffffffffffffffffffffffffff"},
     )
     header_id = response.headers.get("x-request-id", "")
@@ -206,14 +281,14 @@ def check_request_id(client: httpx.Client, checker: Checker, java_base: str, pyt
 
 def check_stream(client: httpx.Client, checker: Checker, java_base: str, delay_ms: int) -> None:
     section("5 SSE：经 Java 透传、逐帧到达不被缓冲")
-    # 先预热：首次查询要建 BM25 索引，会把时间花在检索而不是流式上。
-    client.post(external_url(java_base, "/query"), json=QUESTION_BODY, timeout=60)
+    # 先预热：首次查询要建 BM25 索引 / 载入全书视图，会把时间花在检索而不是流式上。
+    client.post(external_url(java_base, "/query"), json=external_question(), timeout=180)
 
     start = time.perf_counter()
     first_frame_at: float | None = None
     lines: list[str] = []
     with client.stream(
-        "POST", external_url(java_base, "/query-stream"), json=QUESTION_BODY, timeout=60
+        "POST", external_url(java_base, "/query-stream"), json=external_question(), timeout=180
     ) as response:
         checker.check(response.status_code == 200, f"流式响应状态 200（实际 {response.status_code}）")
         checker.check(
@@ -258,7 +333,7 @@ def check_progress(
     checker: Checker,
     java_base: str,
     python_base: str,
-    progress_file: Path,
+    local_store: Path,
     python_log: Path,
 ) -> None:
     section("6 进度：Java 本地读写，不经过 Python")
@@ -273,9 +348,9 @@ def check_progress(
     checker.check(put.status_code == 200 and get.status_code == 200, "PUT / GET progress 都 200")
     checker.check(get.json() == {"book_id": 1, "progress": 42}, "进度写入后能读回", str(get.json()))
     checker.check(
-        progress_file.is_file() and json.loads(progress_file.read_text(encoding="utf-8")) == get.json(),
-        "进度落在 Java 本地文件",
-        str(progress_file),
+        local_store.is_file(),
+        "进度库（Java 本地 SQLite）存在——进度不经过 Python",
+        str(local_store),
     )
     checker.check(
         client.put(external_url(java_base, "/books/1/progress"), json={"progress": 999}).status_code == 400,
@@ -292,19 +367,39 @@ def check_progress(
 
 
 def check_invalid_input(client: httpx.Client, checker: Checker, java_base: str) -> None:
-    section("7 入参非法：Java 边界校验 400 RAG_INVALID_REALM")
+    section("7 入参非法：两个 400 的码 + 与会话不符的 409")
     cases = (
-        ("level=past 缺 progress", {"book_id": 1, "question": "x", "level": "past"}),
-        ("progress 越界", {"book_id": 1, "question": "x", "level": "past", "progress": 999}),
-        ("level 非法", {"book_id": 1, "question": "x", "level": "nowhere"}),
-        ("book_id 不存在", {"book_id": 999, "question": "x", "level": "full"}),
+        (
+            "level=past 缺 progress",
+            {"session_id": SESSION_ID, "book_id": 1, "question": "x", "level": "past"},
+            400,
+            "RAG_INVALID_REALM",
+        ),
+        (
+            "progress 越界",
+            {"session_id": SESSION_ID, "book_id": 1, "question": "x", "level": "past", "progress": 999},
+            400,
+            "RAG_INVALID_REALM",
+        ),
+        (
+            "level 非法",
+            {"session_id": SESSION_ID, "book_id": 1, "question": "x", "level": "nowhere"},
+            400,
+            "RAG_INVALID_REQUEST",
+        ),
+        (
+            "book_id 与会话不符",
+            {"session_id": SESSION_ID, "book_id": 999, "question": "x", "level": "past"},
+            409,
+            "RAG_SESSION_MISMATCH",
+        ),
     )
-    for label, body in cases:
+    for label, body, expected_status, expected_code in cases:
         response = client.post(external_url(java_base, "/query"), json=body)
         payload = response.json() if response.status_code != 200 else {}
         checker.check(
-            response.status_code == 400 and payload.get("code") == "RAG_INVALID_REALM",
-            f"{label} → 400 RAG_INVALID_REALM",
+            response.status_code == expected_status and payload.get("code") == expected_code,
+            f"{label} → {expected_status} {expected_code}",
             f"{response.status_code} {payload}",
         )
 
@@ -314,7 +409,7 @@ def check_fault(client: httpx.Client, checker: Checker, java_base: str, fault: s
     expected_status = 502 if fault == "provider_error" else 504
     section(f"8 上游 provider 故障（注入 {fault}）→ {expected_status} {expected_code}")
 
-    response = client.post(external_url(java_base, "/query"), json=QUESTION_BODY)
+    response = client.post(external_url(java_base, "/query"), json=external_question())
     payload = response.json() if response.status_code != 200 else {}
     checker.check(
         response.status_code == expected_status and payload.get("code") == expected_code,
@@ -325,7 +420,7 @@ def check_fault(client: httpx.Client, checker: Checker, java_base: str, fault: s
         bool(REQUEST_ID_PATTERN.fullmatch(response.headers.get("x-request-id", ""))),
         "故障响应仍带 Java 生成的 X-Request-Id",
     )
-    stream = client.post(external_url(java_base, "/query-stream"), json=QUESTION_BODY)
+    stream = client.post(external_url(java_base, "/query-stream"), json=external_question())
     frames = parse_sse(stream.text)
     names = [event for event, _ in frames]
     # 生成阶段才抛故障：前面几条检索事件已经发出，失败只能用末尾的 error 帧表达。
@@ -344,9 +439,9 @@ def check_fault(client: httpx.Client, checker: Checker, java_base: str, fault: s
     )
 
 
-def check_offline(client: httpx.Client, checker: Checker, java_base: str, progress_file: Path) -> None:
+def check_offline(client: httpx.Client, checker: Checker, java_base: str, local_store: Path) -> None:
     section("9 Python 不可达：503 RAG_UNAVAILABLE；进度仍本地可用")
-    response = client.post(external_url(java_base, "/query"), json=QUESTION_BODY)
+    response = client.post(external_url(java_base, "/query"), json=external_question())
     payload = response.json() if response.status_code != 200 else {}
     checker.check(
         response.status_code == 503 and payload.get("code") == "RAG_UNAVAILABLE",
@@ -362,7 +457,7 @@ def check_offline(client: httpx.Client, checker: Checker, java_base: str, progre
         "Python 停止后 GET progress 仍 200（证明进度完全落在 Java 本地）",
         f"{progress.status_code} {progress.text[:120]}",
     )
-    checker.check(progress_file.is_file(), "进度文件仍在本地", str(progress_file))
+    checker.check(local_store.is_file(), "进度库（Java 本地 SQLite）仍在本地", str(local_store))
 
 
 def main() -> int:
@@ -370,13 +465,21 @@ def main() -> int:
     parser.add_argument("--java-base", default="http://127.0.0.1:8080")
     parser.add_argument("--python-base", default="http://127.0.0.1:8000")
     parser.add_argument("--phase", required=True, choices=("main", "fault-provider", "fault-timeout", "offline"))
-    parser.add_argument("--progress-file", type=Path, required=True)
+    parser.add_argument("--local-store", type=Path, required=True, help="Java 本地 SQLite 库（var/omniread.db）")
     parser.add_argument("--python-log", type=Path, required=True)
     parser.add_argument("--stream-delay-ms", type=int, default=200)
     args = parser.parse_args()
 
     checker = Checker()
-    with httpx.Client(timeout=30.0, follow_redirects=False) as client:
+    # 180s：Python 重启后的首个查询要建全书视图（1807 行 / 4.7 MB），
+    # 经 RDS 隧道时实测 27–54s；30s 只够打到一个假超时。
+    with httpx.Client(timeout=180.0, follow_redirects=False) as client:
+        # 所有写操作都要 CSRF 头；GET 上带着也无害（服务端只查带没带）。
+        client.headers[CSRF_HEADER] = CSRF_VALUE
+        if args.phase == "main":
+            check_login_gate(client, checker, args.java_base)
+        login(client, checker, args.java_base)
+        create_session(client, checker, args.java_base)
         if args.phase == "main":
             check_catalog_parity(client, checker, args.java_base, args.python_base)
             check_image(client, checker, args.java_base, args.python_base)
@@ -388,7 +491,7 @@ def main() -> int:
                 checker,
                 args.java_base,
                 args.python_base,
-                args.progress_file,
+                args.local_store,
                 args.python_log,
             )
             check_invalid_input(client, checker, args.java_base)
@@ -397,7 +500,7 @@ def main() -> int:
         elif args.phase == "fault-timeout":
             check_fault(client, checker, args.java_base, "timeout")
         else:
-            check_offline(client, checker, args.java_base, args.progress_file)
+            check_offline(client, checker, args.java_base, args.local_store)
 
     print(f"\n=== 汇总：{checker.passed} 项通过，{checker.failed} 项失败 ===")
     return 1 if checker.failed else 0

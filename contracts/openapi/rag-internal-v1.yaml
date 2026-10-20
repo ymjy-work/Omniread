@@ -406,8 +406,11 @@ components:
           format: int32
           nullable: true
           minimum: 1
-          maximum: 193
-          description: level=past 时由 Java 保证必填；Java 在 API 边界校验，Python 不重复校验
+          description: |
+            level=past 时由 Java 保证必填。**上界是这本书的章节数，是动态值，不写进 schema**——
+            由 Java 的 `RealmValidator` 按书目录判，越界归 `RAG_INVALID_REALM`。
+            只有 `minimum: 1` 是任何人都不查目录就知道的固定下界，越界归 `RAG_INVALID_REQUEST`。
+            Python 不重复校验。
         options:
           $ref: "#/components/schemas/QueryOptions"
 
@@ -559,11 +562,19 @@ components:
 
     Usage:
       type: object
-      required: [answer_provider, answer_model, latency_ms]
+      required: [answer_provider, answer_model, latency_ms, context_tokens]
       properties:
         answer_provider: { type: string, example: glm }
         answer_model: { type: string, example: glm-5.3-flash }
         latency_ms: { type: integer }
+        context_tokens:
+          type: integer
+          description: |
+            装配进 prompt 的材料 token 估算，与 `context_assembled.token_estimate` 是同一个数。
+
+            只有本服务知道它；网关把它与「历史 + 本轮问题 + 摘要」相加，得到这一轮的
+            会话内容 token，再配一个模型上下文窗口给前端算占比。
+
 
     ErrorBody:
       type: object

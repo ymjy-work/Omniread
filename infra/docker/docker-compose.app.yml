@@ -1,0 +1,81 @@
+# 生产应用栈：Java 网关（托管前端）+ Python RAG。
+#
+# 数据层不在这里：PostgreSQL 用 AWS RDS，对象存储用 AWS S3（见 docs/方案.md「一之二」）。
+# 本地开发用的 PG / MinIO 容器在 docker-compose.yml，那个文件只服务 `dev-up.sh`。
+#
+# 用法（在 infra/docker 下）：
+#   docker compose -f docker-compose.app.yml up -d --build
+#
+# **密钥怎么注入进程仍是待批事项**（改「只经 keymgr」这条红线）。本文件只从部署侧的
+# 环境变量取值，不落盘、不写 compose；具体用 keymgr、Docker secrets 还是主机环境，
+# 由部署方案定。必需项用 `${VAR:?}` 标出来：缺了直接起不来，而不是静默用空串。
+
+name: omniread-app
+
+services:
+  rag:
+    build:
+      context: ../..
+      dockerfile: services/rag/Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:?RDS 端点未提供}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:?RDS 库名未提供}
+      POSTGRES_USER: ${POSTGRES_USER:?RDS 用户未提供}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?RDS 口令未提供}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-require}
+      # 应用侧只认这组通用名；不要在容器里再读 AWS_*（那是控制面凭据）。
+      OMNIREAD_OBJECT_STORE_ENDPOINT: ${OMNIREAD_OBJECT_STORE_ENDPOINT:?S3 端点未提供}
+      OMNIREAD_OBJECT_STORE_REGION: ${OMNIREAD_OBJECT_STORE_REGION:?S3 区域未提供}
+      OMNIREAD_OBJECT_STORE_BUCKET: ${OMNIREAD_OBJECT_STORE_BUCKET:?S3 桶未提供}
+      OMNIREAD_OBJECT_STORE_PREFIX: ${OMNIREAD_OBJECT_STORE_PREFIX:-omniread}
+      OMNIREAD_OBJECT_STORE_SECURE: ${OMNIREAD_OBJECT_STORE_SECURE:-true}
+      OMNIREAD_OBJECT_STORE_ACCESS_KEY: ${OMNIREAD_OBJECT_STORE_ACCESS_KEY:?S3 access key 未提供}
+      OMNIREAD_OBJECT_STORE_SECRET_KEY: ${OMNIREAD_OBJECT_STORE_SECRET_KEY:?S3 secret 未提供}
+      GLM_API_KEY: ${GLM_API_KEY:?GLM key 未提供}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?百炼 key 未提供}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?DeepSeek key 未提供}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/internal/v1/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: services/backend/Dockerfile
+      args:
+        # 权利人联系方式：前端**构建期**注入（Vite 的 VITE_* 在运行时传没用）。
+        # 缺了直接报错，不静默留空——它是门禁 G1 第 2 条的核对项。
+        VITE_RIGHTS_CONTACT: ${VITE_RIGHTS_CONTACT:?权利人联系方式未提供}
+    restart: unless-stopped
+    depends_on:
+      rag:
+        condition: service_healthy
+    environment:
+      OMNIREAD_RAG_BASE_URL: http://rag:8000
+      # 反代终结 TLS 后由 forward-headers-strategy=framework 自己认 X-Forwarded-*；
+      # **只允许反代直连本进程**（端口只发布到 127.0.0.1）。
+      OMNIREAD_AUTH_COOKIE_SECURE: ${OMNIREAD_AUTH_COOKIE_SECURE:-true}
+      OMNIREAD_OFFLINE_MARKER: /app/var/OFFLINE
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # 账户 / 会话 / 进度 / 配额的 SQLite 文件：容器重建不能丢。
+      - omniread-data:/app/var
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  omniread-data:

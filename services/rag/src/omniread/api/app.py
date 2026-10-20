@@ -43,7 +43,7 @@ from omniread.infrastructure.db.catalog import EmptyCatalogRepository, PgCatalog
 from omniread.infrastructure.db.context import PgContextSource
 from omniread.infrastructure.db.session import create_engine_from_env
 from omniread.infrastructure.objectstore.local import LocalFileSystemImageStorage
-from omniread.infrastructure.objectstore.minio_storage import build_minio_storage
+from omniread.infrastructure.objectstore.s3 import build_object_store
 from omniread.infrastructure.providers.ali import AliEmbeddingAdapter, AliRerankAdapter
 from omniread.infrastructure.providers.base import ChatModel, EmbeddingModel, RerankModel
 from omniread.infrastructure.providers.deepseek import DeepSeekChatAdapter
@@ -74,8 +74,8 @@ SUMMARIZER_AUTO: Literal["auto"] = "auto"
 
 
 def build_image_storage(settings: Settings) -> ImageStorage:
-    if settings.image_storage_backend == "minio":
-        return build_minio_storage(settings)
+    if settings.image_storage_backend == "s3":
+        return build_object_store(settings)
     return LocalFileSystemImageStorage(settings.image_local_root)
 
 

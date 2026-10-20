@@ -75,7 +75,7 @@ class QueryRequest(BaseModel):
     book_id: int
     question: str = Field(min_length=1, max_length=2000)
     level: Literal["past", "full"]
-    progress: int | None = Field(default=None, ge=1, le=193)
+    progress: int | None = Field(default=None, ge=1)
     options: QueryOptions | None = None
 
 
@@ -107,6 +107,9 @@ class Usage(BaseModel):
     answer_provider: str
     answer_model: str
     latency_ms: int
+    # 装配进 prompt 的材料量。网关拿它与「历史 + 本轮问题 + 摘要」相加，
+    # 得到这一轮的会话内容 token——只有本服务知道材料那一半。
+    context_tokens: int
 
 
 class QueryResponse(BaseModel):

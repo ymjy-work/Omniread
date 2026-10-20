@@ -35,7 +35,7 @@ class EvalRunConfig:
     """本次评测 run 的参数快照，供 baseline diff。
 
     只列白名单字段。**不要**改成 `Mapping[str, Any]`、也不要塞 `Settings.model_dump()`：
-    `minio_access_key` 是普通 str，整体 dump 会把凭据写进仓库。
+    `object_store_access_key` 是普通 str，整体 dump 会把凭据写进仓库。
 
     `answer_*` / `judge_*` / `prompt_version` 是 `rag_runs` 的列，
     本层不产它们，一律留 `NOT_EXERCISED`。`rag_runs` 那一行直接由这份 config 派生
@@ -220,7 +220,9 @@ def _render_generation_section(summary: Mapping[str, Any]) -> list[str]:
         "（`citation_in_set` 的分母**不含**拒答与生成失败的题：它们没有引用可判，"
         "算通过会虚高、算失败又不对——所以分母单列，缩水多少一眼可见。"
         "`answered_without_citation` 必须与 `citation_in_set` 并读：集合判定对空集天然安全，"
-        "一个从不标注引用的回答会带着 `1.0000` 通过。`refusal_false_positive` 同理，"
+        "一个从不标注引用的回答会带着 `1.0000` 通过。它上升不必然是退步——与作品无关的问题"
+        "（文化背景、讨论、建议）本来就该无引用，要看那几条是不是这类。"
+        "`refusal_false_positive` 同理，"
         "它挡住「见谁都拒答」这个能拿满 `refusal_correct` 的退化解。）",
         "",
     ]

@@ -1,6 +1,7 @@
-"""把语料原始件归档到 MinIO。
+"""把语料原始件归档到 S3。
 
-对象布局与 key 构造成对放在 `layout.py`，这里只负责读语料、算清单 / 校验和并上传：
+对象布局与 key 构造在本文件（`book_prefix` / `source_key` / `manifest_key` / `checksums_key`）
+与 `paths.py`（图片 key）里，这里只负责读语料、算清单 / 校验和并上传：
 
 ```text
 books/{book_id}/source/index.jsonl          # 原始语料，原样归档
@@ -11,7 +12,7 @@ books/{book_id}/checksums.json              # 每章 hash（程序生成）
 ```
 
 `index.jsonl[].images` 形如 `images/01_第1卷/007.jpg`，去掉语料自带的 `images/` 前缀后
-交给 `layout.image_key`，落成 `books/{book_id}/images/01_第1卷/007.jpg`（不加第二层前缀）。
+交给 `paths.resolve_image_key`，落成 `books/{book_id}/images/01_第1卷/007.jpg`（不加第二层前缀）。
 图片路径来自语料、同样不可信，进 key 前复用 `paths.resolve_image_key` 的目录穿越与扩展名防护。
 
 凭据只从环境变量进 Settings；缺凭据时构造写入端即失败，不静默降级。
@@ -20,7 +21,6 @@ books/{book_id}/checksums.json              # 每章 hash（程序生成）
 from __future__ import annotations
 
 import argparse
-import io
 import json
 import sys
 from collections.abc import Iterator
@@ -28,8 +28,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Protocol
-
-from minio import Minio
 
 from omniread.config import Settings
 from omniread.domain.errors import UnsafeImagePath
@@ -43,13 +41,13 @@ from omniread.infrastructure.objectstore.corpus import (
     dumps_canonical,
     read_corpus,
 )
-from omniread.infrastructure.objectstore.minio_storage import build_minio_client
 from omniread.infrastructure.objectstore.paths import (
     CORPUS_IMAGES_PREFIX,
     image_media_type,
     resolve_image_key,
     strip_corpus_images_prefix,
 )
+from omniread.infrastructure.objectstore.s3 import build_object_store
 
 INDEX_CONTENT_TYPE = "application/x-ndjson"
 MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8"
@@ -74,27 +72,9 @@ def checksums_key(book_id: int) -> str:
 
 
 class ObjectWriter(Protocol):
-    """归档写入端：MinIO 供真跑，内存实现供单测。"""
-
-    def ensure_bucket(self) -> None: ...
+    """归档写入端：S3 供真跑，内存实现供单测。"""
 
     def put(self, key: str, data: bytes, content_type: str) -> None: ...
-
-
-class MinioObjectWriter:
-    def __init__(self, client: Minio, bucket: str) -> None:
-        self._client = client
-        self._bucket = bucket
-
-    def ensure_bucket(self) -> None:
-        """桶不存在就建：MinIO 不会自动建桶，导入流程假设桶已就绪。"""
-        if not self._client.bucket_exists(self._bucket):
-            self._client.make_bucket(self._bucket)
-
-    def put(self, key: str, data: bytes, content_type: str) -> None:
-        self._client.put_object(
-            self._bucket, key, io.BytesIO(data), length=len(data), content_type=content_type
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +100,6 @@ class CorpusArchiver:
         manifest = build_manifest(corpus, imported_at or datetime.now(UTC))
         checksums = build_checksums(corpus)
 
-        self._writer.ensure_bucket()
         uploaded: list[str] = []
 
         def upload(key: str, data: bytes, content_type: str) -> None:
@@ -139,8 +118,9 @@ class CorpusArchiver:
         )
         for key, data in self._image_objects(corpus_root, corpus):
             upload(key, data, image_media_type(key))
-        upload(manifest_key(self._book_id), dumps_canonical(manifest), JSON_CONTENT_TYPE)
+        # checksums 先写、manifest 最后写：manifest 是整批的提交标记。
         upload(checksums_key(self._book_id), dumps_canonical(checksums), JSON_CONTENT_TYPE)
+        upload(manifest_key(self._book_id), dumps_canonical(manifest), JSON_CONTENT_TYPE)
 
         return ArchiveResult(
             book_id=self._book_id,
@@ -188,13 +168,8 @@ def read_corpus_file(base: Path, corpus_relative: str) -> bytes:
     return target.read_bytes()
 
 
-def build_minio_writer(settings: Settings) -> MinioObjectWriter:
-    """按 Settings 构造归档写入端；缺凭据直接失败，不静默降级。"""
-    return MinioObjectWriter(build_minio_client(settings), settings.minio_bucket)
-
-
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="把语料原始件归档到 MinIO")
+    parser = argparse.ArgumentParser(description="把语料原始件归档到 S3")
     parser.add_argument("--corpus-root", required=True, type=Path, help="语料根目录")
     parser.add_argument("--book-id", type=int, default=1, help="书籍 ID，M0 恒为 1")
     parser.add_argument(
@@ -204,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    writer = build_minio_writer(Settings())
+    writer = build_object_store(Settings())
     result = CorpusArchiver(writer, args.book_id).archive(args.corpus_root, args.corpus_version)
     summary = {
         "book_id": result.book_id,

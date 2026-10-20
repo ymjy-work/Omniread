@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Omniread 一键启动（在 Git Bash 里执行）。
 #
-# 启动顺序：基础设施（PostgreSQL + MinIO）→ Python RAG（127.0.0.1:8000）→ Java 网关（127.0.0.1:8080）。
+# 启动顺序：基础设施（PostgreSQL + MinIO）→ Python RAG（127.0.0.1:8000，可用 OMNIREAD_RAG_PORT 覆盖）→ Java 网关（127.0.0.1:8080）。
 # 前端构建产物由 Java 托管，因此默认不起前端；需要热更新时加 --web 另起 Vite dev server（5173）。
 #
 # 用法：
@@ -108,7 +108,10 @@ profile_exists() {
 ensure_creds() {
   local need=() dedup=() v missing=()
   [ "$START_INFRA" -eq 1 ] && need+=(POSTGRES_PASSWORD MINIO_SECRET_KEY)
-  [ "$LOCAL_IMAGES" -eq 0 ] && need+=(MINIO_SECRET_KEY)
+  # 只有本地 MinIO 才需要容器口令；外部对象存储走 AWS_* 那套。
+  if [ "$LOCAL_IMAGES" -eq 0 ] && [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+    need+=(MINIO_SECRET_KEY)
+  fi
   for v in "${need[@]}"; do
     case " ${dedup[*]-} " in *" $v "*) ;; *) dedup+=("$v") ;; esac
   done
@@ -192,8 +195,11 @@ else
   log "按 --no-infra 跳过基础设施，直接复用已起的容器"
 fi
 
-# ---------- 2. Python RAG（8000） ----------
-require_port 8000 "Python RAG"
+# ---------- 2. Python RAG（默认 8000） ----------
+# Windows 的动态保留段可能吃掉 8000（绑定报 WinError 10013），此时用 OMNIREAD_RAG_PORT 换端口，
+# Java 侧的 OMNIREAD_RAG_BASE_URL 跟着走。
+RAG_PORT="${OMNIREAD_RAG_PORT:-8000}"
+require_port "$RAG_PORT" "Python RAG"
 UV="$(find_uv)"
 if [ ! -x "$RAG_PY" ]; then
   log "services/rag/.venv 不存在，先 uv sync --all-groups"
@@ -222,24 +228,40 @@ RAG_ENV=(
   PYTHONIOENCODING=utf-8
 )
 if [ "$LOCAL_IMAGES" -eq 1 ]; then
-  # 本地图片目录：不读 MinIO 凭据，目录固定放在被 git 忽略的 temp/ 下
+  # 本地图片目录：不读对象存储凭据，目录固定放在被 git 忽略的 temp/ 下
   RAG_ENV+=(OMNIREAD_IMAGE_STORAGE_BACKEND=local "OMNIREAD_IMAGE_LOCAL_ROOT=$ROOT/temp/images")
-  log "Python 图片后端=local（$ROOT/temp/images），不连 MinIO"
-else
-  # 端点 / access key / 桶名与 infra/docker 对齐：MinIO 宿主 9100，access key MinIO-Omniread。
-  # 桶名显式传，把约定钉在脚本上：config.py 的默认值与 infra 的 minio-init 建桶都已是
-  # omniread-sources，显式传是为了不依赖配置默认值。
+  log "Python 图片后端=local（$ROOT/temp/images），不连对象存储"
+elif [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+  # AWS 凭据用 AWS 自己的名字（AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
+  # AWS_DEFAULT_REGION / S3_BUCKET_NAME），映射到应用侧通用名只在这里做一次。
   RAG_ENV+=(
-    OMNIREAD_IMAGE_STORAGE_BACKEND=minio
-    OMNIREAD_MINIO_ENDPOINT=127.0.0.1:9100
-    OMNIREAD_MINIO_BUCKET=omniread-sources
-    OMNIREAD_MINIO_ACCESS_KEY="${MINIO_ROOT_USER:-MinIO-Omniread}"
-    "OMNIREAD_MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-}"
+    OMNIREAD_IMAGE_STORAGE_BACKEND=s3
+    "OMNIREAD_OBJECT_STORE_ENDPOINT=${OMNIREAD_OBJECT_STORE_ENDPOINT:-s3.${AWS_DEFAULT_REGION:?AWS 需要 AWS_DEFAULT_REGION}.amazonaws.com}"
+    "OMNIREAD_OBJECT_STORE_BUCKET=${S3_BUCKET_NAME:?AWS 需要 S3_BUCKET_NAME}"
+    "OMNIREAD_OBJECT_STORE_REGION=${AWS_DEFAULT_REGION}"
+    "OMNIREAD_OBJECT_STORE_PREFIX=${OMNIREAD_OBJECT_STORE_PREFIX:-omniread}"
+    "OMNIREAD_OBJECT_STORE_SECURE=${OMNIREAD_OBJECT_STORE_SECURE:-true}"
+    "OMNIREAD_OBJECT_STORE_PROXY=${OMNIREAD_OBJECT_STORE_PROXY:-}"
+    "OMNIREAD_OBJECT_STORE_ACCESS_KEY=${AWS_ACCESS_KEY_ID:?AWS 需要 AWS_ACCESS_KEY_ID}"
+    "OMNIREAD_OBJECT_STORE_SECRET_KEY=${AWS_SECRET_ACCESS_KEY:?AWS 需要 AWS_SECRET_ACCESS_KEY}"
+  )
+  log "Python 图片后端=s3（AWS $AWS_DEFAULT_REGION / $S3_BUCKET_NAME）"
+else
+  # 本地 MinIO：容器凭据在这里映射成同一组应用侧变量。
+  RAG_ENV+=(
+    OMNIREAD_IMAGE_STORAGE_BACKEND=s3
+    OMNIREAD_OBJECT_STORE_ENDPOINT=127.0.0.1:9100
+    OMNIREAD_OBJECT_STORE_REGION=
+    OMNIREAD_OBJECT_STORE_BUCKET=omniread-sources
+    OMNIREAD_OBJECT_STORE_PREFIX=omniread
+    OMNIREAD_OBJECT_STORE_SECURE=false
+    OMNIREAD_OBJECT_STORE_ACCESS_KEY="${MINIO_ROOT_USER:-MinIO-Omniread}"
+    "OMNIREAD_OBJECT_STORE_SECRET_KEY=${MINIO_SECRET_KEY:-}"
   )
 fi
 spawn "Python RAG" "$ROOT" "$RUN_DIR/rag.log" "$RUN_DIR/rag.pid" \
-  env "${RAG_ENV[@]}" "$RAG_PY" -m uvicorn omniread.api.app:create_app --factory --host 127.0.0.1 --port 8000
-wait_http "Python RAG" "http://127.0.0.1:8000/internal/v1/health" 60 \
+  env "${RAG_ENV[@]}" "$RAG_PY" -m uvicorn omniread.api.app:create_app --factory --host 127.0.0.1 --port "$RAG_PORT"
+wait_http "Python RAG" "http://127.0.0.1:$RAG_PORT/internal/v1/health" 60 \
   || die "Python RAG 未在 60s 内就绪，看 $RUN_DIR/rag.log"
 
 # ---------- 3. Java 网关（8080） ----------
@@ -252,7 +274,7 @@ if [ ! -d "$ROOT/web/dist" ]; then
   log "警告：web/dist 不存在，Java 将只托管 API，不托管前端页面"
 fi
 spawn "Java 网关" "$ROOT" "$RUN_DIR/backend.log" "$RUN_DIR/backend.pid" \
-  env OMNIREAD_RAG_BASE_URL=http://127.0.0.1:8000 OMNIREAD_WEB_DIST=web/dist \
+  env "OMNIREAD_RAG_BASE_URL=http://127.0.0.1:$RAG_PORT" OMNIREAD_WEB_DIST=web/dist \
   java -jar "$JAR"
 wait_http "Java 网关" "http://127.0.0.1:8080/api/v1/health" 60 \
   || die "Java 网关未在 60s 内就绪，看 $RUN_DIR/backend.log"
@@ -271,7 +293,7 @@ cat <<EOF
 
 Omniread 已就绪：
   Java 网关      http://127.0.0.1:8080          （前端页面与 /api/v1 同源）
-  Python RAG     http://127.0.0.1:8000/internal/v1/health
+  Python RAG     http://127.0.0.1:$RAG_PORT/internal/v1/health
   自检           curl -s http://127.0.0.1:8080/api/v1/health
 EOF
 [ "$START_INFRA" -eq 1 ] && cat <<EOF

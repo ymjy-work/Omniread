@@ -39,10 +39,15 @@ def database_url() -> str:
     host = os.environ.get("POSTGRES_HOST", "127.0.0.1")
     port = os.environ.get("POSTGRES_PORT", "55432")
     name = os.environ.get("POSTGRES_DB", "omniread")
-    return (
+    url = (
         f"postgresql+psycopg://{quote(user, safe='')}:{quote(password, safe='')}"
         f"@{host}:{port}/{name}"
     )
+    # RDS 用 require；本地 Docker 留空，保持原来的连接串。
+    ssl_mode = os.environ.get("POSTGRES_SSLMODE", "")
+    if ssl_mode:
+        url += f"?sslmode={quote(ssl_mode, safe='')}"
+    return url
 
 
 def _apply_hnsw_session_settings(dbapi_connection: object, _record: object) -> None:

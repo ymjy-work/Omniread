@@ -117,6 +117,8 @@ export interface Usage {
   answer_provider: string
   answer_model: string
   latency_ms: number
+  /** 装配进 prompt 的材料 token 估算（本轮检索捞上来的那部分） */
+  context_tokens: number
 }
 
 /** 拒答是正常业务结果，HTTP 仍为 200 */
@@ -275,6 +277,10 @@ export interface QueryDonePayload {
   status: QueryStatus
   context_chapters: ContextChapter[]
   usage: Usage
+  /** 网关补的：这一轮送进模型的会话内容（历史 + 问题 + 摘要 + 材料）token 估算 */
+  prompt_tokens: number
+  /** 网关补的：回答模型的上下文窗口，占比的分母 */
+  context_window: number
 }
 
 export interface QueryErrorPayload {

@@ -1,6 +1,6 @@
 """语料归档：对象布局、清单 / 校验和、路径防护与失败即报。
 
-MinIO 用内存实现替身，验证 key 与字节；真起 MinIO 的端到端另由 CLI 跑（见 notes）。
+S3 用内存实现替身，验证 key 与字节；真起 MinIO / 连 AWS 的端到端另由 CLI 跑（见 notes）。
 """
 
 from __future__ import annotations
@@ -22,9 +22,9 @@ from omniread.infrastructure.objectstore.corpus import (
 from omniread.infrastructure.objectstore.corpus_archive import (
     ArchiveResult,
     CorpusArchiver,
-    build_minio_writer,
     corpus_image_key,
 )
+from omniread.infrastructure.objectstore.s3 import build_object_store
 
 _IMAGE_BYTES = b"\xff\xd8\xff\xe0fake-jpeg-bytes"
 
@@ -32,10 +32,6 @@ _IMAGE_BYTES = b"\xff\xd8\xff\xe0fake-jpeg-bytes"
 class InMemoryWriter:
     def __init__(self) -> None:
         self.objects: dict[str, tuple[bytes, str]] = {}
-        self.bucket_ready = False
-
-    def ensure_bucket(self) -> None:
-        self.bucket_ready = True
 
     def put(self, key: str, data: bytes, content_type: str) -> None:
         self.objects[key] = (data, content_type)
@@ -96,7 +92,6 @@ def _archive(corpus_root: Path) -> tuple[InMemoryWriter, ArchiveResult]:
 def test_archive_writes_expected_object_layout(corpus_root: Path) -> None:
     writer, result = _archive(corpus_root)
 
-    assert writer.bucket_ready is True
     assert set(writer.objects) == {
         "books/1/source/index.jsonl",
         "books/1/source/说明.md",
@@ -108,8 +103,8 @@ def test_archive_writes_expected_object_layout(corpus_root: Path) -> None:
         "books/1/source/index.jsonl",
         "books/1/source/说明.md",
         "books/1/images/01_第1卷/007.jpg",
-        "books/1/manifest.json",
         "books/1/checksums.json",
+        "books/1/manifest.json",
     )
 
 
@@ -214,10 +209,10 @@ def test_missing_index_file_is_rejected(tmp_path: Path) -> None:
 
 
 def test_missing_credentials_fail_closed() -> None:
-    settings = Settings(minio_access_key=None, minio_secret_key=None)
+    settings = Settings(object_store_access_key=None, object_store_secret_key=None)
 
-    with pytest.raises(RuntimeError, match="缺少 MinIO 凭据"):
-        build_minio_writer(settings)
+    with pytest.raises(RuntimeError, match="缺少对象存储凭据"):
+        build_object_store(settings)
 
 
 _REAL_CORPUS = (

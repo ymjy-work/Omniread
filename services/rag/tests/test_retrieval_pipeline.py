@@ -58,6 +58,9 @@ class InMemoryChunkStore:
 
     def __init__(self, records: Sequence[ChunkRecord], *, empty: bool = False) -> None:
         self._records = [] if empty else list(records)
+        # 缓存判据要能被测试推动：fingerprint 改了就等于「导入换了语料」。
+        self.fingerprint = "v1"
+        self.load_calls = 0
 
     def book_chapter_range(self, book_id: int) -> tuple[int, int] | None:
         if not self._records:
@@ -65,7 +68,11 @@ class InMemoryChunkStore:
         chapters = [record.chapter_index for record in self._records]
         return min(chapters), max(chapters)
 
+    def chunks_fingerprint(self, book_id: int) -> str | None:
+        return None if not self._records else self.fingerprint
+
     def load_chunks(self, book_id: int) -> Sequence[ChunkRecord]:
+        self.load_calls += 1
         return list(self._records)
 
 
@@ -121,6 +128,26 @@ def _request(
     progress: int | None = None,
 ) -> QueryRequest:
     return QueryRequest(book_id=1, question=question, level=level, progress=progress)
+
+
+async def test_book_view_is_reused_until_fingerprint_changes() -> None:
+    """全书视图常驻：指纹没变就不重读；导入换了语料才重读。"""
+    records = _build_book(6, 3)
+    store = InMemoryChunkStore(records)
+    pipeline = RetrievalPipeline(
+        store=store,
+        dense=RecordingDenseIndex({record.chunk_key: record.chapter_index for record in records}),
+        embedder=FakeEmbeddingModel(),
+        reranker=FakeRerankModel(),
+    )
+
+    await pipeline.retrieve(_request())
+    await pipeline.retrieve(_request())
+    assert store.load_calls == 1
+
+    store.fingerprint = "v2"
+    await pipeline.retrieve(_request())
+    assert store.load_calls == 2
 
 
 async def test_pipeline_runs_every_stage_and_closes_with_assembly() -> None:

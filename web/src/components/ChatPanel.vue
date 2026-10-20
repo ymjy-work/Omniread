@@ -185,20 +185,26 @@ const pending = ref<QueryLevel | null>(null)
 const pendingBusy = ref(false)
 
 /**
- * 模型**这一轮**的上下文占用，取自 `context_assembled.token_estimate`（装配完成后的结算值）。
- * 分母是服务端装配上下文的 token 预算，两个数要一起改。
+ * 模型**这一轮**的上下文占用：分子是会话内容（历史 + 本轮问题 + 摘要 + 检索材料），
+ * 分母是回答模型的上下文窗口。两个数都由网关算好后随终止帧下发。
+ *
+ * 别拿 `context_assembled.token_estimate` 当分子：那只是材料那一半，
+ * 除上装配预算（6000）得到的是「本轮材料 / 预算」，与模型实际看到多少无关。
  */
-const CONTEXT_BUDGET = 6000
 const contextTokens = ref<number | null>(null)
+const contextWindow = ref<number | null>(null)
 const contextRatio = computed(() => {
   const used = contextTokens.value
-  return used === null ? 0 : Math.min(1, used / CONTEXT_BUDGET)
+  const window = contextWindow.value
+  if (used === null || window === null || window <= 0) return 0
+  return Math.min(1, used / window)
 })
 const contextLabel = computed(() => {
   const used = contextTokens.value
-  if (used === null) return '上下文：0%'
-  const percent = Math.round((used / CONTEXT_BUDGET) * 100)
-  return `上下文：本轮 ${used} / ${CONTEXT_BUDGET} tokens（${percent}%）`
+  const window = contextWindow.value
+  if (used === null || window === null) return '上下文：0%'
+  const percent = Math.round((used / window) * 100)
+  return `上下文：本轮 ${used} / ${window} tokens（${percent}%）`
 })
 /** 圆环周长（r = 9）：stroke-dasharray 的第二个值就是它 */
 const RING = (2 * Math.PI * 9).toFixed(2)
@@ -479,8 +485,7 @@ async function send(): Promise<void> {
             patch(aiId, { recall: `${recallOf(aiId)} · rerank ${frame.data.output_count}/${frame.data.input_count}` })
             break
           case 'context_assembled':
-            // 圆环画的就是这个数：装配完成时预算已结算，是这一轮真正的上下文占用
-            contextTokens.value = frame.data.token_estimate
+            // 圆环不在这里更新：此刻只知道材料那一半，会话内容要等终止帧的两个数
             patch(aiId, {
               recall: `${recallOf(aiId)} · 装配 ${frame.data.chunks.length} 片`,
               phase: '准备生成',
@@ -507,6 +512,8 @@ async function send(): Promise<void> {
             break
           case 'query_done':
             // 终止帧只带状态与引用；正文已经由 answer_delta 逐帧上屏，不在此覆盖
+            contextTokens.value = frame.data.prompt_tokens
+            contextWindow.value = frame.data.context_window
             patch(aiId, {
               citations: frame.data.context_chapters,
               citationsReady: true,

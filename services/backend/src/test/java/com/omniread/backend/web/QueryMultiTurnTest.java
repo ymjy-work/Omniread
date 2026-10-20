@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.omniread.backend.session.ChatMessageMapper;
+import com.omniread.backend.session.TokenEstimator;
 import com.omniread.backend.user.AccountService;
 import com.omniread.backend.user.AuthCookies;
 import com.omniread.backend.user.User;
@@ -86,7 +87,7 @@ class QueryMultiTurnTest {
                             + "\"answer\":\"" + ANSWER + "\","
                             + "\"context_chapters\":[{\"chapter_index\":1,\"chapter_title\":\"第一章\"}],"
                             + "\"usage\":{\"answer_provider\":\"stub\",\"answer_model\":\"stub-1\","
-                            + "\"latency_ms\":7},\"rewritten_query\":null}")
+                            + "\"latency_ms\":7,\"context_tokens\":4321},\"rewritten_query\":null}")
                     .getBytes(StandardCharsets.UTF_8);
         }
         exchange.getResponseHeaders().add("Content-Type", contentType);
@@ -102,7 +103,7 @@ class QueryMultiTurnTest {
                 + "event: query_done\ndata: {\"status\":\"answered\","
                 + "\"context_chapters\":[{\"chapter_index\":1,\"chapter_title\":\"第一章\"}],"
                 + "\"usage\":{\"answer_provider\":\"stub\",\"answer_model\":\"stub-1\","
-                + "\"latency_ms\":3}}\n\n"
+                + "\"latency_ms\":3,\"context_tokens\":4321}}\n\n"
                 + "data: [DONE]\n\n";
     }
 
@@ -120,6 +121,8 @@ class QueryMultiTurnTest {
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("omniread.store.file", DB_PATH::toString);
         registry.add("omniread.rag.base-url", () -> "http://127.0.0.1:" + PYTHON.getAddress().getPort());
+        // 用一个与默认值不同的窗口，断言才能证明它真的来自配置。
+        registry.add("omniread.answer.context-window", () -> "64000");
     }
 
     @Autowired
@@ -207,6 +210,42 @@ class QueryMultiTurnTest {
         assertThat(messages.get(1).getContent())
                 .as("正文分散在若干 delta 里，不攒起来落库的就是一条空消息")
                 .isEqualTo("她后来回去了[C1]。");
+    }
+
+    @Test
+    @DisplayName("两条路径都报「会话内容 / 模型窗口」：分子 = 历史 + 问题 + 摘要 + 材料")
+    void contextNumbersAreReportedOnBothPaths() throws Exception {
+        Cookie cookie = login(newAccount("ctx"));
+        String sessionId = createSession(cookie);
+        String question = "她后来回去了吗？";
+        int expected = TokenEstimator.estimate(question) + 4321;
+
+        String streamed = mvc.perform(post("/api/v1/query-stream").cookie(cookie).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(askBody(sessionId, question)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(streamed)
+                .as("材料量来自 Python 的 usage，会话内容与窗口由网关补在终止帧上")
+                .contains("\"context_tokens\":4321")
+                .contains("\"prompt_tokens\":" + expected)
+                .contains("\"context_window\":64000");
+
+        String json = mvc.perform(post("/api/v1/query").cookie(cookie).header(CSRF, "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(askBody(sessionId, question)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(json)
+                .as("JSON 与 SSE 两条路径在这里必须一致")
+                .contains("\"prompt_tokens\":")
+                .contains("\"context_window\":64000");
     }
 
     @Test

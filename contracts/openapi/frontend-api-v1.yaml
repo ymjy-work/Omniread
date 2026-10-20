@@ -898,8 +898,10 @@ components:
           format: int32
           nullable: true
           minimum: 1
-          maximum: 193
-          description: level=past 时必填；由 Java 在 API 边界校验，Python 不重复校验
+          description: |
+            level=past 时必填。**上界是这本书的章节数，是动态值，不写进 schema**——
+            由 Java 在 API 边界按书目录判，越界归 `RAG_INVALID_REALM`。
+            只有 `minimum: 1` 是固定下界，越界归 `RAG_INVALID_REQUEST`。Python 不重复校验。
         options:
           $ref: "#/components/schemas/QueryOptions"
 
@@ -1001,7 +1003,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/QueryResponse"
         - type: object
-          required: [session_id, message_id]
+          required: [session_id, message_id, prompt_tokens, context_window]
           properties:
             session_id:
               type: string
@@ -1012,6 +1014,21 @@ components:
               description: |
                 刚落库的 assistant 消息 id。前端拿它做锚点（比如「从这里重新生成」），
                 也是排查时把一次回答对回库里那一行的唯一凭据。
+            prompt_tokens:
+              type: integer
+              description: |
+                **这一轮送进模型的会话内容** token 估算：历史 + 本轮问题 + 会话摘要
+                + `usage.context_tokens`（检索装配的材料）。
+
+                与 `usage.context_tokens` 分开报：那个是「这轮捞上来多少材料」，
+                这个是「模型这一轮总共看了多少」——前端要的占比是后者。
+                是估算而不是模型的 `prompt_tokens`：适配器不下发用量，两侧都用同一套
+                估算口径（汉字 × 0.81 / 其它 × 0.3）。
+            context_window:
+              type: integer
+              description: |
+                回答模型的上下文窗口（token）。网关按 `omniread.answer.context-window`
+                配置下发；**换回答模型必须同步改它**，否则占比的分母是错的。
 
     ContextChapter:
       type: object
@@ -1022,11 +1039,19 @@ components:
 
     Usage:
       type: object
-      required: [answer_provider, answer_model, latency_ms]
+      required: [answer_provider, answer_model, latency_ms, context_tokens]
       properties:
         answer_provider: { type: string, example: glm }
         answer_model: { type: string, example: glm-5.3-flash }
         latency_ms: { type: integer }
+        context_tokens:
+          type: integer
+          description: |
+            装配进 prompt 的材料 token 估算，与 `context_assembled.token_estimate` 是同一个数。
+
+            只有本服务知道它；网关把它与「历史 + 本轮问题 + 摘要」相加，得到这一轮的
+            会话内容 token，再配一个模型上下文窗口给前端算占比。
+
 
     ErrorBody:
       type: object
@@ -1114,12 +1139,15 @@ components:
         - generation_started: answer_provider, answer_model, prompt_version
         - answer_delta: text
         - citation_ready: context_chapters[]
-        - query_done: request_id, status, context_chapters, usage, **session_id, message_id**
+        - query_done: request_id, status, context_chapters, usage, **session_id, message_id,
+          prompt_tokens, context_window**
         - query_error: request_id, code, message
 
-        `query_done` 比内部契约多两个字段（`session_id` / `message_id`）：那两个是 Java
-        分配的，Python 不知道它们，所以只在网关这一侧补上——与 `SessionQueryResponse`
-        多出来的是同两个字段，JSON 与 SSE 两条路径在这里必须一致。
+        `query_done` 比内部契约多四个字段（`session_id` / `message_id` / `prompt_tokens` /
+        `context_window`）：四个都是 Java 补的，Python 不知道它们，所以只在网关这一侧补上
+        ——与 `SessionQueryResponse` 多出来的是同一组，JSON 与 SSE 两条路径在这里必须一致。
+        `prompt_tokens` 要用到 `usage.context_tokens`（Python 报来的材料量）加上网关自己
+        算的历史，所以只能在这一帧补齐，不能提前到 `context_assembled`。
 
         `context_assembled.chunks[]` 即**最终进入 prompt 的集合**（realm re-check
         与 token budget 均已结算），被裁项走 `dropped[]`。

@@ -12,7 +12,7 @@ evidence 的 content 与 chunk 正文一律不进 `eval/`。
 - 人工复核产物必须让人看到 evidence 与 chunk 正文，那部分属语料，只落 `temp/`（见 `review.py`），
   与「回答原文只落 temp/」同一条规矩。
 
-`config.json` 只写白名单字段：`Settings` 里 `minio_access_key` 是普通 str，
+`config.json` 只写白名单字段：`Settings` 里 `object_store_access_key` 是普通 str，
 整体 `model_dump()` 会把凭据写进仓库——所以这里不接受任意字典，只接受 `RunConfig`。
 """
 

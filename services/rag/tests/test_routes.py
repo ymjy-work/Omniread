@@ -234,4 +234,5 @@ def test_query_folds_fake_sequence_into_json_object(streaming_client: TestClient
         "answer_provider": "glm",
         "answer_model": "glm-5.3-flash",
         "latency_ms": 1830,
+        "context_tokens": 4321,
     }

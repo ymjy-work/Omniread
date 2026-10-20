@@ -2,8 +2,11 @@
 # 数据层端到端验证：迁移升级 / 回滚往返 + 对象读写。
 #
 # 验收项：迁移可升级回滚，对象读写通过。
-# 本脚本会真连 PostgreSQL（55432）与 MinIO（9100），因此不属于日常快速校验，
-# 只在显式调用时跑；`scripts/verify-all.sh --data-layer` 会转发到这里。
+# 本脚本会真连 PostgreSQL（**只允许本地 compose 容器**）与对象存储（本地 MinIO 9100，或外部 S3），
+# 因此不属于日常快速校验，只在显式调用时跑；`scripts/verify-all.sh --data-layer` 会转发到这里。
+# **它会对迁移目标跑 `alembic downgrade base`（DROP 全部表）**：`POSTGRES_HOST/PORT` 必须指向
+# 本地容器（127.0.0.1:55432）。若 `.env` 已 source（指向 RDS 隧道 15432），脚本会直接拒绝执行——
+# 迁移目标与下面 `psql_t` 的断言（只查本地容器）必须是同一个库。
 #
 # 用法（Git Bash，仓库根执行）：
 #   bash scripts/verify-data-layer.sh              复用已起的 infra
@@ -11,8 +14,8 @@
 #   bash scripts/verify-data-layer.sh --keep-objects 对象读写后不删除测试对象
 #   bash scripts/verify-data-layer.sh --help
 #
-# 凭据只从环境变量读：POSTGRES_PASSWORD 供迁移连库；MINIO_ROOT_USER / MINIO_SECRET_KEY
-# 供对象读写。两者都不写文件、不打印。
+# 凭据只从环境变量读：POSTGRES_PASSWORD 供迁移连库；对象存储用 MINIO_ROOT_USER /
+# MINIO_SECRET_KEY（本地），或 AWS_*（外部 S3）。两者都不写文件、不打印。
 # 起不来时的排查提示会直接打在下面对应步骤里。
 set -u
 
@@ -24,6 +27,9 @@ PG_CONTAINER="omniread-postgres"
 PG_USER="${POSTGRES_USER:-omniread}"
 PG_DB="${POSTGRES_DB:-omniread}"
 MINIO_USER="${MINIO_ROOT_USER:-MinIO-Omniread}"
+# 外部对象存储（AWS）已配置时不检查本地 MinIO 容器，凭据改从 AWS_* 读。
+OBJECT_STORE_EXTERNAL=0
+[ -n "${AWS_ACCESS_KEY_ID:-}" ] && OBJECT_STORE_EXTERNAL=1
 
 START_INFRA=0
 KEEP_OBJECTS=0
@@ -91,15 +97,18 @@ if ! container_running "$PG_CONTAINER"; then
 fi
 ok "PostgreSQL 容器在运行（$PG_CONTAINER）"
 
-if ! container_running omniread-minio; then
-  cat >&2 <<EOF
+if [ "$OBJECT_STORE_EXTERNAL" -eq 0 ]; then
+  if ! container_running omniread-minio; then
+    cat >&2 <<EOF
   失败：MinIO 没起来（容器 omniread-minio 不在运行）。
        先跑：bash scripts/dev-up.sh
        或加：bash scripts/verify-data-layer.sh --start-infra
+       用外部 S3 时改注入 AWS_* 与 S3_BUCKET_NAME，本检查会自动跳过。
 EOF
-  exit 2
+    exit 2
+  fi
+  ok "MinIO 容器在运行（omniread-minio）"
 fi
-ok "MinIO 容器在运行（omniread-minio）"
 
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   cat >&2 <<EOF
@@ -111,24 +120,69 @@ EOF
 fi
 ok "POSTGRES_PASSWORD 已注入（不打印）"
 
-if [ -z "${MINIO_SECRET_KEY:-}" ]; then
+if [ "$OBJECT_STORE_EXTERNAL" -eq 1 ]; then
+  if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] \
+     || [ -z "${S3_BUCKET_NAME:-}" ]; then
+    cat >&2 <<EOF
+  失败：外部 S3 需要 AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / S3_BUCKET_NAME。
+       注入方式：set -a; . ./.env; set +a 后重跑。
+EOF
+    exit 2
+  fi
+  ok "外部 S3 凭据已注入（不打印）"
+elif [ -z "${MINIO_SECRET_KEY:-}" ]; then
   cat >&2 <<EOF
   失败：MINIO_SECRET_KEY 未注入，对象读写无法登录 MinIO。
        注入方式：keymgr run omniread bash scripts/verify-data-layer.sh
 EOF
   exit 2
 fi
-ok "MINIO_SECRET_KEY 已注入（不打印）"
+if [ "$OBJECT_STORE_EXTERNAL" -eq 0 ]; then
+  ok "MINIO_SECRET_KEY 已注入（不打印）"
+fi
 
 # 迁移和对象读写都用同一份 Settings / session，凭据经环境变量传入子进程。
 export POSTGRES_PASSWORD
 export POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
 export POSTGRES_PORT="${POSTGRES_PORT:-55432}"
+
+# ---------- 硬守卫：本脚本会 DROP 全部表，只允许本地 compose 容器 ----------
+# `:-` 只在变量未设置时补默认，已导出的值原样保留——`.env` 里 POSTGRES_PORT=15432
+# 指向 RDS 隧道时，downgrade 会打到真库上，而下面的 psql_t 断言只查本地容器，
+# 「数据没了」不会被正确报出。这里拒绝，不警告。
+if [ "$POSTGRES_HOST" != "127.0.0.1" ] && [ "$POSTGRES_HOST" != "localhost" ]; then
+  echo "  失败：POSTGRES_HOST=$POSTGRES_HOST 不是本地容器；本脚本会 DROP 全部表，拒绝执行。" >&2
+  echo "       本地跑请先 unset POSTGRES_HOST POSTGRES_PORT。" >&2
+  exit 2
+fi
+if [ "$POSTGRES_PORT" != "55432" ]; then
+  echo "  失败：POSTGRES_PORT=$POSTGRES_PORT 疑似指向 RDS 隧道（15432）；本脚本会 DROP 全部表，拒绝执行。" >&2
+  echo "       本地跑请先 unset POSTGRES_HOST POSTGRES_PORT。" >&2
+  exit 2
+fi
+ok "迁移目标：$POSTGRES_HOST:$POSTGRES_PORT（本地容器；本脚本只允许它）"
+
 export POSTGRES_DB="$PG_DB"
 export POSTGRES_USER="$PG_USER"
-export OMNIREAD_MINIO_ENDPOINT="${OMNIREAD_MINIO_ENDPOINT:-127.0.0.1:9100}"
-export OMNIREAD_MINIO_ACCESS_KEY="${OMNIREAD_MINIO_ACCESS_KEY:-$MINIO_USER}"
-export OMNIREAD_MINIO_SECRET_KEY="${OMNIREAD_MINIO_SECRET_KEY:-$MINIO_SECRET_KEY}"
+export OMNIREAD_IMAGE_STORAGE_BACKEND=s3
+export OMNIREAD_OBJECT_STORE_PREFIX="${OMNIREAD_OBJECT_STORE_PREFIX:-omniread}"
+export OMNIREAD_OBJECT_STORE_PROXY="${OMNIREAD_OBJECT_STORE_PROXY:-}"
+if [ "$OBJECT_STORE_EXTERNAL" -eq 1 ]; then
+  # AWS 凭据名 → 应用侧通用名，映射只在这里做一次。
+  export OMNIREAD_OBJECT_STORE_ENDPOINT="${OMNIREAD_OBJECT_STORE_ENDPOINT:-s3.${AWS_DEFAULT_REGION}.amazonaws.com}"
+  export OMNIREAD_OBJECT_STORE_REGION="${AWS_DEFAULT_REGION:-}"
+  export OMNIREAD_OBJECT_STORE_BUCKET="$S3_BUCKET_NAME"
+  export OMNIREAD_OBJECT_STORE_SECURE="${OMNIREAD_OBJECT_STORE_SECURE:-true}"
+  export OMNIREAD_OBJECT_STORE_ACCESS_KEY="$AWS_ACCESS_KEY_ID"
+  export OMNIREAD_OBJECT_STORE_SECRET_KEY="$AWS_SECRET_ACCESS_KEY"
+else
+  export OMNIREAD_OBJECT_STORE_ENDPOINT="${OMNIREAD_OBJECT_STORE_ENDPOINT:-127.0.0.1:9100}"
+  export OMNIREAD_OBJECT_STORE_REGION=""
+  export OMNIREAD_OBJECT_STORE_BUCKET="${OMNIREAD_OBJECT_STORE_BUCKET:-omniread-sources}"
+  export OMNIREAD_OBJECT_STORE_SECURE="${OMNIREAD_OBJECT_STORE_SECURE:-false}"
+  export OMNIREAD_OBJECT_STORE_ACCESS_KEY="${OMNIREAD_OBJECT_STORE_ACCESS_KEY:-$MINIO_USER}"
+  export OMNIREAD_OBJECT_STORE_SECRET_KEY="${OMNIREAD_OBJECT_STORE_SECRET_KEY:-${MINIO_SECRET_KEY:-}}"
+fi
 # Windows 控制台默认不是 UTF-8，Python 子进程统一按 UTF-8 输出，避免中文提示变乱码。
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 # 对象样本默认用 book 1；桶里已有 book 1 的正式导入产物时，可用它换一个空 book 前缀，
@@ -255,79 +309,63 @@ import sys
 from minio.error import S3Error
 
 from omniread.config import Settings
-from omniread.infrastructure.objectstore.minio_storage import build_minio_client
+from omniread.infrastructure.objectstore.s3 import build_object_store
 
 BOOK = int(os.environ.get("OMNIREAD_VERIFY_BOOK_ID", "1"))
-# 对象布局照真实导入布局；这里只写验证样本，键沿用真实布局以同时校验路径约定。
+# 验证对象只写保留前缀 _verify/：即使脚本中断，也不会和 books/ 下的产品数据混在一起。
+ROOT = f"_verify/books/{BOOK}/"
 PAYLOADS = {
-    f"books/{BOOK}/source/index.jsonl": b'{"id":"verify-only"}\n',
-    f"books/{BOOK}/source/说明.md": "# 验证样本\n".encode(),
-    f"books/{BOOK}/manifest.json": b'{"book_id":1,"chapter_count":0}\n',
-    f"books/{BOOK}/checksums.json": b'{"book_id":1,"chapters":[]}\n',
+    f"{ROOT}source/index.jsonl": (b'{"id":"verify-only"}\n', "application/x-ndjson"),
+    f"{ROOT}source/说明.md": ("# 验证样本\n".encode(), "text/markdown; charset=utf-8"),
+    f"{ROOT}checksums.json": (b'{"book_id":1,"chapters":[]}\n', "application/json"),
+    f"{ROOT}manifest.json": (b'{"book_id":1,"chapter_count":0}\n', "application/json"),
 }
-MANIFEST_KEY = f"books/{BOOK}/manifest.json"
 
 settings = Settings()
-client = build_minio_client(settings)
-bucket = settings.minio_bucket
-
-
-def exists(key: str) -> bool:
-    try:
-        client.stat_object(bucket, key)
-        return True
-    except S3Error as exc:
-        if exc.code in {"NoSuchKey", "NoSuchBucket"}:
-            return False
-        raise
-
-
-try:
-    if not client.bucket_exists(bucket):
-        client.make_bucket(bucket)
-        print(f"      桶 {bucket} 不存在，已创建")
-    else:
-        # 桶里已有正式导入产物时拒绝覆盖：验证不该碰真实数据。
-        if exists(MANIFEST_KEY):
-            print(f"      桶里已有 {MANIFEST_KEY}（可能已导入真实语料），中止对象写入以免覆盖")
-            sys.exit(1)
-except S3Error as exc:
-    print(f"      连不上 MinIO / 桶不可用：{exc}")
-    sys.exit(1)
+store = build_object_store(settings)
 
 written: list[str] = []
 failures: list[str] = []
-for key, payload in PAYLOADS.items():
-    client.put_object(bucket, key, __import__("io").BytesIO(payload), len(payload))
-    written.append(key)
-    stored = client.get_object(bucket, key).read()
-    if stored != payload:
-        failures.append(f"{key} 读回字节不一致")
-    if hashlib.sha256(stored).hexdigest() != hashlib.sha256(payload).hexdigest():
-        failures.append(f"{key} sha256 不一致")
+try:
+    for key, (payload, content_type) in PAYLOADS.items():
+        store.put(key, payload, content_type)
+        written.append(key)
+        stored = store.get(key)
+        if stored is None:
+            failures.append(f"{key} 读回为空")
+            continue
+        if stored.data != payload:
+            failures.append(f"{key} 读回字节不一致")
+        if hashlib.sha256(stored.data).hexdigest() != hashlib.sha256(payload).hexdigest():
+            failures.append(f"{key} sha256 不一致")
+        if stored.content_type != content_type:
+            failures.append(f"{key} content-type 期望 {content_type}，实际 {stored.content_type}")
+except S3Error as exc:
+    print(f"      对象存储访问失败：{exc}")
+    sys.exit(1)
 
 if failures:
     print("      " + "；".join(failures))
     sys.exit(1)
 
-print(f"      写入并读回 {len(written)} 个对象，字节与 sha256 一致")
+print(f"      写入并读回 {len(written)} 个对象，字节、sha256 与 content-type 一致")
 
 if os.environ.get("OMNIREAD_VERIFY_KEEP_OBJECTS") == "1":
     print("      按 --keep-objects 保留测试对象，未清理")
     sys.exit(0)
 
 for key in written:
-    client.remove_object(bucket, key)
-left = [key for key in written if exists(key)]
+    store.remove(key)
+left = [key for key in written if store.exists(key)]
 if left:
     print(f"      清理后仍存在：{left}")
     sys.exit(1)
 print(f"      已清理 {len(written)} 个测试对象")
 PY
 then
-  ok "对象写入 / 读回 / 清理通过"
+  ok "对象写入 / 读回 / 清理通过（前缀 $OMNIREAD_OBJECT_STORE_PREFIX/_verify/）"
 else
-  bad "对象读写失败" "确认 MinIO 在 9100、桶 omniread-sources 已建（infra 的 minio-init）；见上方 python 输出"
+  bad "对象读写失败" "本地看 docker logs omniread-minio；外部 S3 看 AWS_* 与 IAM 策略；见上方 python 输出"
 fi
 
 # ---------- 汇总 ----------

@@ -15,14 +15,25 @@ import com.omniread.backend.contract.model.QueryResponse;
  *
  * <p>`message_id` 是这一轮 assistant 消息在库里的 id（`chat_messages.id`，**不是 `seq`**）：
  * 前端拿它定位「从哪一条重新生成」。
+ *
+ * <p>`prompt_tokens` / `context_window` 是前端算「会话内容 / 模型窗口」的那两个数：
+ * 前者 = 历史 + 本轮问题 + 摘要 + `usage.context_tokens`（材料），后者是模型的窗口。
+ * 两者都只有网关算得出来——Python 不知道历史，也不知道模型窗口。
  */
 public record SessionQueryResponse(
         @JsonUnwrapped QueryResponse upstream,
         @JsonProperty("session_id") String sessionId,
-        @JsonProperty("message_id") Long messageId) {
+        @JsonProperty("message_id") Long messageId,
+        @JsonProperty("prompt_tokens") int promptTokens,
+        @JsonProperty("context_window") int contextWindow) {
 
-    /** 三个字段都是必填，构造点只有一个（`QueryOrchestrator.query`）。 */
-    public static SessionQueryResponse of(QueryResponse upstream, String sessionId, Long messageId) {
-        return new SessionQueryResponse(upstream, sessionId, messageId);
+    /** 五个字段都是必填，构造点只有一个（`QueryOrchestrator.query`）。 */
+    public static SessionQueryResponse of(
+            QueryResponse upstream,
+            String sessionId,
+            Long messageId,
+            int promptTokens,
+            int contextWindow) {
+        return new SessionQueryResponse(upstream, sessionId, messageId, promptTokens, contextWindow);
     }
 }

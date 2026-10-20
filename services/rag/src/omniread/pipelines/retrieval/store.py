@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from omniread.infrastructure.db.models import Chapter, Chunk
@@ -27,6 +27,14 @@ class ChunkStore(Protocol):
 
     def load_chunks(self, book_id: int) -> Sequence[ChunkRecord]:
         """全书 chunk，按 `(chapter_index, chunk_index)` 升序。"""
+        ...
+
+    def chunks_fingerprint(self, book_id: int) -> str | None:
+        """全书 chunk 的轻量指纹（行数 + 逐行 `chunk_key:content_hash` 汇总）。
+
+        导入是整批替换，指纹随之改变；调用方用它判断内存里那份全书视图还能不能用。
+        比 `load_chunks` 便宜两个数量级：只回一个字符串，不回 4.7 MB 正文。
+        """
         ...
 
 
@@ -48,6 +56,21 @@ class PgChunkStore:
         if low is None or high is None:
             return None
         return int(low), int(high)
+
+    def chunks_fingerprint(self, book_id: int) -> str | None:
+        # `ORDER BY` 写在聚合参数里，不用 `WITHIN GROUP`：后者是 ordered-set 聚合的语法，
+        # 用在 string_agg 上 PostgreSQL 会按三个参数去找函数，直接报不存在。
+        with self._session_factory() as session:
+            row = session.execute(
+                text(
+                    "select count(*), md5(string_agg(chunk_key || ':' || content_hash, ','"
+                    " order by chunk_key)) from chunks where book_id = :book_id"
+                ),
+                {"book_id": book_id},
+            ).one()
+        if not row[0]:
+            return None
+        return f"{row[0]}:{row[1]}"
 
     def load_chunks(self, book_id: int) -> Sequence[ChunkRecord]:
         with self._session_factory() as session:

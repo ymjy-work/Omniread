@@ -38,11 +38,18 @@ class Settings(BaseSettings):
     # 才能验证「逐帧到达、不等整条流跑完」。
     fake_answer_delay_ms: int = 0
 
-    image_storage_backend: Literal["minio", "local"] = "minio"
+    image_storage_backend: Literal["s3", "local"] = "s3"
     image_local_root: Path = Path("var/images")
 
-    minio_endpoint: str = "127.0.0.1:9100"
-    minio_bucket: str = "omniread-sources"
-    minio_secure: bool = False
-    minio_access_key: str | None = None
-    minio_secret_key: SecretStr | None = None
+    # 对象存储（S3 协议）：生产是 AWS S3，本地是 MinIO，走同一个客户端。
+    # 名字不带提供方；AWS 那套凭据名由入口脚本映射到这几个变量。
+    object_store_endpoint: str = "127.0.0.1:9100"
+    object_store_bucket: str = "omniread-sources"
+    object_store_region: str = ""
+    # 项目根前缀：单桶多项目时用它隔离，空串表示不加前缀。
+    object_store_prefix: str = "omniread"
+    object_store_secure: bool = False
+    # 本机调试需要走代理时填；生产留空。
+    object_store_proxy: str | None = None
+    object_store_access_key: str | None = None
+    object_store_secret_key: SecretStr | None = None

@@ -38,6 +38,10 @@ omniread:
     cookie-secure: ${OMNIREAD_AUTH_COOKIE_SECURE:true}
     # 登录态有效期 8 小时，到点重新登录（不做滑动续期）。
     session-ttl: ${OMNIREAD_AUTH_TTL:8h}
+  answer:
+    # 回答模型的上下文窗口（token）。只用于前端算「会话内容 / 模型窗口」的占比；
+    # 换回答模型必须同步改它，否则分母是错的。不是历史预算（见下面的 context 一节）。
+    context-window: ${OMNIREAD_ANSWER_CONTEXT_WINDOW:128000}
   rag:
     # Python RAG 服务地址。Java 是唯一调用方，前端不直连。
     base-url: ${OMNIREAD_RAG_BASE_URL:http://127.0.0.1:8000}

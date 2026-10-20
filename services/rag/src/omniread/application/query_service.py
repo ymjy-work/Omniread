@@ -77,9 +77,13 @@ logger = logging.getLogger(__name__)
 # 中间事件的 top 列表截断：`fused_top[]` / `ranked[]` 都是 ≤10。
 _EVENT_TOP = 10
 
-# 拒答话术：服务端固定文本。它不是模型输出，模型在拒答路径上
-# 根本不被调用——避免模型在拒答话术里夹带域外信息。
-REFUSAL_ANSWER = "当前进度内的文本里没有找到能回答这个问题的内容。"
+# 拒答话术：服务端固定文本，两条拒答路径共用——「检索为空」与「模型判定材料里没写到
+# 这一点」（后者模型吐的是 `[INSUFFICIENT]` 标记）。整条换成固定话术，模型在拒答路径上
+# 写下的任何东西都不进响应。
+#
+# 措辞只承诺「这次找到的段落里没有」，不承诺「书里没有」：材料是检索出来的一个子集，
+# 说成书里没有就是替检索结果背书。
+REFUSAL_ANSWER = "我这次找到的段落里没有写到这一点。"
 
 
 class UnimplementedQueryRunner:
@@ -221,7 +225,7 @@ class AnsweringRunner:
             yield query_done(
                 status=AnswerStatus.INSUFFICIENT_EVIDENCE,
                 context_chapters=[],
-                usage=self._usage(started),
+                usage=self._usage(started, outcome.token_estimate),
             )
             return
 
@@ -274,7 +278,7 @@ class AnsweringRunner:
             yield query_done(
                 status=AnswerStatus.INSUFFICIENT_EVIDENCE,
                 context_chapters=context_chapters,
-                usage=self._usage(started),
+                usage=self._usage(started, outcome.token_estimate),
             )
             return
 
@@ -282,7 +286,7 @@ class AnsweringRunner:
         yield query_done(
             status=AnswerStatus.ANSWERED,
             context_chapters=context_chapters,
-            usage=self._usage(started),
+            usage=self._usage(started, outcome.token_estimate),
         )
 
     async def _load_context(
@@ -299,11 +303,12 @@ class AnsweringRunner:
             raise RagUnavailable(f"装配上下文缺少 {len(missing)} 个 chunk 正文")
         return [by_key[item.chunk_key] for item in outcome.assembled]
 
-    def _usage(self, started: float) -> dict[str, Any]:
+    def _usage(self, started: float, context_tokens: int) -> dict[str, Any]:
         return {
             "answer_provider": self._answer_provider,
             "answer_model": self._chat.model,
             "latency_ms": int((time.perf_counter() - started) * 1000),
+            "context_tokens": context_tokens,
         }
 
 

@@ -72,7 +72,12 @@ public class QueryController {
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
-        AnswerStreamRecorder recorder = new AnswerStreamRecorder(orchestrator, prepared.session());
+        AnswerStreamRecorder recorder = new AnswerStreamRecorder(
+                orchestrator,
+                prepared.session(),
+                // 材料那一半要等终止帧的 usage，所以这里只给「历史 + 问题 + 摘要」
+                orchestrator.sessionTokensWithoutContext(prepared, request.getQuestion()),
+                orchestrator.contextWindow());
         SseRelay.relay(upstream, requestId, response.getOutputStream(), recorder);
 
         // 流里出过错（provider 5xx / 上游中断）：这一轮没有结果，把日额度还回去。

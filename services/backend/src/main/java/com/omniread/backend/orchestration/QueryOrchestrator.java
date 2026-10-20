@@ -1,5 +1,6 @@
 package com.omniread.backend.orchestration;
 
+import com.omniread.backend.config.AnswerProperties;
 import com.omniread.backend.contract.model.HistoryMessage;
 import com.omniread.backend.contract.model.InternalQueryRequest;
 import com.omniread.backend.contract.model.QueryResponse;
@@ -50,6 +51,7 @@ public class QueryOrchestrator {
     private final ChatMessageStore messageStore;
     private final ContextBudget budget;
     private final SessionSummarizer summarizer;
+    private final AnswerProperties answerProperties;
 
     public QueryOrchestrator(
             RagGatewayClient gateway,
@@ -58,7 +60,8 @@ public class QueryOrchestrator {
             ChatMessageMapper messageMapper,
             ChatMessageStore messageStore,
             ContextBudget budget,
-            SessionSummarizer summarizer) {
+            SessionSummarizer summarizer,
+            AnswerProperties answerProperties) {
         this.gateway = gateway;
         this.bookCatalog = bookCatalog;
         this.sessionService = sessionService;
@@ -66,6 +69,7 @@ public class QueryOrchestrator {
         this.messageStore = messageStore;
         this.budget = budget;
         this.summarizer = summarizer;
+        this.answerProperties = answerProperties;
     }
 
     /**
@@ -83,7 +87,45 @@ public class QueryOrchestrator {
                 toUpstream(request, prepared.session(), prepared.history()), requestId);
 
         ChatMessage replied = recordAnswer(prepared.session(), answer);
-        return SessionQueryResponse.of(answer, prepared.session().getId(), replied.getId());
+        int contextTokens = contextTokensOf(answer);
+        return SessionQueryResponse.of(
+                answer,
+                prepared.session().getId(),
+                replied.getId(),
+                sessionTokensWithoutContext(prepared, request.getQuestion()) + contextTokens,
+                answerProperties.contextWindow());
+    }
+
+    /**
+     * 这一轮会话内容里**除检索材料之外**的那部分 token 估算：历史 + 本轮问题 + 摘要。
+     *
+     * <p>口径与 {@link #appendUserMessage} 落库时用的那个 {@link TokenEstimator} 一致——
+     * 前端要的是「模型这一轮看了多少」，两侧各用一套估算就会给出两个数。
+     */
+    public int sessionTokensWithoutContext(PreparedQuery prepared, String question) {
+        int total = TokenEstimator.estimate(question);
+        for (ChatMessage message : prepared.history().messages()) {
+            total += TokenEstimator.estimate(message.getContent());
+        }
+        String summary = prepared.session().getSummary();
+        if (summary != null) {
+            total += TokenEstimator.estimate(summary);
+        }
+        return total;
+    }
+
+    /** 回答模型的上下文窗口；前端拿它当占比的分母。 */
+    public int contextWindow() {
+        return answerProperties.contextWindow();
+    }
+
+    /**
+     * Python 报来的「装配进 prompt 的材料量」。拒答等路径上它可能缺失，按 0 计——
+     * 少算材料只会让占比偏小，比整块不显示要好。
+     */
+    private static int contextTokensOf(QueryResponse answer) {
+        Integer tokens = answer.getUsage() == null ? null : answer.getUsage().getContextTokens();
+        return tokens == null ? 0 : tokens;
     }
 
     /**

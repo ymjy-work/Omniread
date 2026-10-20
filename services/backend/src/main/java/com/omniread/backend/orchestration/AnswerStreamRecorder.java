@@ -41,6 +41,12 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
     private final QueryOrchestrator orchestrator;
     private final ChatSession session;
 
+    /** 会话内容里除检索材料之外的部分（历史 + 本轮问题 + 摘要）；材料量从终止帧的 usage 里取。 */
+    private final int promptBaseTokens;
+
+    /** 模型上下文窗口，随终止帧一起下发，前端拿它当占比的分母。 */
+    private final int contextWindow;
+
     private final StringBuilder answer = new StringBuilder();
 
     /**
@@ -55,9 +61,15 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
     /** 流里出现过错误帧。额度退还用它——**状态码在这里帮不上忙**（开流时就已经是 200）。 */
     private boolean failed;
 
-    public AnswerStreamRecorder(QueryOrchestrator orchestrator, ChatSession session) {
+    public AnswerStreamRecorder(
+            QueryOrchestrator orchestrator,
+            ChatSession session,
+            int promptBaseTokens,
+            int contextWindow) {
         this.orchestrator = orchestrator;
         this.session = session;
+        this.promptBaseTokens = promptBaseTokens;
+        this.contextWindow = contextWindow;
     }
 
     /** 这一轮有没有以错误收场（provider 5xx、上游中断）。 */
@@ -89,7 +101,7 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
         return null;
     }
 
-    /** 终止帧：先落库拿到 `message_id`，再把它与 `session_id` 补进负载。 */
+    /** 终止帧：先落库拿到 `message_id`，再把它与 `session_id`、两个上下文数字补进负载。 */
     private String finish(String data) {
         if (recorded) {
             return data;
@@ -97,7 +109,17 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
         recorded = true;
         Map<String, Object> payload = parse(data);
         ChatMessage replied = orchestrator.recordAnswer(session, toResponse(payload));
-        return withIds(data, replied.getId());
+        return withGatewayFields(
+                data, replied.getId(), promptBaseTokens + contextTokensOf(payload), contextWindow);
+    }
+
+    /** 终止帧 `usage.context_tokens`：装配进 prompt 的材料量。缺失按 0 计。 */
+    private static int contextTokensOf(Map<String, Object> payload) {
+        if (payload.get("usage") instanceof Map<?, ?> usage
+                && usage.get("context_tokens") instanceof Number number) {
+            return number.intValue();
+        }
+        return 0;
     }
 
     private QueryResponse toResponse(Map<String, Object> payload) {
@@ -139,20 +161,23 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
         Object provider = usage.get("answer_provider");
         Object name = usage.get("answer_model");
         Object latency = usage.get("latency_ms");
+        Object contextTokens = usage.get("context_tokens");
         model.setAnswerProvider(provider == null ? null : String.valueOf(provider));
         model.setAnswerModel(name == null ? null : String.valueOf(name));
         model.setLatencyMs(latency instanceof Number number ? number.intValue() : null);
+        model.setContextTokens(
+                contextTokens instanceof Number number ? number.intValue() : null);
         return model;
     }
 
     /**
-     * 把两个 id 并进原来那行 JSON。
+     * 把网关补的四个字段并进原来那行 JSON：两个 id + 两个上下文数字。
      *
      * <p>**不去反序列化再序列化**：那样会把上游的字段顺序与数字格式一起改掉，
      * 前端与测试看到的字节就与 Python 写出的不再一致——而「帧长什么样」是 Python 适配器的
-     * 职责，网关只该往上加东西。所以先取原负载的最后一个 `}`，插在两个新字段之前。
+     * 职责，网关只该往上加东西。所以先取原负载的最后一个 `}`，插在这些新字段之前。
      */
-    private String withIds(String data, Long messageId) {
+    private String withGatewayFields(String data, Long messageId, int promptTokens, int window) {
         String trimmed = data.trim();
         if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
             return data;
@@ -160,7 +185,7 @@ public class AnswerStreamRecorder implements BiFunction<String, String, String> 
         String head = trimmed.substring(0, trimmed.length() - 1);
         String separator = head.length() > 1 ? "," : "";
         return head + separator + "\"session_id\":\"" + session.getId() + "\",\"message_id\":" + messageId
-                + "}";
+                + ",\"prompt_tokens\":" + promptTokens + ",\"context_window\":" + window + "}";
     }
 
     private static Map<String, Object> parse(String data) {

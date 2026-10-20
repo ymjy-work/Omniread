@@ -75,6 +75,10 @@ class RetrievalPipeline:
         # BM25 索引常驻：构建要分词全书，逐请求重建不可接受。按 book 缓存并用
         # chunk_key 集合的 sha256 做指纹，导入换了语料即失效。
         self._bm25_cache: dict[int, tuple[str, Bm25Index]] = {}
+        # 全书视图常驻：一次 1807 行 / 4.7 MB。库在网络上时逐请求重取是最大的一笔延迟，
+        # 而语料在两次导入之间不变。用 `chunks_fingerprint` 判定还能不能用——
+        # 导入是整批替换，指纹随之改变；对不上才重读。
+        self._book_cache: dict[int, tuple[str, Sequence[ChunkRecord], tuple[int, int]]] = {}
 
     async def retrieve(self, request: QueryRequest) -> RetrievalOutcome:
         """跑完整条查询链，返回逐阶段结果与最终装配集。"""
@@ -83,14 +87,7 @@ class RetrievalPipeline:
         if not query:
             raise RagInvalidRealm("查询为空")
 
-        records = await asyncio.to_thread(self._store.load_chunks, request.book_id)
-        if not records:
-            raise RagInvalidRealm("本书没有可检索的 chunk")
-        chapter_range = await asyncio.to_thread(
-            self._store.book_chapter_range, request.book_id
-        )
-        if chapter_range is None:
-            raise RagInvalidRealm("本书没有章节")
+        records, chapter_range = await asyncio.to_thread(self._load_book, request.book_id)
         realm = resolve_realm(
             request.level,
             request.progress,
@@ -191,6 +188,23 @@ class RetrievalPipeline:
             token_estimate=assembly.token_estimate,
             params=params,
         )
+
+    def _load_book(self, book_id: int) -> tuple[Sequence[ChunkRecord], tuple[int, int]]:
+        """全书 chunk 与章号区间；指纹没变就直接用缓存。"""
+        fingerprint = self._store.chunks_fingerprint(book_id)
+        if fingerprint is None:
+            raise RagInvalidRealm("本书没有可检索的 chunk")
+        cached = self._book_cache.get(book_id)
+        if cached is not None and cached[0] == fingerprint:
+            return cached[1], cached[2]
+        records = self._store.load_chunks(book_id)
+        if not records:
+            raise RagInvalidRealm("本书没有可检索的 chunk")
+        chapter_range = self._store.book_chapter_range(book_id)
+        if chapter_range is None:
+            raise RagInvalidRealm("本书没有章节")
+        self._book_cache[book_id] = (fingerprint, records, chapter_range)
+        return records, chapter_range
 
     async def _rerank(
         self, query: str, pool: Sequence[StageHit], by_key: dict[str, ChunkRecord]
