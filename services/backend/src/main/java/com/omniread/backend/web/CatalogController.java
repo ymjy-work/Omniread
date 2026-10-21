@@ -106,6 +106,9 @@ public class CatalogController {
         }
         RagStream stream = gateway.openImage(bookId, path.startsWith("/") ? path.substring(1) : path);
         response.setStatus(HttpServletResponse.SC_OK);
+        // 插图 URL 带扩展名，而 Cloudflare 默认按扩展名缓存、不看路径：不声明这一行，
+        // 未登录也能从边缘缓存取到图，且一键下线后边缘仍有副本。private 让共享缓存不存。
+        response.setHeader("Cache-Control", "private, no-store");
         response.setContentType(stream.contentType() != null
                 ? stream.contentType().toString()
                 : MediaType.APPLICATION_OCTET_STREAM_VALUE);

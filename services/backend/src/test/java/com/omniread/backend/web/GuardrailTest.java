@@ -228,6 +228,9 @@ class GuardrailTest {
 
         mvc.perform(get("/api/v1/books/1/images/" + volumeOne + "/005.jpg").cookie(cookie))
                 .andExpect(status().isOk())
+                // 插图 URL 带扩展名，Cloudflare 默认按扩展名缓存而不看路径：少了这个头，
+                // 未登录也能从边缘缓存取到图，且一键下线后边缘仍有副本
+                .andExpect(header().string("Cache-Control", "private, no-store"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string("JPEG-BYTES"));
     }

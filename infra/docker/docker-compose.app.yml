@@ -19,6 +19,8 @@ services:
       dockerfile: services/rag/Dockerfile
     restart: unless-stopped
     environment:
+      # 基础镜像默认 UTC，而主机是 CST。不定的话日志时间比主机早 8 小时，排障时对不上钟。
+      TZ: Asia/Shanghai
       POSTGRES_HOST: ${POSTGRES_HOST:?RDS 端点未提供}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:?RDS 库名未提供}
@@ -60,6 +62,9 @@ services:
       rag:
         condition: service_healthy
     environment:
+      # 日额度按「本地日期」翻页（QuotaService 用 Clock.systemDefaultZone()），
+      # 不定 TZ 就是 UTC 零点 —— 等于北京时间早 8 点，与用户直觉的「今天」差半天。
+      TZ: Asia/Shanghai
       OMNIREAD_RAG_BASE_URL: http://rag:8000
       # 反代终结 TLS 后由 forward-headers-strategy=framework 自己认 X-Forwarded-*；
       # **只允许反代直连本进程**（端口只发布到 127.0.0.1）。
