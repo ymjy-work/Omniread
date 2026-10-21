@@ -182,6 +182,11 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   created_at: string
+  /**
+   * 这一轮装配进上下文的章节号（只有 assistant 有）。
+   * 刷新后靠它恢复「检索依据」的引用条——没有它历史就只剩正文。
+   */
+  context_chapters?: number[]
 }
 
 /** 契约 `ChatSessionSummary`：列表项，不含消息（列表不为每条会话搬运全文） */

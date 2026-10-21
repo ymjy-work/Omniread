@@ -5,7 +5,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { chapterCount, currentBook, openChapter, selectBook, setProgress, store } from '../store'
+import { chapterCount, openChapter, selectBook, setProgress, store } from '../store'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,10 +83,9 @@ async function markRead(): Promise<void> {
 <template>
   <main class="main glass">
     <div class="mbar">
-      <!-- 面包屑只报「哪本书、第几卷」：章标题由右边那颗 .title 报，这里再写一遍是重复 -->
+      <!-- 只报第几卷：书名整页都是它，这行报它没有信息量；章标题由右边那颗 .title 报 -->
       <div class="crumb">
-        <b>{{ currentBook?.title ?? '未选书' }}</b>
-        <template v-if="store.chapter"> › 卷 {{ store.chapter.volume_index }}</template>
+        <template v-if="store.chapter">卷 {{ store.chapter.volume_index }}</template>
       </div>
       <div class="title"><span>{{ store.chapter?.chapter_title ?? '' }}</span></div>
       <button class="gobtn" title="把进度设为本章起点" :disabled="store.chapter === null" @click="markRead">

@@ -14,7 +14,7 @@
  * - **历史消息没有 meta**（契约刻意不下发）：恢复出来的气泡不带引用与耗时，
  *   角标因此只报章号、不断言它在不在本次上下文里。
  */
-import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AnswerBody from './AnswerBody.vue'
 import AppDialog from './AppDialog.vue'
@@ -35,7 +35,7 @@ import {
   sessionsError,
   shortTime
 } from '../sessions'
-import { readStoredList, writeStored } from '../storage'
+import { readStoredList, readStoredText, writeStored } from '../storage'
 import { setLevel, store } from '../store'
 import type { ChatMessage, ChatSessionSummary, ContextChapter, QueryLevel } from '../types'
 
@@ -162,6 +162,19 @@ function persistClosed(next: Set<string>): void {
   writeStored(CLOSED_KEY, JSON.stringify([...next].slice(-MAX_CLOSED)))
 }
 
+/**
+ * 上一次打开的会话 id。`active` 是内存状态、一刷新就没了，而会话列表在服务端——
+ * **只有「当前是哪一个」这层关系需要前端记住**。不记的话，刷新等于开一个新会话：
+ * 下一句提问会懒建一个，旧对话看起来就丢了。
+ *
+ * 存的是 id 而不是整份会话：标题、消息都以服务端为准，本地只留一个指针。
+ */
+const ACTIVE_KEY = 'omniread.activeSession'
+
+watch(active, (session) => {
+  writeStored(ACTIVE_KEY, session?.id ?? '')
+})
+
 // 会话被删掉之后它的 id 会永远留在关闭表里。列表每次刷新顺手清一遍——
 // **空列表时不清**：首帧的列表还没拉回来，那时清等于把用户关过的标签全抹掉。
 watch(sessions, (list) => {
@@ -239,8 +252,10 @@ function toBubbles(history: readonly ChatMessage[]): Bubble[] {
     streaming: false,
     realm: null,
     recall: null,
-    citations: [],
-    citationsReady: false,
+    citations: citationsOf(message.context_chapters),
+    // 服务端给了章号就说明引用集合是已知的；空集合按「没下发」处理更保守——
+    // 老消息的 meta 里可能根本没有这一列，那时不该让角标去做「越界引用」的断言。
+    citationsReady: (message.context_chapters?.length ?? 0) > 0,
     error: null,
     phase: '',
     startedAt: 0,
@@ -249,6 +264,21 @@ function toBubbles(history: readonly ChatMessage[]): Bubble[] {
     doneAt: null,
     restored: true
   }))
+}
+
+/**
+ * 章号 → 引用条目。**标题在这里留空、渲染时再查**：会话详情只下发章号，
+ * 而恢复会话可能发生在书目录还没加载完的时候——那时查出来的标题会永远空着。
+ */
+function citationsOf(indexes: readonly number[] | undefined): ContextChapter[] {
+  return (indexes ?? []).map((index) => ({ chapter_index: index, chapter_title: '' }))
+}
+
+/** 引用条上的标题：消息自带就用它（实时那一轮有），否则从当前书的目录里查 */
+function citationTitle(citation: ContextChapter): string {
+  if (citation.chapter_title !== '') return citation.chapter_title
+  const chapter = store.chapters.find((item) => item.chapter_index === citation.chapter_index)
+  return chapter?.chapter_title ?? `全书第 ${citation.chapter_index} 章`
 }
 
 async function switchTo(session: ChatSessionSummary): Promise<void> {
@@ -267,6 +297,70 @@ function newSession(): void {
   active.value = null
   messages.value = []
   // 档位**不重置**：它记的是用户上次的选择，新会话多半还要用同一个
+}
+
+/**
+ * 刷新或切书之后把上一次的会话接回来。没有它，刷新等于「开一个新会话」。
+ *
+ * 记住的 id 必须**在清空 `active` 之前**取出来——清空会连带把那份记录抹掉。
+ * 校验只认「服务端列表里有没有它、是不是这本书的」：存储是用户可改的，
+ * 一个瞎写的 id 不该让界面停在半截状态。
+ */
+async function restoreActive(remembered: string | null): Promise<void> {
+  if (!remembered || connection.value !== null || active.value !== null || messages.value.length > 0) {
+    return
+  }
+  const target = bookSessions.value.find((session) => session.id === remembered)
+  if (target === undefined) return
+  await switchTo(target)
+  await catchUpIfDangling()
+}
+
+/**
+ * 恢复出来的会话若以「一条没有回答的提问」结尾，说明刷新打断了正在生成的那一轮。
+ * **这时不能什么都不显示**——那看起来就是回答丢了。先挂一条等待行，再按秒去问服务端，
+ * 回答落库后自动接上，用户不需要再刷新。
+ *
+ * 为什么会有这种会话：那一轮在后台仍在跑、跑完会把回答落库（网关读的是上游流，
+ * 客户端走了它也读完），但这一侧不知道。生成真的失败时它也会空转，所以次数有上限；
+ * 用户切走或开始新一轮就立刻停。
+ */
+const CATCH_UP_INTERVAL_MS = 1500
+const CATCH_UP_ATTEMPTS = 60
+
+const catchingUp = ref(false)
+const catchUpStartedAt = ref(0)
+/** 等待行的秒数：复用流式回答那只 ticker 刷新的 `now`。静止的「正在生成」看起来像卡死。 */
+const catchUpSeconds = computed(() =>
+  catchingUp.value ? Math.max(0, Math.round((now.value - catchUpStartedAt.value) / 1000)) : 0
+)
+
+async function catchUpIfDangling(): Promise<void> {
+  const last = messages.value[messages.value.length - 1]
+  const sessionId = active.value?.id
+  if (last === undefined || last.role !== 'user' || sessionId === undefined) return
+  catchingUp.value = true
+  catchUpStartedAt.value = Date.now()
+  startTicker()
+  try {
+    for (let attempt = 0; attempt < CATCH_UP_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, CATCH_UP_INTERVAL_MS))
+      if (active.value?.id !== sessionId || connection.value !== null) return
+      const detail = await openSession(sessionId)
+      if (detail === null) return
+      const tail = detail.messages[detail.messages.length - 1]
+      if (tail !== undefined && tail.role !== 'user') {
+        // 先收等待行再换消息，免得两样东西同时闪一下
+        catchingUp.value = false
+        messages.value = toBubbles(detail.messages)
+        return
+      }
+    }
+  } finally {
+    catchingUp.value = false
+    // 新一轮已经接过 ticker 了就别关它
+    if (connection.value === null) stopTicker()
+  }
 }
 
 /** 打开「全部会话」：每次进来清空搜索词，否则上次的词会挡住列表 */
@@ -309,13 +403,16 @@ async function closeTab(session: ChatSessionSummary): Promise<void> {
 // immediate：首次挂载就拉一次列表（那时 bookId 可能还是 null，列表为空是对的）
 watch(
   () => store.bookId,
-  () => {
+  async () => {
+    // **先取出记住的会话 id**：下面会把 active 清空，连带把这份记录抹掉。
+    const remembered = readStoredText(ACTIVE_KEY)
     connection.value?.close()
     connection.value = null
     active.value = null
     messages.value = []
     stopTicker()
-    void refreshSessions()
+    await refreshSessions()
+    await restoreActive(remembered)
   },
   { immediate: true }
 )
@@ -340,29 +437,137 @@ function textOf(id: number): string {
   return messages.value.find((message) => message.id === id)?.text ?? ''
 }
 
-/** 已等待多少秒。收尾后冻结在总耗时上，不再跳动。 */
-function elapsedSeconds(message: Bubble): number {
-  const end = message.doneAt ?? now.value
-  return Math.max(0, Math.round((end - message.startedAt) / 1000))
+/**
+ * 时间线上的一个事件。
+ *
+ * `kind` 决定图标与配色（检索 / 思考 / 生成各一种，不统一涂成一个颜色）；
+ * `citations` 非空时这一节点可点开看引用。
+ *
+ * **`key` 带序号是为将来留的位置**：现在是单轮管线，一轮只有一个检索节点；
+ * 换成 agent 多轮检索之后，同一轮里会出现 `retrieval-1` / `retrieval-2` …，
+ * 每轮后面跟一段思考。届时只要往这个数组里多推几条，模板与样式都不用动。
+ */
+interface Stage {
+  key: string
+  kind: 'retrieval' | 'thinking' | 'generating'
+  label: string
+  /** 一句话的方向/摘要；检索节点放检索域，其余留空 */
+  summary: string
+  seconds: string
+  done: boolean
+  failed?: boolean
+  /** 展开后显示的引用；空 = 这一节点没有可展开的内容 */
+  citations: ContextChapter[]
+  /** 展开区里的一行补充说明（召回明细这类） */
+  note: string
+  /** 进行中时的细分阶段（「重排与装配中」这类），只作悬停提示 */
+  detail: string
 }
 
-/** 首字延迟（秒，一位小数）；一个字都还没出来时返回空串。 */
-function firstTokenSeconds(message: Bubble): string {
-  if (message.firstTokenAt === null) return ''
-  return ((message.firstTokenAt - message.startedAt) / 1000).toFixed(1)
+/** 这一节点能不能点开 */
+function stageFoldable(stage: Stage): boolean {
+  return stage.citations.length > 0 || stage.note !== ''
+}
+
+/** 展开着的时间线节点。键是「消息 id:节点 key」——同一个 key 在别的消息里是另一份。 */
+const expandedStages = reactive(new Set<string>())
+
+function stageKey(message: Bubble, stage: Stage): string {
+  return `${message.id}:${stage.key}`
+}
+
+function toggleStage(message: Bubble, stage: Stage): void {
+  if (!stageFoldable(stage)) return
+  const key = stageKey(message, stage)
+  if (expandedStages.has(key)) expandedStages.delete(key)
+  else expandedStages.add(key)
 }
 
 /**
- * 三段耗时：检索（发出 → 装配完成）、首字（发出 → 第一个字）、共（发出 → 收尾）。
+ * 把一轮拆成「检索 → 思考 → 生成」。
  *
- * 分开报是因为它们的量级差得远：检索通常 1–3 秒，而推理型回答模型的首字可能十几秒。
- * 合成一个「总耗时」就看不出该优化哪一段了。
+ * 分段的依据是三个时间戳，而它们**都是前端自己掐的**：上下文装配完成、第一个字、收尾。
+ * 服务端并不知道「首字」是哪一刻——那是客户端从流里观察到的。
+ *
+ * 为什么非分段不可：推理型模型首字之前可能十几秒不吐一个字。把这段并进「生成中」，
+ * 界面上就是一个不动的转圈，读起来和卡死没有区别；分开之后一眼看得出慢在检索还是慢在思考。
+ *
+ * 恢复出来的历史没有时间戳，但**引用还在**：只留一个不可计时的检索节点，让它照样能点开看引用。
  */
-function timingOf(message: Bubble): string {
-  if (message.doneAt === null) return ''
-  const at = (moment: number | null): string =>
-    moment === null ? '—' : `${((moment - message.startedAt) / 1000).toFixed(1)}s`
-  return `检索 ${at(message.retrievedAt)} · 首字 ${at(message.firstTokenAt)} · 共 ${at(message.doneAt)}`
+function stagesOf(message: Bubble): Stage[] {
+  const stages = buildStages(message)
+  // 出错的那一轮**也**会写 `doneAt`（收尾时刻总要有个数），所以光看时间戳会把它画成
+  // 「生成 ✓」——与下面那条错误提示自相矛盾。最后一段改画成叉，并退回阶段名。
+  if (message.error !== null) {
+    const last = stages[stages.length - 1]
+    if (last !== undefined) {
+      last.done = false
+      last.failed = true
+      last.label = last.label.replace('中', '')
+      last.detail = ''
+    }
+  }
+  return stages
+}
+
+function buildStages(message: Bubble): Stage[] {
+  if (message.restored) {
+    if (message.citations.length === 0) return []
+    return [
+      {
+        key: 'retrieval-1',
+        kind: 'retrieval',
+        label: '检索',
+        summary: '',
+        seconds: '',
+        done: true,
+        citations: message.citations,
+        note: '',
+        detail: ''
+      }
+    ]
+  }
+  if (message.startedAt === 0) return []
+  const span = (from: number | null, to: number | null): string =>
+    from === null ? '' : `${(((to ?? now.value) - from) / 1000).toFixed(1)}s`
+  const stages: Stage[] = [
+    {
+      key: 'retrieval-1',
+      kind: 'retrieval',
+      label: message.retrievedAt === null ? '检索中' : '检索',
+      summary: message.realm ?? '',
+      seconds: span(message.startedAt, message.retrievedAt),
+      done: message.retrievedAt !== null,
+      citations: message.citationsReady ? message.citations : [],
+      note: message.recall ?? '',
+      detail: message.retrievedAt === null ? message.phase : ''
+    }
+  ]
+  if (message.retrievedAt === null) return stages
+  stages.push({
+    key: 'thinking-1',
+    kind: 'thinking',
+    label: message.firstTokenAt === null ? '思考中' : '思考',
+    summary: '',
+    seconds: span(message.retrievedAt, message.firstTokenAt),
+    done: message.firstTokenAt !== null,
+    citations: [],
+    note: '',
+    detail: message.firstTokenAt === null ? message.phase : ''
+  })
+  if (message.firstTokenAt === null) return stages
+  stages.push({
+    key: 'generating-1',
+    kind: 'generating',
+    label: message.doneAt === null ? '生成中' : '生成',
+    summary: '',
+    seconds: span(message.firstTokenAt, message.doneAt),
+    done: message.doneAt !== null,
+    citations: [],
+    note: '',
+    detail: message.doneAt === null ? message.phase : ''
+  })
+  return stages
 }
 
 watch(messages, () => {
@@ -662,30 +867,8 @@ function onKeydown(event: KeyboardEvent): void {
         <div v-else-if="!message.error || message.text" class="msg ai" :class="{ streaming: message.streaming }">
           <div class="av" style="background: linear-gradient(135deg, var(--accent), var(--accent-2))">O</div>
           <div class="bubble">
-            <!-- 历史消息没有 meta（契约刻意不下发），检索依据那一块整块不显示——
-                 显示一堆「等待检索结果…」比不显示更糟 -->
-            <details v-if="!message.restored" class="think">
-              <summary>
-                <span class="tk-ico">🧠</span>
-                <span>思考 · 检索依据（{{ message.citations.length }} 条引用）</span>
-                <span v-if="timingOf(message)" class="tk-time">{{ timingOf(message) }}</span>
-                <span class="tk-chev">▾</span>
-              </summary>
-              <div class="think-body">
-                <div class="tk-line">
-                  <span class="tk-pill">{{ store.level === 'past' ? '已读回顾' : '全书剧透' }}</span>
-                  <span class="tk-dim">{{ message.realm ?? '等待检索结果…' }}</span>
-                </div>
-                <div class="tk-line">
-                  <span class="tk-dim">{{ message.recall ?? '' }}</span>
-                </div>
-                <div v-if="message.citations.length > 0" class="cite-row">
-                  <span v-for="citation in message.citations" :key="citation.chapter_index" class="cite">
-                    [{{ citation.chapter_index }}] {{ citation.chapter_title }} ↗
-                  </span>
-                </div>
-              </div>
-            </details>
+            <!-- 检索依据不在这里了：它进了时间线上那个「检索」节点，点开就能看引用。
+                 时间线只管「花了多久」，所以刷新后没有时间线时，那个节点只剩引用可看。 -->
 
             <!--
               等待期间的进度行。没有它，这段时间界面上只剩一个闪烁光标——
@@ -697,14 +880,69 @@ function onKeydown(event: KeyboardEvent): void {
               重念一遍**，真正的阶段变化反而被淹掉。所以秒数与首字延迟对辅助技术隐藏，
               它们是给眼睛看的时间感，阶段文案才是要播报的信息。
             -->
-            <div v-if="message.streaming" class="waiter">
-              <span class="spin" aria-hidden="true"></span>
-              <span class="w-phase" role="status">{{ message.phase || '处理中' }}</span>
-              <span class="w-time" aria-hidden="true">{{ elapsedSeconds(message) }}s</span>
-              <span v-if="firstTokenSeconds(message)" class="w-note" aria-hidden="true">
-                首字 {{ firstTokenSeconds(message) }}s
-              </span>
-            </div>
+            <!-- 事件时间线：左侧竖线串起圆形图标，右侧阶段名、摘要与耗时；可展开的节点带 ▾。
+                 检索节点里放引用（原先在下面那张「思考 · 检索依据」卡里）。
+                 节点 key 带序号 —— 将来 agent 多轮检索会在同一轮里出现 检索1 / 检索2。 -->
+            <ol v-if="stagesOf(message).length > 0" class="stages">
+              <li
+                v-for="stage in stagesOf(message)"
+                :key="stage.key"
+                :class="[
+                  `k-${stage.kind}`,
+                  {
+                    done: stage.done,
+                    failed: stage.failed,
+                    now: !stage.done && !stage.failed,
+                    foldable: stageFoldable(stage)
+                  }
+                ]"
+              >
+                <button
+                  class="st-row"
+                  :title="stage.detail"
+                  :aria-expanded="stageFoldable(stage) ? expandedStages.has(stageKey(message, stage)) : undefined"
+                  @click="toggleStage(message, stage)"
+                >
+                  <span class="st-ico" aria-hidden="true">
+                    <svg v-if="stage.kind === 'retrieval'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <circle cx="11" cy="11" r="6.5" />
+                      <path d="M16 16l4.5 4.5" />
+                    </svg>
+                    <svg v-else-if="stage.kind === 'thinking'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M9.5 18h5M10.5 21h3M12 3a6 6 0 00-3.4 10.9c.5.4.9.9.9 1.5V17h5v-1.6c0-.6.4-1.1.9-1.5A6 6 0 0012 3z" />
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M21 11.5a7.5 7.5 0 01-10.9 6.7L5 20l1.6-4.4A7.5 7.5 0 1121 11.5z" />
+                    </svg>
+                  </span>
+                  <span class="st-name" :role="stage.done ? undefined : 'status'">{{ stage.label }}</span>
+                  <span v-if="stage.summary" class="st-sum">{{ stage.summary }}</span>
+                  <span class="st-time" aria-hidden="true">{{ stage.seconds }}</span>
+                  <span class="st-tail">
+                    <span
+                      v-if="stageFoldable(stage)"
+                      class="st-chev"
+                      :class="{ on: expandedStages.has(stageKey(message, stage)) }"
+                      aria-hidden="true"
+                      >▾</span
+                    >
+                    <span class="st-mark" aria-hidden="true">
+                      <span v-if="stage.done">✓</span>
+                      <span v-else-if="stage.failed">✕</span>
+                      <span v-else class="spin"></span>
+                    </span>
+                  </span>
+                </button>
+                <div v-if="expandedStages.has(stageKey(message, stage))" class="st-body">
+                  <p v-if="stage.note" class="st-note">{{ stage.note }}</p>
+                  <div v-if="stage.citations.length > 0" class="cite-row">
+                    <span v-for="citation in stage.citations" :key="citation.chapter_index" class="cite">
+                      [{{ citation.chapter_index }}] {{ citationTitle(citation) }} ↗
+                    </span>
+                  </div>
+                </div>
+              </li>
+            </ol>
 
             <!-- 正文渲染交给 AnswerBody：模型输出是 Markdown，星号与井号不该裸露给用户 -->
             <div class="ans-text">
@@ -730,6 +968,19 @@ function onKeydown(event: KeyboardEvent): void {
           <p class="n-text">{{ message.error.text }}</p>
         </div>
       </template>
+
+      <!-- 刷新打断了正在生成的那一轮：挂一条等待行，回答落库后自动接上。
+           什么都不显示等于告诉用户「回答丢了」，而那只是这一侧看不到。 -->
+      <div v-if="catchingUp" class="msg ai">
+        <div class="av" style="background: linear-gradient(135deg, var(--accent), var(--accent-2))">O</div>
+        <div class="bubble">
+          <div class="waiter">
+            <span class="spin" aria-hidden="true"></span>
+            <span class="w-phase" role="status">上一轮回答还在生成…</span>
+            <span class="w-time" aria-hidden="true">{{ catchUpSeconds }}s</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="composer">

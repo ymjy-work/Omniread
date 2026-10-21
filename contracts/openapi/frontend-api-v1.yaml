@@ -841,8 +841,10 @@ components:
     ChatMessage:
       type: object
       description: |
-        会话里的一条消息。**不带 meta**：那一列是内部诊断用的（改写前后、模型与 prompt 版本），
-        下发出去就会变成前端依赖的事实契约，而那三样东西随时可能变。
+        会话里的一条消息。**仍然不带整列 meta**：那一列是内部诊断用的（改写前后、
+        模型与 prompt 版本），下发出去就会变成前端依赖的事实契约，而那几样随时可能变。
+        `context_chapters` 是从那里**单独稳定下来的一个**：没有它，刷新后的历史只剩正文，
+        「检索依据」整块消失——那是用户在正常使用里看得见的差别。
       required: [id, seq, role, content, created_at]
       properties:
         id: { type: integer, format: int64 }
@@ -855,6 +857,14 @@ components:
           enum: [user, assistant]
         content: { type: string }
         created_at: { type: string, format: date-time }
+        context_chapters:
+          type: array
+          description: |
+            这一轮装配进上下文的章节号（全书连续序号）。只有 assistant 有，用户消息是空数组。
+            **只给章号不给标题**：标题前端从书目录里查得到，服务端不必复制一份。
+            **也不含耗时**：检索 / 首字 / 总耗时是前端在流式过程中掐的表，服务端从未持有，
+            所以恢复出来的历史能显示引用条，但显示不出那三个秒数。
+          items: { type: integer, format: int32 }
 
     SessionDetail:
       allOf:

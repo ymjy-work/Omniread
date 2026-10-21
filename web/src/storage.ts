@@ -51,3 +51,16 @@ export function readStored<T extends string>(
   }
   return fallback
 }
+
+/**
+ * 读回一段自由文本（会话 id 这类没有白名单可枚举的值）；读不到或存储不可用回 `null`。
+ *
+ * 这类值没法在这里校验——校验交给消费方（比如「这个 id 在服务端列表里有没有」）。
+ */
+export function readStoredText(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}

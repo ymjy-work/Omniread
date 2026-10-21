@@ -495,33 +495,7 @@ select.gobtn {
 
 .meta-note.loc { font-family: var(--mono); color: var(--accent); border-top: 1px dashed var(--stroke-2); }
 
-/* ==================== AI 回答：折叠「思考」+ 干净回答 ==================== */
-.think {
-  border: 1px solid var(--stroke-2); border-radius: 11px;
-  background: color-mix(in srgb, var(--accent) 6%, transparent); margin-bottom: 9px; overflow: hidden;
-}
-.think > summary {
-  list-style: none; display: flex; align-items: center; gap: 7px;
-  padding: 7px 11px; cursor: pointer; font-size: 12px; color: var(--ink-2);
-  user-select: none;
-}
-.think > summary::-webkit-details-marker { display: none; }
-.think > summary:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.think > summary .tk-ico { font-size: 12px; }
-.think > summary .tk-chev { margin-left: auto; color: var(--ink-3); font-size: 10px; transition: transform .16s; }
-.think[open] > summary .tk-chev { transform: rotate(180deg); }
-.think-body {
-  padding: 6px 12px 11px; border-top: 1px dashed var(--stroke-2);
-  display: flex; flex-direction: column; gap: 6px;
-}
-.tk-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-2); }
-.tk-pill {
-  font-family: var(--mono); font-size: 10px; color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 99px; padding: 1px 8px; white-space: nowrap;
-}
-.tk-dim { color: var(--ink-3); font-family: var(--mono); font-size: 10.5px; }
-.think-body .cite-row { margin-bottom: 0; }
+/* ==================== AI 回答正文 ==================== */
 .ans-text { white-space: pre-wrap; word-break: break-word; min-height: 1em; line-height: 1.75; }
 /* 回答正文是 Markdown（prompt 明确允许），块级排版交给 AnswerBody。
    块元素自带段间距，所以 .ans-text 自己的 pre-wrap 只管「块内软换行」，
@@ -582,11 +556,52 @@ select.gobtn {
 .waiter .w-phase { color: var(--ink); }
 .waiter .w-time, .waiter .w-note { font-variant-numeric: tabular-nums; color: var(--ink-3); }
 .waiter .w-note { margin-left: auto; }
+/* 事件时间线：左侧竖线串起圆形图标，右侧阶段名、摘要与耗时；可展开的节点带 ▾。
+   竖线画成每行两段（图标上方一段、下方一段），首行没有上段、末行没有下段 —— 它永远不会
+   从图标底下穿过去，也就不必给图标垫一个不透明的底：气泡与面板都是半透明的玻璃。 */
+.stages { --st-row: 40px; list-style: none; margin: 2px 0 10px; padding: 0; }
+.stages li { position: relative; display: flex; flex-direction: column; }
+.stages li::before, .stages li::after {
+  content: ""; position: absolute; left: 10.5px; width: 1.5px; background: var(--stroke-2);
+}
+.stages li::before { top: 0; height: calc(var(--st-row) / 2 - 11.25px); }
+.stages li::after { top: calc(var(--st-row) / 2 + 11.25px); bottom: 0; }
+.stages li:first-child::before, .stages li:last-child::after { display: none; }
+.stages .st-row {
+  display: flex; align-items: center; gap: 9px; width: 100%; height: var(--st-row);
+  padding: 0; background: none; border: 0; color: inherit; text-align: left; cursor: default;
+}
+.stages .foldable .st-row { cursor: pointer; }
+.stages .foldable .st-row:hover .st-name { color: var(--ink); }
+.stages .st-ico {
+  position: relative; width: 22.5px; height: 22.5px; flex: none; display: flex;
+  align-items: center; justify-content: center; border-radius: 50%; border: 1.25px solid currentColor;
+}
+.stages .st-ico svg { width: 12px; height: 12px; }
+/* 三种节点各一个颜色，不统一涂成绿的：检索蓝紫、思考琥珀、生成绿 */
+.stages .k-retrieval .st-ico { color: var(--accent); }
+.stages .k-thinking .st-ico { color: var(--warn); }
+.stages .k-generating .st-ico { color: var(--ok); }
+.stages .st-name { font-size: 13px; color: var(--ink-2); }
+.stages .now .st-name { color: var(--ink); }
+.stages .st-sum { min-width: 0; font-family: var(--mono); font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stages .st-time { font-family: var(--mono); font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.stages .st-tail { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.stages .st-chev { font-size: 10px; color: var(--ink-3); transition: transform .15s; }
+.stages .st-chev.on { transform: rotate(180deg); }
+.stages .st-mark { display: flex; align-items: center; font-size: 12px; color: var(--ok); }
+.stages .st-mark .spin { width: 12px; height: 12px; border-radius: 50%; border: 1.6px solid var(--stroke-2); border-top-color: var(--accent); animation: spin .7s linear infinite; }
+.stages .failed .st-ico,
+.stages .failed .st-name { color: var(--warn); }
+.stages .failed .st-mark { color: var(--warn); }
+/* 展开区与阶段名左对齐（图标 22.5 + 间距 9）；竖线从它左边照常穿过去 */
+.stages .st-body { padding: 0 0 8px 31.5px; display: flex; flex-direction: column; gap: 6px; }
+.stages .st-note { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* 减少动效时**停掉**，不是减慢：持续旋转的转圈属 WCAG 2.2.2 要管的「自动开始且超过 5 秒」
    的动效。进度并没有因此丢——阶段文案会变、秒数在跳，两者都不是动画。闪烁光标同理。 */
 @media (prefers-reduced-motion: reduce) {
-  .waiter .spin { animation: none; border-top-color: var(--ink-3); }
+  .waiter .spin, .stages .st-mark .spin { animation: none; border-top-color: var(--ink-3); }
   .msg.streaming .ans-text > :last-child:is(p, h2, h3, blockquote, pre)::after,
   .msg.streaming .ans-text > :is(ul, ol):last-child > li:last-child::after,
   .msg.streaming .ans-text:empty::after { animation: none; }
