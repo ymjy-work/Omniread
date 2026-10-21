@@ -72,8 +72,8 @@ function enter(): void {
         <p class="eyebrow">WHY OMNIREAD</p>
         <h2>阅读不该是一场与遗忘的赛跑。</h2>
         <p class="lead">
-          我们不想让你追赶阅读进度。无论是暂时搁置的故事、难以理解的剧情，
-          还是让你念念不忘的角色，都应该有重新走近它们的方式。
+          忘记了前面的剧情，不必反复翻找；遇到陌生的人物与复杂的关系，不必在章节间来回跳转。
+          Omniread 将 AI 融入阅读过程，让你随时找回故事脉络、理解人物与情节，也能自由决定探索故事的深度。
         </p>
 
         <ul class="cards">
@@ -82,27 +82,27 @@ function enter(): void {
               <path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5zM4 5.5v15M9 3v15" />
             </svg>
             <b>随时接续</b>
-            <span>忘记剧情，也能快速找回阅读脉络。</span>
+            <span>忘记了人物是谁，或记不清之前发生了什么？通过 AI 回顾关键剧情与人物信息，快速找回上下文，不必重新翻阅整段故事。</span>
           </li>
           <li>
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-              <path d="M21 11.5a7.5 7.5 0 01-10.9 6.7L5 20l1.6-4.4A7.5 7.5 0 1121 11.5z" />
-              <path d="M9.5 9.5h5M9.5 12.5h3" />
+              <path d="M3 6.5A2.5 2.5 0 015.5 4h7A2.5 2.5 0 0115 6.5v4a2.5 2.5 0 01-2.5 2.5H8l-3.5 3v-3.2A2.5 2.5 0 013 10.5z" />
+              <path d="M18 9h.5A2.5 2.5 0 0121 11.5v3.6a2.5 2.5 0 01-1.6 2.3V21l-3.4-3H12" />
             </svg>
-            <b>随时讨论</b>
-            <span>围绕小说内容提问，不必离开阅读界面。</span>
+            <b>随时探讨</b>
+            <span>一个称呼、一段对话，也可能藏着复杂的人物关系。直接向 AI 提问，结合小说原文理解指代、梳理线索，让难懂的剧情有迹可循。</span>
           </li>
           <li>
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-              <path d="M12 3l7.5 3v5.5c0 4.6-3.1 8-7.5 9.5-4.4-1.5-7.5-4.9-7.5-9.5V6z" />
-              <path d="M8.8 12.2l2.2 2.2 4.2-4.4" />
+              <circle cx="12" cy="12" r="8.6" />
+              <path d="M15 9l-1.7 4.3L9 15l1.7-4.3z" />
             </svg>
             <b>自由探索</b>
-            <span>自主选择无剧透或完整剧透的讨论方式。</span>
+            <span>想重温已经读过的情节，还是提前了解后续发展？自由选择回顾或剧透模式，让 AI 按照你的阅读需求展开讨论。</span>
           </li>
         </ul>
 
-        <p class="why-foot">让故事按照你的节奏继续，而不是让你追赶故事。</p>
+        <p class="why-foot">不必追赶故事的进度，让故事按照你的节奏继续。</p>
       </div>
     </section>
 
@@ -110,90 +110,235 @@ function enter(): void {
     <section id="features" class="band features">
       <div class="inner">
         <article class="step">
-          <p class="tag">01 · 阅读工作台</p>
           <div class="step-grid">
-            <div class="mock" aria-hidden="true">
-              <div class="chrome"><i></i><i></i><i></i><span class="who">全书第 3 章 · 第 1 卷</span></div>
-              <div class="doc">
-                <span class="l w92"></span><span class="l w86"></span><span class="l w95"></span>
-                <span class="l w70"></span>
-                <span class="fig"></span>
-                <span class="l w88"></span><span class="l w60"></span>
+            <div class="mock mk-work" aria-hidden="true">
+              <div class="mk-chrome">
+                <i></i><i></i><i></i>
+                <span class="mk-who">阅读工作台 · 全书第 3 章</span>
+                <span class="mk-who-r">第 1 卷</span>
               </div>
-              <div class="foot"><span>上一章</span><span class="prog"><i></i></span><span>下一章</span></div>
+              <div class="mk-work-body">
+                <div class="mk-pane mk-tree">
+                  <span class="mk-pane-h">目录</span>
+                  <span class="mk-ch"><i class="mk-ch-num">01</i><i class="mk-ch-label">第 1 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">02</i><i class="mk-ch-label">第 2 章</i></span>
+                  <span class="mk-ch on"><i class="mk-ch-num">03</i><i class="mk-ch-label">第 3 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">04</i><i class="mk-ch-label">第 4 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">05</i><i class="mk-ch-label">第 5 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">06</i><i class="mk-ch-label">第 6 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">07</i><i class="mk-ch-label">第 7 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">08</i><i class="mk-ch-label">第 8 章</i></span>
+                  <span class="mk-ch"><i class="mk-ch-num">09</i><i class="mk-ch-label">第 9 章</i></span>
+                </div>
+                <div class="mk-pane mk-doc">
+                  <span class="mk-kicker">第 1 卷 · 全书第 3 章</span>
+                  <span class="mk-title"></span>
+                  <span class="mk-l mk-w95"></span>
+                  <span class="mk-l mk-w88"></span>
+                  <span class="mk-l mk-w92"></span>
+                  <span class="mk-l mk-w70"></span>
+                  <span class="mk-l on mk-w84"></span>
+                  <span class="mk-l mk-w90"></span>
+                  <span class="mk-l mk-w62"></span>
+                  <span class="mk-l mk-w95"></span>
+                  <span class="mk-l mk-w74"></span>
+                  <span class="mk-l mk-w86"></span>
+                </div>
+                <div class="mk-pane mk-chat">
+                  <span class="mk-pane-h">问答</span>
+                  <span class="mk-bubble user">这一章讲了什么？</span>
+                  <span class="mk-bubble ai">
+                    <i class="mk-l mk-w90"></i>
+                    <i class="mk-l mk-w74"></i>
+                    <i class="mk-l mk-w86"></i>
+                    <i class="mk-l mk-w64"></i>
+                  </span>
+                  <span class="mk-input"><i>&gt;</i>就本章提问…</span>
+                </div>
+              </div>
+              <div class="mk-nav">
+                <span>上一章</span>
+                <span class="mk-prog"><i></i></span>
+                <span>下一章</span>
+              </div>
             </div>
             <div class="step-copy">
-              <h3><TypewriterText text="把阅读与理解，放在同一个空间。" /></h3>
-              <p>小说、章节导航与 AI 助手并行工作。阅读时随时提问，无需切换应用或丢失上下文。</p>
+              <h3><TypewriterText text="阅读与 AI 对话，无缝衔接。" /></h3>
+              <p>随时阅读，随时提问。不用切换页面，也不用打断阅读节奏，让 AI 成为你的专属阅读搭档。</p>
             </div>
           </div>
         </article>
 
         <article class="step flip">
-          <p class="tag">02 · 剧情回顾</p>
           <div class="step-grid">
-            <div class="mock" aria-hidden="true">
-              <div class="chrome"><i></i><i></i><i></i><span class="who">剧情回顾 · 第 24 章以前</span></div>
-              <div class="doc">
-                <span class="l w88"></span><span class="l w95"></span>
-                <span class="l on w78"></span>
-                <span class="l w70"></span><span class="l w60"></span>
+            <div class="mock mk-panel mk-recall" aria-hidden="true">
+              <div class="mk-head">
+                <span class="mk-ai-mark"></span>
+                <b class="mk-head-title">剧情问答</b>
+                <span class="mk-head-meta">全书第 24 章</span>
+                <span class="mk-head-badge">回顾模式</span>
+              </div>
+              <div class="mk-body">
+                <div class="mk-mode">
+                  <span class="mk-mode-thumb"></span>
+                  <span class="mk-mode-opt on">回顾<small>不剧透</small></span>
+                  <span class="mk-mode-opt">剧透<small>全知</small></span>
+                </div>
+                <span class="mk-mode-note">只依据已读章节回答</span>
+                <div class="mk-recall-card">
+                  <span class="mk-q">她后来答应了没有？</span>
+                  <span class="mk-a">在已读内容里，这件事还没有结果。<sup class="mk-cite">12</sup></span>
+                </div>
+                <div class="mk-cutoff"><span>第 24 章 · 阅读进度</span></div>
+                <div class="mk-future">
+                  <span class="mk-future-h">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                      <rect x="5" y="10.5" width="14" height="10" rx="2.5" />
+                      <path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5" />
+                    </svg>
+                    后续剧情已隐藏
+                  </span>
+                  <i class="mk-l mk-w86"></i>
+                  <i class="mk-l mk-w64"></i>
+                  <i class="mk-l mk-w92"></i>
+                  <i class="mk-l mk-w70"></i>
+                </div>
+                <span class="mk-input"><i>&gt;</i>就这本书提问…</span>
               </div>
             </div>
             <div class="step-copy">
-              <h3><TypewriterText text="忘记了前面的剧情？随时接着读。" /></h3>
-              <p>快速梳理人物关系、关键事件与伏笔。读过的内容重新建立联系，不必从头翻找。</p>
+              <h3><TypewriterText text="想知道多少，由你决定。" /></h3>
+              <p>想重温已读剧情，还是提前探索后续发展？自由切换回顾与剧透模式，按自己的阅读节奏获取信息，既能守住惊喜，也能满足好奇。</p>
             </div>
           </div>
         </article>
 
         <article class="step">
-          <p class="tag">03 · 双档 AI 对话</p>
           <div class="step-grid">
-            <div class="mock" aria-hidden="true">
-              <div class="seg">
-                <span class="on">无剧透</span>
-                <span>完整剧透</span>
+            <div class="mock mk-panel mk-coref" aria-hidden="true">
+              <div class="mk-head">
+                <span class="mk-ai-mark"></span>
+                <b class="mk-head-title">剧情问答</b>
+                <span class="mk-head-meta">全书第 3 章</span>
+                <span class="mk-head-badge">指代理解</span>
               </div>
-              <div class="chat">
-                <span class="bubble user">这个角色为什么突然改变立场？</span>
-                <span class="bubble ai">
-                  结合当前章节的线索，可以从他的对话和先前行为理解这一变化……
-                </span>
+              <div class="mk-body mk-thread">
+                <span class="mk-bubble user">艾莉的姐姐叫什么？</span>
+                <span class="mk-bubble ai brief">玛夏。</span>
+                <span class="mk-bubble user">她和她姐姐在学生会分别担任什么职务？</span>
+                <div class="mk-ai-card">
+                  <ol class="mk-flow">
+                    <li class="k-retrieval">
+                      <div class="mk-row">
+                        <span class="mk-ico">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <circle cx="10.5" cy="10.5" r="6" />
+                            <path d="M15 15l4.5 4.5" />
+                          </svg>
+                        </span>
+                        <b class="mk-name">检索</b>
+                        <span class="mk-sum">4 条线索</span>
+                        <span class="mk-time">0.6s</span>
+                        <span class="mk-mark">✓</span>
+                      </div>
+                    </li>
+                    <li class="k-thinking">
+                      <div class="mk-row">
+                        <span class="mk-ico">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M12 3.5a5.5 5.5 0 00-3.2 9.9V16h6.4v-2.6A5.5 5.5 0 0012 3.5z" />
+                            <path d="M10 19h4" />
+                          </svg>
+                        </span>
+                        <b class="mk-name">思考</b>
+                        <span class="mk-sum">「她」→ 艾莉</span>
+                        <span class="mk-time">1.1s</span>
+                        <span class="mk-mark">✓</span>
+                      </div>
+                    </li>
+                    <li class="k-generating">
+                      <div class="mk-row">
+                        <span class="mk-ico">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M20 12a7.5 7.5 0 01-10.6 6.7L5 20l1.4-4.2A7.5 7.5 0 1120 12z" />
+                          </svg>
+                        </span>
+                        <b class="mk-name">生成</b>
+                        <span class="mk-sum">引用 2 处</span>
+                        <span class="mk-time">2.3s</span>
+                        <span class="mk-mark">✓</span>
+                      </div>
+                    </li>
+                  </ol>
+                  <p class="mk-answer">
+                    艾莉是学生会会计，玛夏在二年级担任学生会书记<sup class="mk-cite">9</sup>。
+                  </p>
+                </div>
+                <span class="mk-input"><i>&gt;</i>就本章提问…</span>
               </div>
             </div>
             <div class="step-copy">
-              <h3><TypewriterText text="想知道多少，由你决定。" /></h3>
-              <p>无剧透模式严格限定在当前阅读进度；完整剧透模式允许深入讨论后续发展、隐藏伏笔与人物结局。</p>
+              <h3><TypewriterText text="告别剧情遗忘与指代混淆。" /></h3>
+              <p>无需反复翻阅前文，即使只记得一个模糊的称呼、一段零散的情节，也能直接提问。AI 结合小说内容理解上下文，消除指代歧义，帮你理清人物关系、回顾关键剧情，让每一次阅读都能自然接续。</p>
             </div>
           </div>
         </article>
 
         <article class="step flip">
-          <p class="tag">04 · 角色与故事探索</p>
           <div class="step-grid">
-            <div class="mock" aria-hidden="true">
-              <div class="cast">
-                <span class="avatar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                    <circle cx="12" cy="9" r="3.4" />
-                    <path d="M5.5 20a6.5 6.5 0 0113 0" />
-                  </svg>
-                </span>
-                <span class="lines"><i class="ac"></i><i></i></span>
+            <div class="mock mk-panel mk-sources" aria-hidden="true">
+              <div class="mk-head">
+                <span class="mk-ai-mark"></span>
+                <b class="mk-head-title">剧情问答</b>
+                <span class="mk-head-meta">全书第 9 章</span>
+                <span class="mk-head-badge">2 条依据</span>
               </div>
-              <div class="cast-relations">
-                <span class="rel-label">角色关系</span>
-                <div class="rel-row">
-                  <span class="chip">角色 A</span>
-                  <span class="arrow">⇄</span>
-                  <span class="chip">角色 B</span>
+              <div class="mk-body mk-thread">
+                <span class="mk-bubble user">艾莉为什么不喜欢被叫「公主大人」？</span>
+                <div class="mk-ai-card">
+                  <ol class="mk-flow">
+                    <li class="k-retrieval open">
+                      <div class="mk-row">
+                        <span class="mk-ico">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <circle cx="10.5" cy="10.5" r="6" />
+                            <path d="M15 15l4.5 4.5" />
+                          </svg>
+                        </span>
+                        <b class="mk-name">检索</b>
+                        <span class="mk-sum">2 条依据</span>
+                        <span class="mk-time">0.7s</span>
+                        <span class="mk-chev">▾</span>
+                      </div>
+                      <div class="mk-src-list">
+                        <span class="mk-src"><i class="mk-src-n">[5]</i>第 5 章 · 称呼的由来<i class="mk-src-v">第 1 卷</i></span>
+                        <span class="mk-src"><i class="mk-src-n">[9]</i>第 9 章 · 当面解释<i class="mk-src-v">第 1 卷</i></span>
+                      </div>
+                    </li>
+                    <li class="k-generating">
+                      <div class="mk-row">
+                        <span class="mk-ico">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M20 12a7.5 7.5 0 01-10.6 6.7L5 20l1.4-4.2A7.5 7.5 0 1120 12z" />
+                          </svg>
+                        </span>
+                        <b class="mk-name">生成</b>
+                        <span class="mk-sum">引用 2 处</span>
+                        <span class="mk-time">2.1s</span>
+                        <span class="mk-mark">✓</span>
+                      </div>
+                    </li>
+                  </ol>
+                  <p class="mk-answer">
+                    她介意的不是被夸漂亮，而是这个称呼把她的努力抹成了天分<sup class="mk-cite">5</sup>；这一点她后来当面解释过<sup class="mk-cite">9</sup>。
+                  </p>
                 </div>
+                <span class="mk-input"><i>&gt;</i>就这本书提问…</span>
               </div>
             </div>
             <div class="step-copy">
-              <h3><TypewriterText text="从一个喜欢的角色，认识整个故事。" /></h3>
-              <p>探索角色经历、关系变化与关键章节。即使暂时没有时间读完整本小说，也能从感兴趣的地方开始。</p>
+              <h3><TypewriterText text="不止回答问题，更能找到原文依据。" /></h3>
+              <p>想知道的剧情、人物与细节，都可以直接提问。AI 结合小说内容检索相关线索，并展示引用依据，让每一次解答都有迹可循。</p>
             </div>
           </div>
         </article>
@@ -296,10 +441,10 @@ b { color: var(--fg); }
   text-shadow: 0 2px 26px rgba(0, 0, 0, 0.62);
 }
 h2 {
-  margin: 14px 0 0;
-  font-family: var(--serif);
-  font-size: clamp(28px, 4.2vw, 52px);
-  line-height: 1.24;
+  margin: 20px 0 0;
+  font-size: clamp(26px, 3.1vw, 36px);
+  line-height: 1.3;
+  font-weight: 800;
   letter-spacing: -0.01em;
 }
 h3 { font-size: 22px; line-height: 1.4; letter-spacing: -0.01em; }
@@ -399,48 +544,92 @@ h3 { font-size: 22px; line-height: 1.4; letter-spacing: -0.01em; }
 .band { padding: 110px 28px; border-top: 1px solid var(--line); }
 .inner { width: min(1080px, 100%); margin: 0 auto; }
 
-/* ---------- 为什么：三张卡 ---------- */
-.why .lead { margin-top: 24px; }
+/* ---------- 为什么：一整块面板 + 三张流光卡 ---------- */
+.why .inner {
+  padding: 44px 44px 40px;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.022);
+}
+.why .lead { margin-top: 26px; max-width: none; font-size: 17px; line-height: 2.05; }
 .cards {
   list-style: none;
-  margin: 46px 0 0;
+  margin: 40px 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 26px;
 }
 .cards li {
-  padding: 24px 22px 26px;
+  position: relative;
+  padding: 26px 24px 28px;
   border-radius: 18px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.03);
   display: grid;
-  gap: 10px;
+  gap: 14px;
+  align-content: start;
 }
-.cards .ic { width: 26px; height: 26px; color: var(--ac); }
-.cards b { font-size: 18px; }
-.cards span:last-child { font-size: 14px; line-height: 1.85; color: var(--fg-2); text-wrap: pretty; }
+.cards .ic { width: 30px; height: 30px; color: var(--ac); }
+.cards b { font-size: 20px; letter-spacing: -0.01em; }
+.cards span:last-child { font-size: 15px; line-height: 2.05; color: var(--fg-2); text-wrap: pretty; }
+
+/* 流光环绕：一段彗尾沿描边跑圈。
+   环是 conic-gradient 画的，再用两层 mask 的 xor 把中间掏空 —— 卡片底是半透明的，
+   不能靠「盖一块不透明内芯」那种做法（会把面板底也盖掉）。
+   @property 让角度真的能补间；不认识它的浏览器只是停在起始角度，环还在。 */
+@property --why-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.cards li::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--why-angle),
+    transparent 0deg 226deg,
+    color-mix(in srgb, var(--ac) 22%, transparent) 286deg,
+    color-mix(in srgb, var(--ac) 72%, transparent) 330deg,
+    var(--ac) 348deg,
+    color-mix(in srgb, var(--ac-2) 96%, transparent) 357deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  /* 不加 filter: blur/drop-shadow —— CSS 里 filter 先于 mask 生效，
+     模糊会被随后的镂空裁掉，写了也看不见。光晕要靠另一层画。 */
+  animation: why-flow 7s linear infinite;
+}
+/* 三张错开，免得三个光点同时出现 */
+.cards li:nth-child(2)::before { animation-delay: -2.4s; }
+.cards li:nth-child(3)::before { animation-delay: -4.8s; }
+@keyframes why-flow { to { --why-angle: 360deg; } }
+
 .why-foot {
-  margin: 34px 0 0;
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.06em;
+  margin: 40px 0 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
   color: var(--fg-3);
 }
 
-/* ---------- 功能：四个编号块 ---------- */
-.step { padding: 54px 0 10px; border-top: 1px solid var(--line); }
-.step:first-child { border-top: 0; padding-top: 0; }
-.tag {
-  display: inline-block;
-  margin: 0 0 26px;
-  padding: 5px 13px;
-  border-radius: 999px;
+/* ---------- 功能：四张卡 ----------
+   四块各自包一张卡（圆角 + 描边 + 一点点底），靠**间距**分开而不是一条贯穿细线——
+   细线只有 1px、颜色又淡，四块会糊成一片。 */
+.features .inner { display: flex; flex-direction: column; gap: 28px; }
+.step {
+  padding: 10px 15px;
+  border-radius: 26px;
   border: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--fg-2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.042), rgba(255, 255, 255, 0.012));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .step-grid {
   display: grid;
@@ -452,79 +641,174 @@ h3 { font-size: 22px; line-height: 1.4; letter-spacing: -0.01em; }
 .step.flip .mock { order: 2; }
 .step-copy p { margin: 14px 0 0; font-size: 15px; line-height: 1.95; color: var(--fg-2); text-wrap: pretty; }
 
-/* 面板：界面是**画出来的**（没有图片素材），只用线、块与色 */
+/* ---------- 四块界面 mock ----------
+   界面**画出来的**，不用图片素材：产品截图与页面同是深色底，贴上去会糊成一块，
+   而四张截图的画幅横竖混排（1.83 / 2.86 / 0.85 / 0.51），统一不了。
+   画出来的好处是四块**严格等高**（--mock-h），不依赖内容也不依赖断点。
+   **类名必须带 .mk- 前缀**：全局有一条裸的 `.chat`（<=1199px 会设成 position: fixed
+   并移出屏幕）和一条裸的 `.tree`，撞上就是静默错位。 */
+.features { --mock-h: 360px; }
+#features { scroll-margin-top: 72px; }
+
 .mock {
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  /* 三个阶段色：取值与主应用的 --warn / --ok 一致，但写成字面量——
+     门厅是一张画，不跟随主应用主题。 */
+  --mk-ref: var(--ac);
+  --mk-think: #ffb020;
+  --mk-gen: #1fbf7f;
+  --mk-on-ac: #14101f;
+
+  height: var(--mock-h);
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr);
+  min-width: 0;
   overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--ac) 18%, var(--line));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    var(--panel);
   box-shadow: 0 34px 80px -46px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
-.chrome { display: flex; align-items: center; gap: 6px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
-.chrome i { width: 8px; height: 8px; border-radius: 50%; background: rgba(190, 185, 255, 0.22); }
-.chrome .who { margin-left: 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); letter-spacing: 0.05em; }
+.mock.mk-work { grid-template-rows: 38px minmax(0, 1fr) 30px; }
 
-.doc { display: grid; gap: 10px; padding: 20px 18px; }
-.doc .l {
-  height: 10px; border-radius: 6px;
+/* ① 顶部条：01 是窗口三点，02–04 是对话面板的头 */
+.mk-chrome { display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.mk-chrome i { width: 8px; height: 8px; border-radius: 50%; background: rgba(190, 185, 255, 0.22); }
+.mk-who { margin-left: 10px; font-family: var(--mono); font-size: 10px; color: var(--fg-3); letter-spacing: 0.05em; }
+.mk-who-r { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--fg-3); }
+
+.mk-head { display: flex; align-items: center; gap: 7px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.mk-ai-mark { width: 12px; height: 12px; flex: none; border-radius: 4px; background: linear-gradient(135deg, var(--ac), var(--ac-2)); }
+.mk-head-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 650; color: var(--fg); }
+.mk-head-meta { flex: none; font-family: var(--mono); font-size: 10px; color: var(--fg-3); }
+.mk-head-badge {
+  flex: none; padding: 2px 7px; border-radius: 999px; font-size: 10px;
+  color: var(--ac);
+  border: 1px solid color-mix(in srgb, var(--ac) 30%, transparent);
+  background: color-mix(in srgb, var(--ac) 10%, transparent);
+}
+
+/* ② 文本条与宽度档 */
+.mk-body { display: flex; flex-direction: column; gap: 9px; padding: 11px 12px; min-width: 0; min-height: 0; overflow: hidden; }
+.mk-l {
+  display: block; height: 7px; border-radius: 4px; font-style: normal;
   background: linear-gradient(90deg, rgba(214, 210, 255, 0.2), rgba(214, 210, 255, 0.07));
 }
-.doc .l.on { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 55%, transparent), color-mix(in srgb, var(--ac) 22%, transparent)); }
-.doc .fig {
-  height: 84px; border-radius: 10px;
-  background: repeating-linear-gradient(135deg, rgba(139, 123, 255, 0.16) 0 8px, rgba(139, 123, 255, 0.04) 8px 16px);
-}
-.doc .w60 { width: 60%; } .doc .w70 { width: 70%; } .doc .w78 { width: 78%; }
-.doc .w88 { width: 88%; } .doc .w92 { width: 92%; } .doc .w95 { width: 95%; }
-.mock .foot {
-  display: flex; align-items: center; gap: 12px;
-  padding: 13px 18px; border-top: 1px solid var(--line);
-  font-size: 11px; color: var(--fg-3);
-}
-.mock .foot .prog { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); }
-.mock .foot .prog i { display: block; width: 34%; height: 100%; border-radius: 2px; background: var(--ac); }
+.mk-l.on { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 55%, transparent), color-mix(in srgb, var(--ac) 22%, transparent)); }
+.mk-w62 { width: 62%; } .mk-w64 { width: 64%; } .mk-w70 { width: 70%; } .mk-w74 { width: 74%; }
+.mk-w84 { width: 84%; } .mk-w86 { width: 86%; } .mk-w88 { width: 88%; } .mk-w90 { width: 90%; }
+.mk-w92 { width: 92%; } .mk-w95 { width: 95%; }
 
-/* 双档对话的 mock：先一个档位开关，再一问一答 */
-.seg { display: flex; gap: 6px; padding: 16px 18px 0; }
-.seg span {
-  font-size: 13px;
-  padding: 6px 15px;
-  border-radius: 10px;
-  color: var(--fg-3);
-  background: rgba(255, 255, 255, 0.04);
-}
-.seg .on { color: #fff; background: linear-gradient(135deg, var(--ac), var(--ac-2)); font-weight: 500; }
-.chat { display: grid; gap: 10px; padding: 16px 18px 20px; }
-.chat .bubble { font-size: 13.5px; line-height: 1.8; padding: 11px 14px; border-radius: 13px; }
-.chat .user { justify-self: end; max-width: 86%; background: rgba(139, 123, 255, 0.12); color: var(--fg); }
-.chat .ai { background: rgba(255, 255, 255, 0.05); color: var(--fg-2); }
+/* ③ 01：三栏工作台 */
+.mk-work-body { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr) minmax(0, 1fr); min-height: 0; }
+.mk-pane { display: flex; flex-direction: column; gap: 6px; padding: 10px; min-width: 0; min-height: 0; overflow: hidden; }
+.mk-pane + .mk-pane { border-left: 1px solid var(--line); }
+.mk-pane-h { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; color: var(--fg-3); }
+.mk-tree { background: rgba(255, 255, 255, 0.02); }
+.mk-doc { align-items: flex-start; gap: 7px; }
+.mk-chat { gap: 6px; background: color-mix(in srgb, var(--ac) 5%, transparent); }
+.mk-kicker { font-family: var(--mono); font-size: 9px; color: var(--fg-3); }
+.mk-title { display: block; width: 72%; height: 12px; border-radius: 4px; background: linear-gradient(90deg, var(--ac), color-mix(in srgb, var(--ac-2) 70%, transparent)); }
+.mk-ch { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 5px; border-radius: 6px; }
+.mk-ch-num { flex: none; font-family: var(--mono); font-size: 9px; font-style: normal; color: var(--fg-3); }
+.mk-ch-label { font-size: 10px; font-style: normal; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-ch.on { background: color-mix(in srgb, var(--ac) 16%, transparent); }
+.mk-ch.on .mk-ch-num, .mk-ch.on .mk-ch-label { color: var(--fg); }
+.mk-nav { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-top: 1px solid var(--line); font-size: 9px; color: var(--fg-3); }
+.mk-prog { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); }
+.mk-prog i { display: block; width: 34%; height: 100%; border-radius: 2px; background: var(--ac); }
 
-/* 角色探索的 mock：头像 + 名字 + 角色关系 */
-.cast { display: flex; align-items: center; gap: 14px; padding: 20px 18px 16px; }
-.cast .avatar {
-  width: 42px; height: 42px; flex: none; display: grid; place-items: center;
-  border-radius: 13px; color: var(--ac);
-  background: rgba(139, 123, 255, 0.12);
-  border: 1px solid color-mix(in srgb, var(--ac) 26%, transparent);
+/* ④ 气泡与输入条 */
+.mk-bubble { font-size: 11px; line-height: 1.65; padding: 6px 9px; border-radius: 9px; }
+.mk-bubble.user { align-self: flex-end; max-width: 92%; color: var(--fg); background: color-mix(in srgb, var(--ac) 18%, transparent); }
+.mk-bubble.ai { display: grid; gap: 5px; background: rgba(255, 255, 255, 0.05); }
+/* 只有一句话的回应用 fit-content，否则会被 flex 拉成一整条 */
+.mk-bubble.ai.brief { align-self: flex-start; width: fit-content; }
+.mk-input {
+  margin-top: auto;
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  font-size: 9px; color: var(--fg-3);
 }
-.cast .avatar svg { width: 24px; height: 24px; }
-.cast .lines { flex: 1; display: grid; gap: 8px; }
-.cast .lines i { height: 10px; border-radius: 6px; background: rgba(214, 210, 255, 0.14); }
-.cast .lines i.ac { background: linear-gradient(90deg, var(--ac), color-mix(in srgb, var(--ac) 30%, transparent)); }
-.cast-relations { padding: 0 18px 20px; border-top: 1px solid var(--line); margin-top: 4px; }
-.rel-label { display: block; padding: 14px 0 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); letter-spacing: 0.08em; }
-.rel-row { display: flex; align-items: center; gap: 12px; }
-.chip {
-  flex: 1;
-  text-align: center;
-  padding: 12px 10px;
-  border-radius: 12px;
-  font-size: 13px;
-  color: var(--fg-2);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
+.mk-input i { font-style: normal; color: var(--ac); }
+
+/* ⑤ 02：档位开关 + 切断线 + 隐藏区 */
+.mk-mode {
+  position: relative;
+  display: grid; grid-template-columns: 1fr 1fr;
+  padding: 3px; border-radius: 11px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05);
 }
-.arrow { color: var(--ac); font-size: 15px; }
+.mk-mode-thumb {
+  position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px);
+  border-radius: 8px; background: linear-gradient(135deg, var(--ac), var(--ac-2));
+}
+/* 滑块是浅紫，激活档的文字必须用深色 —— 白字压在 #8b7bff 上只有 3.3:1 */
+.mk-mode-opt { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 0; font-size: 11px; color: var(--fg-2); }
+.mk-mode-opt small { font-size: 9px; opacity: 0.72; }
+.mk-mode-opt.on { color: var(--mk-on-ac); font-weight: 650; }
+.mk-mode-note { font-size: 9px; color: var(--fg-3); }
+.mk-recall-card { display: grid; gap: 5px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.045); }
+.mk-q { font-size: 11px; color: var(--fg); }
+.mk-a { font-size: 10.5px; line-height: 1.6; color: var(--fg-2); }
+.mk-cutoff { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9px; color: var(--fg-3); }
+.mk-cutoff::before, .mk-cutoff::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+/* 隐藏区吃掉剩余高度：它就是这个面板还没展示的那部分 */
+.mk-future { flex: 1; display: grid; align-content: start; gap: 6px; padding: 8px 10px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--ac) 26%, transparent); background: color-mix(in srgb, var(--ac) 4%, transparent); }
+.mk-future-h { display: flex; align-items: center; gap: 5px; font-size: 9px; color: var(--fg-3); }
+.mk-future-h svg { width: 11px; height: 11px; }
+.mk-future .mk-l { opacity: 0.5; }
+
+/* ⑥ 03 / 04：阶段时间线（主应用 .stages 的简化重画，不复用它的类名）。
+   竖线必须**分段**画（图标上方一段、下方一段）：再细的线也压不住图标。
+   ol 上不能加 gap —— 线会断，行距放进 li 的 padding。 */
+.mk-thread { gap: 8px; }
+.mk-ai-card { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.mk-flow { --flow-row: 32px; list-style: none; margin: 0; padding: 0; }
+.mk-flow li { position: relative; padding-bottom: 4px; }
+.mk-flow li::before, .mk-flow li::after { content: ""; position: absolute; left: 9.25px; width: 1.5px; background: var(--line); }
+.mk-flow li::before { top: 0; height: calc(var(--flow-row) / 2 - 10px); }
+.mk-flow li::after { top: calc(var(--flow-row) / 2 + 10px); bottom: 0; }
+.mk-flow li:first-child::before { display: none; }
+.mk-flow li:last-child::after { display: none; }
+.mk-row { position: relative; display: flex; align-items: center; gap: 7px; height: var(--flow-row); }
+.mk-ico {
+  flex: none; width: 20px; height: 20px; display: grid; place-items: center;
+  border-radius: 50%; border: 1.25px solid currentColor;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.mk-ico svg { width: 11px; height: 11px; }
+.k-retrieval .mk-ico { color: var(--mk-ref); }
+.k-thinking .mk-ico { color: var(--mk-think); }
+.k-generating .mk-ico { color: var(--mk-gen); }
+.k-retrieval.open .mk-ico { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 16%, transparent); }
+.mk-name { flex: none; font-size: 11px; font-weight: 650; color: var(--fg); }
+.mk-sum { min-width: 0; font-size: 9px; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-time { margin-left: auto; flex: none; font-family: var(--mono); font-size: 9px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.mk-mark { flex: none; font-size: 10px; color: var(--mk-gen); }
+.mk-chev { flex: none; font-size: 9px; color: var(--fg-3); }
+.mk-src-list {
+  margin: 2px 0 2px 30px; padding-left: 8px;
+  display: grid; gap: 5px;
+  border-left: 2px solid color-mix(in srgb, var(--ac) 45%, transparent);
+}
+.mk-src {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 7px; border-radius: 7px;
+  font-size: 9px; color: var(--fg-2);
+  background: color-mix(in srgb, var(--ac) 8%, transparent);
+  white-space: nowrap; overflow: hidden;
+}
+.mk-src-n { flex: none; font-family: var(--mono); font-size: 9px; font-style: normal; color: var(--ac); }
+.mk-src-v { margin-left: auto; flex: none; font-family: var(--mono); font-size: 8px; font-style: normal; color: var(--fg-3); }
+.mk-answer { font-size: 11px; line-height: 1.75; color: var(--fg-2); }
+.mk-cite {
+  font-family: var(--mono); font-size: 8px; line-height: 1; vertical-align: super;
+  color: var(--ac); background: color-mix(in srgb, var(--ac) 14%, transparent);
+  border-radius: 3px; padding: 0 3px; margin: 0 2px;
+}
 
 /* ---------- 页脚：两段，上品牌与去向、下版权与免责 ---------- */
 .foot { padding: 72px 28px 44px; border-top: 1px solid var(--line); }
@@ -554,7 +838,31 @@ h3 { font-size: 22px; line-height: 1.4; letter-spacing: -0.01em; }
   .cards { grid-template-columns: 1fr; }
   .step-grid, .step.flip .step-grid { grid-template-columns: 1fr; gap: 22px; }
   .step.flip .mock { order: 0; }
+  .step { padding: 8px; border-radius: 20px; }
+  .features .inner { gap: 14px; }
+  .why .inner { padding: 26px 20px 28px; border-radius: 22px; }
+  .why .lead { font-size: 15px; }
+  .cards { gap: 14px; }
+  .why-foot { margin-top: 28px; }
+  /* 单栏时列宽会掉到视口宽：封顶 640 并居中，否则四块会拉成扁条 */
+  .mock { width: 100%; max-width: 640px; justify-self: center; }
   .topbar { padding: 14px 18px; }
+}
+
+/* 手机竖屏：mock 只有 311–341px 宽，三栏与时间线的字要跟着缩一档，
+   否则气泡会把一句话折断成两行、时间线摘要被省略号吃光 */
+@media (max-width: 420px) {
+  /* 三栏在 341px 上，问答栏只剩 83px —— 气泡会被折断成两行，把宽度让给它 */
+  .mk-work-body { grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.4fr) minmax(0, 1.1fr); }
+  .mk-bubble { font-size: 10px; padding: 5px 7px; }
+  .mk-bubble.user { max-width: 100%; }
+  .mk-ch { gap: 4px; padding: 2px 4px; }
+  .mk-ch-label { font-size: 9px; }
+  .mk-ch-num { font-size: 8px; }
+  .mk-name { font-size: 10px; }
+  .mk-sum, .mk-time { font-size: 8px; }
+  .mk-answer { font-size: 10px; }
+  .mk-src { font-size: 8px; }
 }
 
 /* 减少动效时停掉，不是减慢——拨雾在脚本里就没挂，这里只管过渡 */
@@ -562,5 +870,7 @@ h3 { font-size: 22px; line-height: 1.4; letter-spacing: -0.01em; }
   .welcome { scroll-behavior: auto; }
   .askbox .block { animation: none; }
   .btn:hover { transform: none; }
+  /* 流光停在起始角度，环还在，只是不跑 */
+  .cards li::before { animation: none; }
 }
 </style>
