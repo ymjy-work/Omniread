@@ -63,8 +63,33 @@ def _apply_hnsw_session_settings(dbapi_connection: object, _record: object) -> N
     dbapi_connection.commit()  # type: ignore[attr-defined]
 
 
+# 连不上时尽快失败。不给的话等的是 TCP 超时（几分钟），表现是界面无限转圈、零提示 ——
+# 而这一层本该以 503 把「依赖挂了」说出来（兜底处理器 handle_unexpected_error 就是这么回应的）。
+# 5 秒覆盖得了经代理绕远路的建连（实测 3.5s），又不至于让人以为卡死。
+DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
+
+
+def connect_timeout_seconds() -> int:
+    """`POSTGRES_CONNECT_TIMEOUT`，秒；缺省用默认值。"""
+    raw = os.environ.get("POSTGRES_CONNECT_TIMEOUT")
+    if raw is None or not raw.strip():
+        return DEFAULT_CONNECT_TIMEOUT_SECONDS
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"POSTGRES_CONNECT_TIMEOUT 不是整数：{raw!r}") from exc
+    if value <= 0:
+        raise RuntimeError(f"POSTGRES_CONNECT_TIMEOUT 必须为正整数：{raw!r}")
+    return value
+
+
 def create_engine_from_env(*, echo: bool = False) -> Engine:
     """按环境变量建引擎，并挂上 HNSW 会话参数监听。"""
-    engine = create_engine(database_url(), pool_pre_ping=True, echo=echo)
+    engine = create_engine(
+        database_url(),
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": connect_timeout_seconds()},
+        echo=echo,
+    )
     event.listen(engine, "connect", _apply_hnsw_session_settings)
     return engine

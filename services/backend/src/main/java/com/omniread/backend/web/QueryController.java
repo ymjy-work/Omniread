@@ -5,6 +5,7 @@ import com.omniread.backend.orchestration.AnswerStreamRecorder;
 import com.omniread.backend.orchestration.QueryOrchestrator;
 import com.omniread.backend.orchestration.SessionQueryRequest;
 import com.omniread.backend.orchestration.SessionQueryResponse;
+import com.omniread.backend.quota.QuotaLease;
 import com.omniread.backend.quota.QuotaService;
 import com.omniread.backend.user.AuthenticatedUser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -78,13 +79,20 @@ public class QueryController {
                 // 材料那一半要等终止帧的 usage，所以这里只给「历史 + 问题 + 摘要」
                 orchestrator.sessionTokensWithoutContext(prepared, request.getQuestion()),
                 orchestrator.contextWindow());
-        SseRelay.relay(upstream, requestId, response.getOutputStream(), recorder);
+        QuotaLease lease = QuotaInterceptor.leaseOf(servletRequest);
+        SseRelay.relay(upstream, requestId, response.getOutputStream(), recorder, () -> {
+            // 客户端走了：并发位立刻还回去，不必等这一轮孤儿生成跑完——那期间该账户会被
+            // 自己上一轮的 429 一直挡着。**先移除属性**：afterCompletion 里 leaseOf 返回 null
+            // 就直接返回，不会再减一次；release 没有幂等闸门，减两次等于把并发上限放开。
+            quota.release(lease);
+            servletRequest.removeAttribute(QuotaInterceptor.LEASE_ATTRIBUTE);
+        });
 
         // 流里出过错（provider 5xx / 上游中断）：这一轮没有结果，把日额度还回去。
         // **不能靠状态码**——开流那一刻它就已经是 200 了，这是网关自己发的字节流，
         // 后到的失败只能以 `error` / `query_error` 帧表达。
         if (recorder.failed()) {
-            quota.refund(QuotaInterceptor.leaseOf(servletRequest));
+            quota.refund(lease);
         }
     }
 }
