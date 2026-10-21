@@ -1,0 +1,34 @@
+# Omniread 应用栈的 systemd unit（生产）。
+#
+# 安装（在主机上）：
+#   sudo cp /opt/omniread/infra/systemd/omniread.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now omniread
+#
+# 它解决的问题：`restart: unless-stopped` 只保证**容器**重启，不保证 Docker 守护进程
+# 开机自启，也不保证 `docker compose up` 被重新执行 —— 主机一重启，整站不会自己回来。
+#
+# **构建不放进 unit**：`docker compose build` 要几分钟（Maven + npm），放进 ExecStart
+# 会把开机拖住，而且构建失败会让整机起不来。构建手动做，见 docs/部署手册.md。
+
+[Unit]
+Description=Omniread 应用栈（Java 网关 + Python RAG）
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/omniread/infra/docker
+# 13 项必需变量都在这里；文件缺失或权限不对时 systemd 直接失败，不静默用空串。
+# 文件是 systemd EnvironmentFile 格式：逐行 KEY=value，无 export、无引号。
+EnvironmentFile=/etc/omniread/omniread.env
+ExecStart=/usr/bin/docker compose -f docker-compose.app.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.app.yml down
+# 首次拉起要等 rag 健康、backend 才起（depends_on 的 condition 只在 up 时求值）。
+TimeoutStartSec=0
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

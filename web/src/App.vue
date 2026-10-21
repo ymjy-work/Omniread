@@ -17,7 +17,12 @@ import SidePanel from './components/SidePanel.vue'
 import StatusBar from './components/StatusBar.vue'
 
 const route = useRoute()
-const withShell = computed(() => route.meta.shell !== false)
+/**
+ * 路由还没匹配上时 `meta` 是空对象，此时**不能**按「不是 false 就当功能页」——
+ * 那会让三栏壳（连带 ChatPanel）先挂载一帧，而它在挂载时就拉会话；
+ * 401 一回来，全局处理器就把人从公开页踢到登录页。`matched` 为空正是「还没匹配到路由」。
+ */
+const withShell = computed(() => route.matched.length > 0 && route.meta.shell !== false)
 
 /**
  * 窄屏下当前打开的那一栏。同一时刻只开一个——两个抽屉同时滑出来会互相盖住，

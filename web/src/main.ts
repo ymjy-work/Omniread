@@ -17,9 +17,14 @@ const router = createRouter({
     // 两张「画布页」（门厅与登录页）**不进三栏壳**：它们自带整屏构图，
     // 而壳（活动栏 / 侧栏 / 常驻问答）对还没进来的人没有意义。见 App.vue 的判断。
     // `public` 是登录门的豁免标记——只有这两条不需要登录态。
-    { path: '/welcome', name: 'welcome', component: WelcomeView, meta: { shell: false, public: true } },
+    //
+    // 门厅占 `/`：进站先看到「这是什么、边界在哪儿」，比一上来就撞登录框说得通。
+    // 它不要登录态；点「探索故事」时未登录的人由守卫拦到 /login（见下方 beforeEach）。
+    { path: '/', name: 'welcome', component: WelcomeView, meta: { shell: false, public: true } },
+    // 旧地址留着：文档与外部链接都指向过 /welcome
+    { path: '/welcome', redirect: '/' },
     { path: '/login', name: 'login', component: LoginView, meta: { shell: false, public: true } },
-    { path: '/', name: 'library', component: LibraryView },
+    { path: '/library', name: 'library', component: LibraryView },
     // 设置是整页而不是弹窗，也不进三栏壳：它跟「在读哪本书」无关，套着章节栏会让人误会
     { path: '/settings', name: 'settings', component: SettingsView, meta: { shell: false } },
     {
@@ -58,7 +63,9 @@ router.beforeEach(async (to) => {
 setUnauthorizedHandler(() => {
   clearAuth()
   const current = router.currentRoute.value
-  if (current.name === 'login') return
+  // 公开页（门厅 / 登录页）与「路由还没匹配上」都不踢：它们本来就不需要登录态，
+  // 在这些地方出现的 401 是「还没登录」，不是「会话失效」。
+  if (current.matched.length === 0 || current.meta.public === true) return
   void router.replace({ name: 'login', query: { redirect: current.fullPath } })
 })
 

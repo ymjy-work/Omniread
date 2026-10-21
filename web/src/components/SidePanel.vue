@@ -3,7 +3,7 @@
  * 侧栏：书库板块列书，阅读板块列章节树（按卷分组）。
  * 底部的进度条与「调整进度」只在阅读板块出现——书库页没有可调整的进度。
  */
-import { computed } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { chapterCount, currentBook, readProgressRatio, selectBook, setProgress, store, volumes } from '../store'
 
@@ -12,6 +12,36 @@ const router = useRouter()
 
 const inReader = computed(() => route.name === 'reader')
 const currentIndex = computed(() => store.chapter?.chapter_index ?? null)
+
+/**
+ * 展开着的卷。**默认只开当前章节所在的那一卷**：全书 15 卷 193 章全平铺是一整片，
+ * 找一章要滚很久。
+ *
+ * 手动收起当前卷也允许，所以不强制它一直开着——只在**换章**时把它所在的卷补进来。
+ * 一次都没开过时给个落脚点（第一卷），否则初次进阅读页会是一片全是收起的标题。
+ */
+const expanded = reactive(new Set<number>())
+
+function volumeOf(chapterIndex: number | null): number | null {
+  if (chapterIndex === null) return null
+  return store.chapters.find((c) => c.chapter_index === chapterIndex)?.volume_index ?? null
+}
+
+const currentVolume = computed(() => volumeOf(currentIndex.value))
+
+function toggleVolume(volumeIndex: number): void {
+  if (expanded.has(volumeIndex)) expanded.delete(volumeIndex)
+  else expanded.add(volumeIndex)
+}
+
+watch(
+  [currentVolume, () => volumes.value.length],
+  () => {
+    const target = currentVolume.value ?? (expanded.size === 0 ? (volumes.value[0]?.volume_index ?? null) : null)
+    if (target !== null) expanded.add(target)
+  },
+  { immediate: true }
+)
 
 /** 在书库板块点书 = 选中它（拉章节与进度），不跳转 */
 function openBook(bookId: number): void {
@@ -53,10 +83,17 @@ async function pickProgress(event: Event): Promise<void> {
         <div
           v-for="volume in volumes"
           :key="volume.volume_index"
-          class="vol open"
-          :class="{ active: volume.chapters.some((c) => c.chapter_index === currentIndex) }"
+          class="vol"
+          :class="{
+            open: expanded.has(volume.volume_index),
+            active: volume.chapters.some((c) => c.chapter_index === currentIndex)
+          }"
         >
-          <button class="vol-head">
+          <button
+            class="vol-head"
+            :aria-expanded="expanded.has(volume.volume_index)"
+            @click="toggleVolume(volume.volume_index)"
+          >
             <span class="caret">▶</span>
             <span class="vol-badge">卷 {{ volume.volume_index }}</span>
             <span class="vol-count">

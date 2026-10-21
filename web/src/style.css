@@ -452,6 +452,8 @@ select.gobtn {
 .vol .vol-head:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .vol .caret { color: var(--accent); transition: transform .15s; font-size: 9px; }
 .vol.open .caret { transform: rotate(90deg); }
+/* 收起时把这一卷的章节整段藏掉（`.chap` 是卷的直接子元素） */
+.vol:not(.open) .chap { display: none; }
 .vol .vol-badge {
   font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--accent); flex: none;
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
