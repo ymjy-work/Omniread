@@ -19,9 +19,12 @@ temp
 docs
 var
 
-# 本地配置与凭据
+# 本地配置与凭据（模板除外；变体也要挡，Vite 会读 .env.local / .env.[mode]）
 .env
 **/.env
+.env.*
+**/.env.*
+!**/.env.example
 
 # 编辑器 / 系统杂物
 .idea

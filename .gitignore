@@ -31,7 +31,11 @@ __pycache__/
 
 # 密钥与运行产物
 # 密钥只经 keymgr 注入，不落任何文件（M0-00 §6）
+# `.env` 只挡恰好叫这个名字的文件；Vite 默认还会读 `.env.local` / `.env.[mode]`，
+# 变体不挡住的话，换个名字的真实凭据就能被 `git add` 进去。
 .env
+.env.*
+!.env.example
 *.log
 
 # Java 网关的本地运行状态（阅读进度文件等）
