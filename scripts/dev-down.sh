@@ -62,7 +62,11 @@ if [ "$STOP_INFRA" -eq 1 ]; then
   # down 只做删除，插值里的占位值仅为通过 compose 的必填校验，不会写进任何文件、也不影响已有数据。
   local_args=()
   [ "$PURGE" -eq 1 ] && local_args+=(--volumes)
-  log "停止基础设施${PURGE:+（连数据卷一起删）}"
+  if [ "$PURGE" -eq 1 ]; then
+    log "停止基础设施（连数据卷一起删）"
+  else
+    log "停止基础设施（保留数据卷）"
+  fi
   POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-__teardown__}" \
   MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-__teardown__}" \
     docker compose -f "$COMPOSE_FILE" down "${local_args[@]}" \
