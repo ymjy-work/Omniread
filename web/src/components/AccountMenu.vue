@@ -9,7 +9,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { current, expiry, signOut, username } from '../auth'
+import { current, expiryFull, signOut, username } from '../auth'
 
 const router = useRouter()
 
@@ -76,7 +76,7 @@ async function doLogout(): Promise<void> {
           <span class="am-av">{{ initial }}</span>
           <div class="am-id">
             <p class="am-name">{{ username }}</p>
-            <p class="am-sub">有效期至 {{ expiry }}</p>
+            <p class="am-sub">账户有效期 {{ expiryFull }}</p>
           </div>
         </div>
 

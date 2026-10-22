@@ -58,19 +58,26 @@ export function clear(): void {
   current.value = null
 }
 
-/** 会话有效期的显示文案。服务端给的是 ISO 串，解析不出来就退回占位符，不抛。 */
-export function expiryLabel(): string {
-  const raw = current.value?.expires_at
-  if (!raw) return '—'
-  const at = new Date(raw)
-  if (Number.isNaN(at.getTime())) return '—'
-  return at.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
 /**
  * 账户名与会话有效期这两个展示值有两个消费点（账户菜单、设置页），共用一份计算。
  * 各写各的时候两边连兜底文案都不一样（`未登录` vs `—`），同一个账户在两张页面上长得不同。
  */
 export const username = computed(() => current.value?.username ?? '未登录')
 
-export const expiry = computed(() => expiryLabel())
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/**
+ * 会话有效期的显示文案：`yyyy-MM-dd HH:mm:ss`。
+ * 服务端给的是 ISO 串，解析不出来就退回占位符，不抛。
+ *
+ * **两个消费点用同一个格式**——只写「10/22 09:40」的话，看不出这是到期时间还是上次登录时间，
+ * 而两处各写一份格式迟早会漂。
+ */
+export const expiryFull = computed(() => {
+  const raw = current.value?.expires_at
+  if (!raw) return '—'
+  const at = new Date(raw)
+  if (Number.isNaN(at.getTime())) return '—'
+  const d = `${at.getFullYear()}-${pad2(at.getMonth() + 1)}-${pad2(at.getDate())}`
+  return `${d} ${pad2(at.getHours())}:${pad2(at.getMinutes())}:${pad2(at.getSeconds())}`
+})
