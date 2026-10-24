@@ -27,6 +27,7 @@ public class AccountService {
     private final UserProgressMapper userProgressMapper;
     private final UsageDailyMapper usageDailyMapper;
     private final PasswordHasher passwordHasher;
+    private final AccountExpiry accountExpiry;
 
     public AccountService(
             UserMapper userMapper,
@@ -34,13 +35,15 @@ public class AccountService {
             ChatSessionMapper chatSessionMapper,
             UserProgressMapper userProgressMapper,
             UsageDailyMapper usageDailyMapper,
-            PasswordHasher passwordHasher) {
+            PasswordHasher passwordHasher,
+            AccountExpiry accountExpiry) {
         this.userMapper = userMapper;
         this.authSessionMapper = authSessionMapper;
         this.chatSessionMapper = chatSessionMapper;
         this.userProgressMapper = userProgressMapper;
         this.usageDailyMapper = usageDailyMapper;
         this.passwordHasher = passwordHasher;
+        this.accountExpiry = accountExpiry;
     }
 
     /** 发放一个账户。账户名重复时由唯一约束拦下，不在这里先查一次——查了也挡不住并发。 */
@@ -73,6 +76,12 @@ public class AccountService {
         }
         if (!user.isActive()) {
             log.info("登录被拒（账户已停用）：{}", username);
+            return Optional.empty();
+        }
+        // 过期也走这里：对外与「口令错」同一种结果，不新增可枚举的信号。
+        // 每日清理（AccountJanitor）要等到点才删行，这中间不能让过期账户继续登录。
+        if (accountExpiry.isExpired(user)) {
+            log.info("登录被拒（账户已过期）：{}", username);
             return Optional.empty();
         }
         userMapper.updateLastLogin(user.getId(), Instant.now().toString());

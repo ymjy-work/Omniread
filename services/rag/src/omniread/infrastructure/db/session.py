@@ -43,10 +43,18 @@ def database_url() -> str:
         f"postgresql+psycopg://{quote(user, safe='')}:{quote(password, safe='')}"
         f"@{host}:{port}/{name}"
     )
-    # RDS 用 require；本地 Docker 留空，保持原来的连接串。
+    params: list[str] = []
+    # RDS 用 verify-full；本地 Docker 留空，保持原来的连接串。
     ssl_mode = os.environ.get("POSTGRES_SSLMODE", "")
     if ssl_mode:
-        url += f"?sslmode={quote(ssl_mode, safe='')}"
+        params.append(f"sslmode={quote(ssl_mode, safe='')}")
+    # `verify-ca` / `verify-full` 必须自带 CA：RDS 的证书链由 AWS 自己的 CA 签，
+    # 系统信任库里没有，省掉这个参数只会在校验证书时报「证书不受信任」。
+    root_cert = os.environ.get("POSTGRES_SSLROOTCERT", "")
+    if root_cert:
+        params.append(f"sslrootcert={quote(root_cert, safe='')}")
+    if params:
+        url += "?" + "&".join(params)
     return url
 
 

@@ -14,6 +14,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY services/rag ./
 RUN uv sync --frozen --no-dev
 
+# AWS RDS 的公共根证书包：`sslmode=verify-full` 要靠它认 RDS 的证书链。
+# 这是公开的 CA 证书，不是凭据；打进镜像而不是挂宿主文件，部署时少一步。
+COPY infra/certs/global-bundle.pem /app/certs/global-bundle.pem
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8

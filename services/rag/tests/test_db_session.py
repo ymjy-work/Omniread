@@ -12,6 +12,7 @@ import pytest
 from omniread.infrastructure.db.session import (
     DEFAULT_CONNECT_TIMEOUT_SECONDS,
     connect_timeout_seconds,
+    database_url,
 )
 
 
@@ -37,3 +38,36 @@ class TestConnectTimeout:
             return
         with pytest.raises(RuntimeError):
             connect_timeout_seconds()
+
+
+class TestSslParams:
+    """`sslmode` 与 `sslrootcert` 怎么拼进连接串。
+
+    这两个必须成对出现才叫「校验」：只给 `verify-full` 不给 CA，psycopg 会退到系统
+    信任库去找 RDS 的签发者——那里没有，症状是连不上而不是降级。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _password(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("POSTGRES_PASSWORD", "pw")
+        monkeypatch.delenv("POSTGRES_SSLMODE", raising=False)
+        monkeypatch.delenv("POSTGRES_SSLROOTCERT", raising=False)
+
+    def test_no_ssl_params_by_default(self) -> None:
+        # 本地 Docker 的 PG 不走 TLS，连接串保持原样。
+        assert "?" not in database_url()
+
+    def test_sslmode_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("POSTGRES_SSLMODE", "verify-full")
+        assert database_url().endswith("?sslmode=verify-full")
+
+    def test_root_cert_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("POSTGRES_SSLROOTCERT", "/app/certs/global-bundle.pem")
+        assert database_url().endswith("?sslrootcert=%2Fapp%2Fcerts%2Fglobal-bundle.pem")
+
+    def test_both_joined_with_ampersand(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("POSTGRES_SSLMODE", "verify-full")
+        monkeypatch.setenv("POSTGRES_SSLROOTCERT", "/app/certs/global-bundle.pem")
+        url = database_url()
+        assert "?sslmode=verify-full&sslrootcert=" in url
+        assert url.count("?") == 1

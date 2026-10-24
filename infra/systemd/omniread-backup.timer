@@ -1,0 +1,13 @@
+# 每天 UTC 03:30 备份一次。用 UTC 是为了和部署侧其余时间基准对齐
+# （AWS 控制台、RDS 日志、证书有效期都按 UTC）；systemd 支持在 OnCalendar 里写时区。
+#
+# Persistent=true：关机错过了点，开机后补跑一次——备份是幂等动作，补跑没有副作用。
+[Unit]
+Description=每日备份 Omniread 的 SQLite
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -34,18 +34,21 @@ public class AuthService {
     private final UserMapper userMapper;
     private final AuthTokens tokens;
     private final AuthProperties properties;
+    private final AccountExpiry accountExpiry;
 
     public AuthService(
             AccountService accountService,
             AuthSessionMapper authSessionMapper,
             UserMapper userMapper,
             AuthTokens tokens,
-            AuthProperties properties) {
+            AuthProperties properties,
+            AccountExpiry accountExpiry) {
         this.accountService = accountService;
         this.authSessionMapper = authSessionMapper;
         this.userMapper = userMapper;
         this.tokens = tokens;
         this.properties = properties;
+        this.accountExpiry = accountExpiry;
     }
 
     /** 一次登录的结果：token 原文**只在这里出现一次**，之后只有 cookie 里有。 */
@@ -100,6 +103,10 @@ public class AuthService {
         // 停用账户时会删掉登录会话行，但那条 DELETE 与这次查询之间没有时序保证，
         // 所以状态在这里再判一次——否则「刚被停用」会有一个窗口还能用。
         if (user == null || !user.isActive()) {
+            return Optional.empty();
+        }
+        // 账户过期与「已停用」同理：每日清理还没跑到时，账号也不该继续用。
+        if (accountExpiry.isExpired(user)) {
             return Optional.empty();
         }
         touchIfStale(session);

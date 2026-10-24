@@ -26,4 +26,11 @@ public interface UserMapper {
     int updateStatus(@Param("id") long id, @Param("status") String status);
 
     int updateLastLogin(@Param("id") long id, @Param("lastLoginAt") String lastLoginAt);
+
+    /**
+     * 整行删除。子表（登录会话 / 对话会话 / 消息 / 进度 / 用量）都是
+     * {@code ON DELETE CASCADE}，一条 DELETE 就够——不必像
+     * {@link AccountService#disableAndPurge} 那样逐表删。
+     */
+    int deleteById(@Param("id") long id);
 }

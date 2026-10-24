@@ -32,4 +32,9 @@
     UPDATE users SET last_login_at = #{lastLoginAt} WHERE id = #{id}
   </update>
 
+  <!-- 子表靠 ON DELETE CASCADE 一起走，所以这里只有一条语句。 -->
+  <delete id="deleteById">
+    DELETE FROM users WHERE id = #{id}
+  </delete>
+
 </mapper>

@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 读的人不用去别处找「还有没有别的定时任务」。
  */
 @Configuration
-@EnableConfigurationProperties(AuthProperties.class)
+@EnableConfigurationProperties({AuthProperties.class, AccountProperties.class})
 @EnableScheduling
 public class UserConfig {
 }

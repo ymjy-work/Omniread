@@ -38,6 +38,11 @@ omniread:
     cookie-secure: ${OMNIREAD_AUTH_COOKIE_SECURE:true}
     # 登录态有效期 8 小时，到点重新登录（不做滑动续期）。
     session-ttl: ${OMNIREAD_AUTH_TTL:8h}
+  account:
+    # 演示账户的生命周期，从发放时刻（created_at）起算。到期后账户连同它的登录会话、
+    # 对话、消息、进度、用量一起删除，账户名释放、可以重新发放。
+    # **0 = 关闭**：本地开发默认关闭，生产在 compose 里显式打开。
+    ttl: ${OMNIREAD_ACCOUNT_TTL:0}
   answer:
     # 回答模型的上下文窗口（token）。只用于前端算「会话内容 / 模型窗口」的占比；
     # 换回答模型必须同步改它，否则分母是错的。不是历史预算（见下面的 context 一节）。

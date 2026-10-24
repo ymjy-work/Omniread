@@ -1,6 +1,6 @@
 # 生产应用栈：Java 网关（托管前端）+ Python RAG。
 #
-# 数据层不在这里：PostgreSQL 用 AWS RDS，对象存储用 AWS S3（见 docs/方案.md「一之二」）。
+# 数据层不在这里：PostgreSQL 用 AWS RDS，对象存储用 AWS S3（见 .agent/docs/方案.md「一之二」）。
 # 本地开发用的 PG / MinIO 容器在 docker-compose.yml，那个文件只服务 `dev-up.sh`。
 #
 # 用法（在 infra/docker 下）：
@@ -19,14 +19,18 @@ services:
       dockerfile: services/rag/Dockerfile
     restart: unless-stopped
     environment:
-      # 基础镜像默认 UTC，而主机是 CST。不定的话日志时间比主机早 8 小时，排障时对不上钟。
-      TZ: Asia/Shanghai
+      # UTC 是部署侧唯一的时间基准：AWS 控制台、RDS 日志、证书有效期都按它。
+      # 显式写出来而不是靠基础镜像默认值——别人换镜像时不该跟着漂。
+      TZ: UTC
       POSTGRES_HOST: ${POSTGRES_HOST:?RDS 端点未提供}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:?RDS 库名未提供}
       POSTGRES_USER: ${POSTGRES_USER:?RDS 用户未提供}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?RDS 口令未提供}
-      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-require}
+      # verify-full = 加密 + 校验 CA + 校验主机名。RDS 的证书链由 AWS 自己的 CA 签，
+      # 系统信任库里没有，所以必须同时给 CA 包（镜像里带了一份，见 services/rag/Dockerfile）。
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-verify-full}
+      POSTGRES_SSLROOTCERT: ${POSTGRES_SSLROOTCERT:-/app/certs/global-bundle.pem}
       # 应用侧只认这组通用名；不要在容器里再读 AWS_*（那是控制面凭据）。
       OMNIREAD_OBJECT_STORE_ENDPOINT: ${OMNIREAD_OBJECT_STORE_ENDPOINT:?S3 端点未提供}
       OMNIREAD_OBJECT_STORE_REGION: ${OMNIREAD_OBJECT_STORE_REGION:?S3 区域未提供}
@@ -63,12 +67,14 @@ services:
         condition: service_healthy
     environment:
       # 日额度按「本地日期」翻页（QuotaService 用 Clock.systemDefaultZone()），
-      # 不定 TZ 就是 UTC 零点 —— 等于北京时间早 8 点，与用户直觉的「今天」差半天。
-      TZ: Asia/Shanghai
+      # 这里必须是 UTC —— 额度翻页与 Retry-After 都跟部署侧的时间基准走。
+      TZ: UTC
       OMNIREAD_RAG_BASE_URL: http://rag:8000
       # 反代终结 TLS 后由 forward-headers-strategy=framework 自己认 X-Forwarded-*；
       # **只允许反代直连本进程**（端口只发布到 127.0.0.1）。
       OMNIREAD_AUTH_COOKIE_SECURE: ${OMNIREAD_AUTH_COOKIE_SECURE:-true}
+      # 演示账户 14 天后连同内容一起删除，账户名释放。设为 0 即关闭。
+      OMNIREAD_ACCOUNT_TTL: ${OMNIREAD_ACCOUNT_TTL:-14d}
       OMNIREAD_OFFLINE_MARKER: /app/var/OFFLINE
     ports:
       - "127.0.0.1:8080:8080"

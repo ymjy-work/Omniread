@@ -1,0 +1,13 @@
+# 每日备份 Java 侧的 SQLite（账户 / 会话 / 进度 / 用量）。
+#
+# 装法：拷到 /etc/systemd/system/，再 `systemctl daemon-reload && systemctl enable --now omniread-backup.timer`。
+# 前置：宿主机装 sqlite3（`apt install -y sqlite3`）——容器里没有，镜像里只有 Java。
+# 落点：/var/backups/omniread/，权限 0600。**在本机，不进 S3、不进 git。**
+[Unit]
+Description=Omniread SQLite 备份
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/omniread/scripts/backup-db.sh
+# 备份含对话内容，只允许 root 读
+User=root
