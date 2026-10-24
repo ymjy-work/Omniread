@@ -31,7 +31,7 @@
       "enum": ["fact", "alias", "cross", "foreshadow", "boundary", "spoiler"]
     },
     "difficulty": {
-      "description": "**已废弃（2026-10-13）**：难度是评测者的主观标签，而 type 几乎完全决定了它（fact→easy、cross→hard……），不承载额外信息。存量题保留原值、不迁移；新题不写；统计与报表一概不再读它。见 docs/决策与变更.md 的「Golden 难度维度迁移」一节。",
+      "description": "**已废弃（2026-10-13）**：难度是评测者的主观标签，而 type 几乎完全决定了它（fact→easy、cross→hard……），不承载额外信息。存量题保留原值、不迁移；新题不写；统计与报表一概不再读它。见 .agent/docs/决策与变更.md 的「Golden 难度维度迁移」一节。",
       "enum": ["easy", "medium", "hard"]
     },
     "book_id": {

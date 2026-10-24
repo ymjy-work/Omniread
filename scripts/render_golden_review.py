@@ -6,7 +6,7 @@
 但**复核件本身可以是可判的**：把每题的这六个字段摊平到一页，复核人不必逐个打开
 86 个 JSON。
 
-产物落 `temp/golden-review/questions.md`（含题面与参考答案，**不入 git**）。
+产物落 `.agent/temp/golden-review/questions.md`（含题面与参考答案，**不入 git**）。
 
 用法（仓库根执行，不需要凭据）：
     python scripts/render_golden_review.py

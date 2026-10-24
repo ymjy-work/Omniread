@@ -17,7 +17,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="$ROOT/temp/run"
+RUN_DIR="$ROOT/.agent/temp/run"
 SKIP_WEB=0
 SMOKE=0
 DATA_LAYER=0
@@ -145,7 +145,7 @@ if [ "$SMOKE" -eq 1 ]; then
       4) bad "account-cli" "disable 失败了；看 $RUN_DIR/admin-smoke.log" ;;
     esac
   else
-    bad "smoke" "temp/run/rag.log 与 temp/run/backend.log；起不来的常见原因是端口被占（加 --force）"
+    bad "smoke" ".agent/temp/run/rag.log 与 .agent/temp/run/backend.log；起不来的常见原因是端口被占（加 --force）"
   fi
 else
   step 6 "端到端 smoke：未启用（加 --smoke 才会起服务）"

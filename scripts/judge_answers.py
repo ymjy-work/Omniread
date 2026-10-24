@@ -6,7 +6,7 @@
 两者都是已经付过费的产物。30 题的一次重判只花 30 次裁判模型调用。
 
     python scripts/judge_answers.py --run-dir <run 目录> --answers <answers.jsonl> \
-        --out temp/judge-<id>.json [--golden-dir <题集>] [--allow-incomplete] [--fake-providers]
+        --out .agent/temp/judge-<id>.json [--golden-dir <题集>] [--allow-incomplete] [--fake-providers]
 
 **它不写 run 目录**：裁判的 `reason` 是自由文本、会逐字引用材料。
 
@@ -167,7 +167,7 @@ async def main_async(args: argparse.Namespace) -> int:
         ),
     )
 
-    # 与 run_eval.py 同一道闸门：run 目录进 git，裁判的 reason 只落 temp/。
+    # 与 run_eval.py 同一道闸门：run 目录进 git，裁判的 reason 只落 .agent/temp/。
     resolved = args.out.resolve()
     runs_root = args.runs_dir.resolve()
     if resolved == runs_root or runs_root in resolved.parents or run_dir in resolved.parents:

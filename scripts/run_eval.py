@@ -171,7 +171,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "把逐题回答原文写到这个路径（jsonl）。**必须落在 run 目录之外**——"
-            "run 目录进 git，回答原文只落 temp/。"
+            "run 目录进 git，回答原文只落 .agent/temp/。"
             "人工抽检与「拒答标记没被认出来」的排查都要看它"
         ),
     )
@@ -199,7 +199,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "裁判结果写到这里（JSON：聚合 + 逐题，含 reason 自由文本）。"
             "**必须落在 run 目录之外**——裁判的 reason 会逐字引用材料。"
-            "不传时默认写 temp/judge-<run-id>.json"
+            "不传时默认写 .agent/temp/judge-<run-id>.json"
         ),
     )
     parser.add_argument(
@@ -329,7 +329,7 @@ def _write_answers(
     if resolved == runs_root or runs_root in resolved.parents:
         raise SystemExit(
             f"不能把回答原文写进 run 目录：{path}\n"
-            "  run 目录只准出现 ALLOWED_RUN_FILES 里的文件，且回答原文只落 temp/。"
+            "  run 目录只准出现 ALLOWED_RUN_FILES 里的文件，且回答原文只落 .agent/temp/。"
         )
 
     rows = [
@@ -371,7 +371,7 @@ def _write_judgments(
     if resolved == runs_root or runs_root in resolved.parents:
         raise SystemExit(
             f"不能把裁判结果写进 run 目录：{path}\n"
-            "  裁判的 reason 会逐字引用材料，只落 temp/；run 目录只准出现"
+            "  裁判的 reason 会逐字引用材料，只落 .agent/temp/；run 目录只准出现"
             " ALLOWED_RUN_FILES 里的文件。"
         )
 

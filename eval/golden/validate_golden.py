@@ -287,7 +287,7 @@ def _validate_structure_native(obj: object, rep: Report) -> None:
         rep.error("id", "必须是非空字符串")
     if obj.get("type") not in TYPES:
         rep.error("type", f"必须属于 {list(TYPES)}，实际为 {obj.get('type')!r}")
-    # 难度维度已砍（2026-10-13，见 docs/决策与变更.md 的「Golden 难度维度迁移」一节）：**存量题面不迁移**，
+    # 难度维度已砍（2026-10-13，见 .agent/docs/决策与变更.md 的「Golden 难度维度迁移」一节）：**存量题面不迁移**，
     # 字段在就还得合法（防手改出拼写错），新题不写它。统计与报表一概不再读这个字段。
     if "difficulty" in obj and obj.get("difficulty") not in DIFFICULTIES:
         rep.error("difficulty", f"写了就必须属于 {list(DIFFICULTIES)}，实际为 {obj.get('difficulty')!r}")

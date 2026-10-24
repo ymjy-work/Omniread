@@ -1,5 +1,5 @@
 {
-  "spec": "docs/规格.md（M0-01 一节） §6.4、docs/规格.md（M0-04 一节） §5.2",
+  "spec": ".agent/docs/规格.md（M0-01 一节） §6.4、.agent/docs/规格.md（M0-04 一节） §5.2",
   "purpose": "引用标记 `[C{chapter_index}]` 的扫描与渲染口径。Python 与 TypeScript 无法共用同一份代码，所以这里是唯一的权威定义，两侧各自实现一份、由等价的样本断言行为一致。",
   "pattern": "\\[C(\\d{1,3})\\]",
   "pattern_note": "规范引用的识别正则。大小写敏感（无 i 标志）；\\d 按 ASCII 0-9 解释（JS 原生如此，Python 侧需 re.ASCII，否则全角/阿拉伯-印度数字会让两侧分叉）。",

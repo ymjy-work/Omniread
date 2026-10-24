@@ -6,11 +6,11 @@
 #   bash scripts/dev-down.sh --all    连 infra 容器一起停（保留数据卷）
 #   bash scripts/dev-down.sh --all -v 连数据卷一起删（PostgreSQL / MinIO 数据清空）
 #
-# 停止优先按 temp/run/*.pid 记录，找不到再按端口回收，避免残留进程占住 8000 / 8080。
+# 停止优先按 .agent/temp/run/*.pid 记录，找不到再按端口回收，避免残留进程占住 8000 / 8080。
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="$ROOT/temp/run"
+RUN_DIR="$ROOT/.agent/temp/run"
 COMPOSE_FILE="$ROOT/infra/docker/docker-compose.yml"
 
 STOP_INFRA=0

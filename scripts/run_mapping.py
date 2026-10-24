@@ -11,7 +11,7 @@
 产物分两处：
 
 - `eval/runs/<run_id>/`：进 git 的审计副本，只带指针与指标值。
-- `temp/mapping-review/`：需要正文的人工复核件，**不进 git**——它含整段 chunk 正文。
+- `.agent/temp/mapping-review/`：需要正文的人工复核件，**不进 git**——它含整段 chunk 正文。
 
 `--source corpus` 与 `--source db` 走同一个区间还原函数，差别只在数据取自哪里：
 前者按当前代码从语料重算，后者读导入时冻结进 `chapters` / `chunks` 的那份副本。

@@ -17,7 +17,7 @@
 用法（仓库根执行）：
 
     python scripts/attribute_eval.py --run-id 2026-09-20-m0-baseline
-    python scripts/attribute_eval.py --run-id <id> --out temp/attribution-<id>.md
+    python scripts/attribute_eval.py --run-id <id> --out .agent/temp/attribution-<id>.md
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from run_eval import load_mapping_lookup  # noqa: E402
 
 DEFAULT_MAPPING_RUN = "2026-09-20-m0-mapping"
 #: run 目录只准出现 `ALLOWED_RUN_FILES` 里的文件（CI 第 12 步全量扫 `eval/runs/`），
-#: 所以归因报告一律写 `temp/`——它是复核件，不是 run 的产物。
+#: 所以归因报告一律写 `.agent/temp/`——它是复核件，不是 run 的产物。
 RUNS_SUBDIR = "runs"
 
 
@@ -69,7 +69,7 @@ def _refuse_run_dir(path: Path, runs_dir: Path) -> None:
         raise SystemExit(
             f"不能写到 run 目录下：{path}\n"
             "  run 目录只准出现 ALLOWED_RUN_FILES 里的文件（CI 会全量扫）。\n"
-            "  归因报告是复核件，请写 temp/。"
+            "  归因报告是复核件，请写 .agent/temp/。"
         )
 
 

@@ -13,10 +13,10 @@
 services/backend/target
 
 # 语料与评测产物：语料不进任何镜像（版权红线），产物也不该进构建上下文。
+# `.agent/` 是 agent 工作区（文档 / 计划 / 临时脚本 / 交付物），与本机状态一起排除。
 asset
 eval
-temp
-docs
+.agent
 var
 
 # 本地配置与凭据（模板除外；变体也要挡，Vite 会读 .env.local / .env.[mode]）

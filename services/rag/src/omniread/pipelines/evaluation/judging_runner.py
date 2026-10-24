@@ -2,7 +2,7 @@
 
 **它旁挂在确定性指标旁边，不作门禁**（外部共识「An LLM judge
 cannot be a build gate」）：模型判断重跑分数会变，回归与测量噪声分不开，门禁会误报
-然后被人关掉。所以这里产出的数字**不进** `summary.json`，只落 `temp/`——run 目录进 git，
+然后被人关掉。所以这里产出的数字**不进** `summary.json`，只落 `.agent/temp/`——run 目录进 git，
 而裁判的 `reason` 是自由文本、会逐字引用材料。
 
 **材料必须与回答看到的那一份逐字相同**：所以这里不重跑检索，而是从本次 run 已经算好的
@@ -43,7 +43,7 @@ class JudgedAnswer:
     """一题的裁判结果。
 
     `reason` / `issues` / `raw` 是裁判的自由文本，**会逐字引用材料**，所以只随复核件
-    落 `temp/`；聚合数字只数那四个布尔与三态，不碰文本。
+    落 `.agent/temp/`；聚合数字只数那四个布尔与三态，不碰文本。
     """
 
     question_id: str

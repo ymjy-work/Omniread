@@ -5,7 +5,7 @@
 （`fallback`），本项目当前 357 条全部由主路径解决。
 
 产物分两处落：`chunk_mappings`（跨 run 复用的缓存，主键五元组）与 run 目录（审计副本）。
-run 目录进 git，因此只带指针与指标值；需要看正文的人工复核产物落 `temp/`（`review`）。
+run 目录进 git，因此只带指针与指标值；需要看正文的人工复核产物落 `.agent/temp/`（`review`）。
 """
 
 from __future__ import annotations

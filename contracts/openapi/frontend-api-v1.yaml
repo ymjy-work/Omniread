@@ -317,7 +317,7 @@ paths:
       operationId: login
       summary: 登录
       description: |
-        账户由开发者发放，**不开放注册**（`docs/m1/用户管理需求.md` §一）。
+        账户由开发者发放，**不开放注册**（`.agent/docs/m1/用户管理需求.md` §一）。
         成功后种下会话 cookie（HttpOnly + Secure + SameSite=Strict），响应体只回账户信息，
         **不回 token**——token 只在 cookie 里，前端拿不到也就不可能把它写进 localStorage。
 
@@ -361,7 +361,7 @@ paths:
       description: |
         删掉服务端那一条登录会话行，并清 cookie。
 
-        **未登录时返回 401，不是「总是 204」**：`docs/m1/用户管理需求.md` §三 定的规则是
+        **未登录时返回 401，不是「总是 204」**：`.agent/docs/m1/用户管理需求.md` §三 定的规则是
         「未登录 `/api/v1/*` 一律 401（健康检查与登录除外）」，logout 不在例外名单里；
         部署验收也写着「未登录请求 `/api/v1/*` 均返回 401，**逐个验证**」。
         做成幂等的 204 会让这条规则出现一个说不清的例外，而例外是审计时的盲区。

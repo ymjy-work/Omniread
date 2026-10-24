@@ -44,7 +44,7 @@ class GenerationEvalResult:
     records: tuple[GenerationScoreRecord, ...]
     summary: dict[str, object]
     failures: tuple[dict[str, object], ...]
-    #: 逐题回答原文，**只给复核件用**（回答原文只落 `temp/`）。
+    #: 逐题回答原文，**只给复核件用**（回答原文只落 `.agent/temp/`）。
     #: 它不进任何逐题记录——`GenerationScoreRecord` 里没有放正文的位置是有意的。
     #: 人工抽检与「标记没被认出来」的排查都要看它，所以留着；写盘由调用方决定。
     outcomes: tuple[AnswerOutcome, ...] = ()

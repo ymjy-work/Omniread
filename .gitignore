@@ -1,9 +1,9 @@
 # 本地保留，不入库（M0-00 §6）
-# docs/ 与 CLAUDE.md 是人机交互与工作约定文件，temp/ 是一次性脚本与临时验证。
-# 三者都保留在本地，不进 git。
-docs/
+# `.agent/` 是 agent 工作区（docs / plan / temp / human 四个子目录）。
+# `CLAUDE.md` 与 `.claude/` 是**本地开发工具文件**，不是项目文件——工具怎么配置、
+# agent 怎么干活，与代码本身无关，不随仓库分发。
+.agent/
 CLAUDE.md
-temp/
 .claude
 
 # 语料：整本原文不得进入 git（M0-00 §6）

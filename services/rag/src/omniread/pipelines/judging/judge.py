@@ -57,7 +57,7 @@ class JudgeVerdict:
     """一次裁判的判定。
 
     `raw` 是模型原样输出，**只给复核件用**：它是自由文本，会逐字引用材料，
-    因此只能落 `temp/`，绝不能进 `eval/runs`。
+    因此只能落 `.agent/temp/`，绝不能进 `eval/runs`。
     """
 
     verdict: str

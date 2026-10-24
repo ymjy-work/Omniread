@@ -22,7 +22,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="$ROOT/temp/gateway-e2e"
+RUN_DIR="$ROOT/.agent/temp/gateway-e2e"
 IMAGES_ROOT="$RUN_DIR/images"
 JAR="$ROOT/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar"
 RAG_PY_DIR="$ROOT/services/rag"
@@ -117,7 +117,7 @@ port_busy 8080 && die "端口 8080 已被占用；先 bash scripts/dev-down.sh �
 
 # PG 用 TCP 探测而不是 netstat：迁到 RDS 后主机可能是隧道或远端，netstat 看不到。
 if ! (echo > "/dev/tcp/$PG_HOST/$PG_PORT") 2>/dev/null; then
-  die "PostgreSQL $PG_HOST:$PG_PORT 不可达；本机开发先起 docker 的 PG，或用 temp/rds-tunnel.py 起隧道"
+  die "PostgreSQL $PG_HOST:$PG_PORT 不可达；本机开发先起 docker 的 PG，或用 .agent/temp/rds-tunnel.py 起隧道"
 fi
 
 mkdir -p "$RUN_DIR/logs" "$IMAGES_ROOT/books/1/images/01_第1卷"

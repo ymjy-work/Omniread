@@ -7,7 +7,7 @@
 # 用法：
 #   bash scripts/dev-up.sh                  起 infra + Python + Java
 #   bash scripts/dev-up.sh --no-infra       复用已经在跑的 infra
-#   bash scripts/dev-up.sh --local-images   Python 用本地图片目录（temp/images），不连 MinIO
+#   bash scripts/dev-up.sh --local-images   Python 用本地图片目录（.agent/temp/images），不连 MinIO
 #   bash scripts/dev-up.sh --fake-providers 联调：回答/检索改用假 provider，不调用 GLM/百炼
 #   bash scripts/dev-up.sh --web            额外起前端 dev server
 #   bash scripts/dev-up.sh --force          端口被占时先结束占用进程再起
@@ -28,7 +28,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="$ROOT/temp/run"
+RUN_DIR="$ROOT/.agent/temp/run"
 JAR="$ROOT/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar"
 RAG_PY="$ROOT/services/rag/.venv/Scripts/python.exe"
 COMPOSE_FILE="$ROOT/infra/docker/docker-compose.yml"
@@ -165,7 +165,7 @@ wait_http() { # label url timeout_seconds
   return 1
 }
 
-# 后台起进程：日志写 temp/run/<name>.log，PID 写 temp/run/<name>.pid。
+# 后台起进程：日志写 .agent/temp/run/<name>.log，PID 写 .agent/temp/run/<name>.pid。
 # 用 ( cd ... && exec env ... ) 让记录到的 PID 就是服务本身，便于 dev-down 收尾。
 spawn() { # name cwd logfile pidfile cmd...
   local name="$1" cwd="$2" logfile="$3" pidfile="$4"; shift 4
@@ -228,9 +228,9 @@ RAG_ENV=(
   PYTHONIOENCODING=utf-8
 )
 if [ "$LOCAL_IMAGES" -eq 1 ]; then
-  # 本地图片目录：不读对象存储凭据，目录固定放在被 git 忽略的 temp/ 下
-  RAG_ENV+=(OMNIREAD_IMAGE_STORAGE_BACKEND=local "OMNIREAD_IMAGE_LOCAL_ROOT=$ROOT/temp/images")
-  log "Python 图片后端=local（$ROOT/temp/images），不连对象存储"
+  # 本地图片目录：不读对象存储凭据，目录固定放在被 git 忽略的 .agent/temp/ 下
+  RAG_ENV+=(OMNIREAD_IMAGE_STORAGE_BACKEND=local "OMNIREAD_IMAGE_LOCAL_ROOT=$ROOT/.agent/temp/images")
+  log "Python 图片后端=local（$ROOT/.agent/temp/images），不连对象存储"
 elif [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
   # AWS 凭据用 AWS 自己的名字（AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
   # AWS_DEFAULT_REGION / S3_BUCKET_NAME），映射到应用侧通用名只在这里做一次。
@@ -306,7 +306,7 @@ if [ "$START_INFRA" -eq 0 ] && [ "$LOCAL_IMAGES" -eq 1 ] && [ -z "${POSTGRES_PAS
 fi
 cat <<EOF
 
-日志在 temp/run/ 下；停止用 bash scripts/dev-down.sh。
+日志在 .agent/temp/run/ 下；停止用 bash scripts/dev-down.sh。
 注意：dev-up 不导入语料。库为空时 GET /api/v1/books 返回空列表，导入用
       bash scripts/import-corpus.sh（幂等，整批替换）。
       真实 provider 调用需要凭据（keymgr profile 注入）；联调加 --fake-providers，

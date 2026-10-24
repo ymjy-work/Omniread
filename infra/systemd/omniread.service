@@ -9,7 +9,7 @@
 # 开机自启，也不保证 `docker compose up` 被重新执行 —— 主机一重启，整站不会自己回来。
 #
 # **构建不放进 unit**：`docker compose build` 要几分钟（Maven + npm），放进 ExecStart
-# 会把开机拖住，而且构建失败会让整机起不来。构建手动做，见 docs/部署手册.md。
+# 会把开机拖住，而且构建失败会让整机起不来。构建手动做，见 .agent/docs/部署手册.md。
 
 [Unit]
 Description=Omniread 应用栈（Java 网关 + Python RAG）
