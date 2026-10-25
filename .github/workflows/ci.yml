@@ -31,6 +31,9 @@ jobs:
       # GitHub 会把它们强制提到 Node 24 并给出弃用告警。输入项在新版里没变，
       # 这里用到的 distribution / java-version / cache / node-version / enable-cache
       # 一个都没删。
+      #
+      # setup-uv 钉 v7 而不是最新版：它的浮动主版本标签只推到 v7（v8–v10 只有精确
+      # tag，`@v10` 解析不到，写上去整个 job 在 Set up job 阶段就失败）。v7 已经是 node24。
       - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v6
@@ -45,7 +48,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: services/rag/uv.lock
