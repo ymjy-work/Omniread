@@ -26,14 +26,20 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 # eMudhra 的根证书已从 Mozilla / Debian 的信任库里移除（其下属中间 CA 私钥泄露），
-# 而 temurin 镜像自带的 cacerts 还没跟上。按 `keytool -list` 的结果匹配并删除，
-# 不写死别名——JDK 换版本时别名会变，写死会静默失效。
+# 而 temurin 镜像自带的 cacerts 还没跟上——实测仍有 4 条，同镜像的 Debian 信任库是 0 条。
 # 本服务没有出站 HTTPS（唯一下游是 http://rag:8000），删掉不影响任何调用；
 # 留着只会让人以为它在校验一张已经不该被信任的证书。
-RUN for a in $(keytool -list -cacerts -storepass changeit 2>/dev/null \
-      | grep -i emudhra | cut -d, -f1); do \
-      keytool -delete -cacerts -storepass changeit -alias "$a" || exit 1; \
-    done
+#
+# 别名要从 `-v` 的 `Alias name:` 取，不能拿 `-list` 的第一列按逗号切：
+# temurin 的 cacerts 用 DN 当别名，别名本身就含逗号
+# （`cn_emsign_root_ca__c1,o_emudhra_inc,ou_emsign_pki,c_us [jdk]`），切了就删不到。
+# grep 没命中时用 `|| true` 兜住：将来 JDK 自己清干净了，这一步应当直接通过。
+RUN keytool -list -v -cacerts -storepass changeit 2>/dev/null \
+      | sed -n 's/^Alias name: //p' \
+      | (grep -i emudhra || true) \
+      | while IFS= read -r a; do \
+          keytool -delete -cacerts -storepass changeit -alias "$a" || exit 1; \
+        done
 
 COPY --from=build /workspace/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar app.jar
 COPY --from=web /workspace/web/dist ./web/dist
