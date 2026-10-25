@@ -24,6 +24,17 @@ RUN mvn -q -f services/backend/pom.xml -DskipTests package
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
+
+# eMudhra 的根证书已从 Mozilla / Debian 的信任库里移除（其下属中间 CA 私钥泄露），
+# 而 temurin 镜像自带的 cacerts 还没跟上。按 `keytool -list` 的结果匹配并删除，
+# 不写死别名——JDK 换版本时别名会变，写死会静默失效。
+# 本服务没有出站 HTTPS（唯一下游是 http://rag:8000），删掉不影响任何调用；
+# 留着只会让人以为它在校验一张已经不该被信任的证书。
+RUN for a in $(keytool -list -cacerts -storepass changeit 2>/dev/null \
+      | grep -i emudhra | cut -d, -f1); do \
+      keytool -delete -cacerts -storepass changeit -alias "$a" || exit 1; \
+    done
+
 COPY --from=build /workspace/services/backend/target/omniread-backend-0.1.0-SNAPSHOT.jar app.jar
 COPY --from=web /workspace/web/dist ./web/dist
 
