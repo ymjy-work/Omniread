@@ -1,0 +1,30 @@
+{
+  "book_id": 1,
+  "difficulty": "medium",
+  "expect_refusal": false,
+  "id": "alias-007",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:110",
+        "content": "决赛胜利者：「小魔女」有希（保有三个点心夺冠）。"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:115",
+        "content": "『各位初次见面。我是担任本届新生总代表的周防有希。』"
+      }
+    ]
+  ],
+  "progress": 115,
+  "question": "在学生会举办的「不给糖就捣蛋」游戏中，白板对战表上被写成别名「小魔女」的那名女生，正式全名（姓氏＋名字）是什么？她在这场游戏中最终取得怎样的成绩？",
+  "reference_answer": "在学生会举办的「不给糖就捣蛋」游戏中，白板对战表上被写成别名「小魔女」的那名女生，正式全名是周防有希。她在这场游戏中保有三个点心，夺得最终冠军。",
+  "reference_points": [
+    "白板对战表上被写成别名「小魔女」的女生，正式全名是周防有希。",
+    "她在这场「不给糖就捣蛋」游戏中保有三个点心，夺得最终冠军。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "alias"
+}

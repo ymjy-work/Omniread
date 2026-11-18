@@ -1,0 +1,30 @@
+{
+  "book_id": 1,
+  "difficulty": "medium",
+  "expect_refusal": false,
+  "id": "alias-011",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:125",
+        "content": "刚才自称「Fox」的男学生看向沙也加，咧嘴一笑这么说：\n\n「这样姑且算是完成任务了吗？Noir。」"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:125",
+        "content": "若问前来的人是谁，正是一年级风纪委员的希望──谷山沙也加。"
+      }
+    ]
+  ],
+  "progress": 125,
+  "question": "风纪委员会出动处理可疑物品时，一名自称「Fox」的男学生用无线电代号把前来支援的一名女学生称为「Noir」。这位「Noir」的正式全名是什么？她当时是几年级的风纪委员？",
+  "reference_answer": "「Noir」指的是一年级风纪委员谷山沙也加。自称「Fox」的男学生在风纪委员会室看向前来支援的沙也加，咧嘴用「Noir」这个代号称呼她；她是被称作「一年级风纪委员的希望」的一年级风纪委员。",
+  "reference_points": [
+    "以「Noir」为无线电代号被称呼的女学生，正式全名是谷山沙也加。",
+    "她是一年级的风纪委员，被称作「一年级风纪委员的希望」。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "alias"
+}

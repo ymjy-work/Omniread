@@ -1,0 +1,55 @@
+{
+  "book_id": 1,
+  "difficulty": "easy",
+  "expect_refusal": false,
+  "id": "fact-006",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "「那个，叫做『Fortitude』……怎么样？」"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "两人赞同之后，气氛一下子变成要采用艾莉莎的提案。"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "结果，乐团名称决定为「Fortitude」。"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "「要说『毅力』也确实没错……不过真要说的话，应该是『不屈』的意思。」"
+      },
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "「如同日本人以谦虚的精神为美德……在俄罗斯会将不屈的精神视为美德。无论哪种困境都不屈不挠忍耐到底的精神……或许是环境严苛的俄罗斯特有的价值观吧？」"
+      },
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "「咦？『Несгибаемые』。」"
+      },
+      {
+        "chapter_id": "book:1:chapter:67",
+        "content": "「是『毅力』的意思。」"
+      }
+    ]
+  ],
+  "progress": 73,
+  "question": "在第五卷中，乐团最后决定采用的名称是什么？由谁提案？这个名称的含义与对应的俄语是什么？",
+  "reference_answer": "乐团最后采用的名称是「Fortitude」，由艾莉莎提案。她说明这个词的意思是「不屈」——在俄罗斯，无论何种困境都不屈不挠忍耐到底的精神被视为美德；这个词的俄语是『Несгибаемые』。",
+  "reference_points": [
+    "乐团名称定为「Fortitude」，由艾莉莎提案。",
+    "含义是「不屈」（沙也加也点出它确有「毅力」之意）。",
+    "艾莉莎说明：俄罗斯会将不屈的精神视为美德，该词的俄语是『Несгибаемые』。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "fact"
+}

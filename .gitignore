@@ -1,0 +1,33 @@
+# agent 工作区
+.agent/
+
+# 环境与凭据
+.env
+.env.*
+!.env.example
+
+# agent 工具配置
+.claude/
+*.local.json
+
+# 本地 SQLite 数据
+*.db
+*.db-wal
+*.db-shm
+
+# 语料：整本原文不以明文入库（数据库与 golden 不在此限）
+《不时轻声地以俄语遮羞的邻座艾莉同学》/全文.txt
+《不时轻声地以俄语遮羞的邻座艾莉同学》/index.jsonl
+《不时轻声地以俄语遮羞的邻座艾莉同学》/chapters/
+《不时轻声地以俄语遮羞的邻座艾莉同学》/temp/
+
+# 构建与运行产物
+node_modules/
+dist/
+target/
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+logs/
+var/*.db

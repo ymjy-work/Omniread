@@ -1,0 +1,24 @@
+{
+  "book_id": 1,
+  "difficulty": "easy",
+  "expect_refusal": false,
+  "id": "fact-014",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:178",
+        "content": "顺带一提，也带有固有技能。名为《身为从者应当像空气一样》。其效果为「全神贯注的时候可以变成空气」这种轻飘飘的东西。"
+      }
+    ]
+  ],
+  "progress": 178,
+  "question": "在魔兽屋（骑兽店）遇到的犬人族少女绫乃，她的固有技能叫什么？效果是什么？",
+  "reference_answer": "绫乃带有固有技能《身为从者应当像空气一样》，其效果为「全神贯注的时候可以变成空气」。",
+  "reference_points": [
+    "绫乃的固有技能名为《身为从者应当像空气一样》",
+    "效果是「全神贯注的时候可以变成空气」"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "fact"
+}

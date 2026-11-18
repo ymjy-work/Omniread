@@ -1,0 +1,41 @@
+{
+  "book_id": 1,
+  "difficulty": "easy",
+  "expect_refusal": false,
+  "id": "fact-008",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:98",
+        "content": "〔别人的女友〕。"
+      },
+      {
+        "chapter_id": "book:1:chapter:98",
+        "content": "不只如此，角落还以小字附上「※有男友的女性（已婚除外）」这句注解。"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:98",
+        "content": "「玛夏小姐！麻烦你了！」"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:98",
+        "content": "「我要用背的。玛夏小姐，请上来吧。」"
+      }
+    ]
+  ],
+  "progress": 98,
+  "question": "运动会借物赛跑时，政近抽到的题目纸上写的是什么？他最后向谁借、又用什么方式把人带到终点？",
+  "reference_answer": "政近抽到的题目是〔别人的女友〕（注解为「※有男友的女性（已婚除外）」）。他跑去向玛利亚求助，最后放弃公主抱、改成蹲下让对方趴到背上，用背的方式把人带过终点，拿下第三名。",
+  "reference_points": [
+    "题目纸写的是〔别人的女友〕，角落还有小字注解「※有男友的女性（已婚除外）」",
+    "他最后向玛利亚借，喊出「玛夏小姐！麻烦你了！」",
+    "他没用公主抱，而是蹲下用背的把人带到终点"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "fact"
+}

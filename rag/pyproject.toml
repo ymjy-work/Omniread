@@ -1,0 +1,30 @@
+[project]
+name = "omniread-rag"
+version = "0.1.0"
+description = "Omniread RAG service"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "langchain",
+  "langchain-openai",
+  "langchain-text-splitters",
+  "numpy",
+  "httpx",
+  "pydantic-settings",
+]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-asyncio",
+  "ruff",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"

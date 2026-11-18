@@ -1,0 +1,28 @@
+{
+  "book_id": 1,
+  "difficulty": "medium",
+  "expect_refusal": false,
+  "id": "boundary-004",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:44",
+        "content": "「Ты Красивая.（你好美）」"
+      },
+      {
+        "chapter_id": "book:1:chapter:44",
+        "content": "这句呢喃被震撼夜空的响亮声音消除。政近偷看艾莉莎的脸，确认自己的俄语没传入她耳中，伴随着害羞的心情看向前方。"
+      }
+    ]
+  ],
+  "progress": 44,
+  "question": "在集训最后一天的神社祭典上，政近在烟火声中用俄语对艾莉莎说了什么？",
+  "reference_answer": "政近在烟火升空绽放时，用俄语轻声说了「Ты Красивая.（你好美）」。这句呢喃被震撼夜空的响亮声音消除，他偷看艾莉莎的脸，确认自己的俄语没有传入她耳中。",
+  "reference_points": [
+    "政近说的是「Ты Красивая」，意思是「你好美」。",
+    "因为烟火震撼夜空的声响太大，这句呢喃被盖过，艾莉莎并没有听见。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "boundary"
+}

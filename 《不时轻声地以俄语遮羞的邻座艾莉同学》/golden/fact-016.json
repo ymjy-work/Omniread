@@ -1,0 +1,41 @@
+{
+  "book_id": 1,
+  "difficulty": "medium",
+  "expect_refusal": false,
+  "id": "fact-016",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:159",
+        "content": "然后，首先显示政近自己的题目……显示在手机上的是「35」这个数字。"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:159",
+        "content": "「记得Socks文库创刊至今也差不多这么久吧。」"
+      },
+      {
+        "chapter_id": "book:1:chapter:159",
+        "content": "「话说回来，我在某个广告看过……Socks文库？记得今年不是35周年吗？」"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:159",
+        "content": "其他五人的手指一齐朝向这里，政近露出苦笑。确认结果，少数派果然是政近。确定由多数派获胜，政近以外的五人相互击掌。"
+      }
+    ]
+  ],
+  "progress": 159,
+  "question": "在文本狼人杀中，政近拿到的题目是什么？他又是怎么暴露自己是少数派的？",
+  "reference_answer": "政近拿到的题目是数字「35」。他为了向沙也加暗示自己是多数派，说「记得Socks文库创刊至今也差不多这么久了」（Socks文库今年迎来35周年），却被沙也加反过来指出「Socks文库？记得今年不是35周年吗」，于是被其余五人一致指认为少数派。",
+  "reference_points": [
+    "政近拿到的题目是数字「35」。",
+    "他为了向沙也加暗示自己是多数派，抛出「记得Socks文库创刊至今也差不多这么久了」，因为Socks文库今年迎来35周年。",
+    "沙也加反过来指出「Socks文库今年不是35周年吗」，政近因此被其余五人一致指认为少数派。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "fact"
+}

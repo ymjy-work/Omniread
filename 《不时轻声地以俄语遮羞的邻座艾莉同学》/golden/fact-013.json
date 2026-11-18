@@ -1,0 +1,33 @@
+{
+  "book_id": 1,
+  "difficulty": "easy",
+  "expect_refusal": false,
+  "id": "fact-013",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:170",
+        "content": "「……办不到。」"
+      },
+      {
+        "chapter_id": "book:1:chapter:170",
+        "content": "「应该是，后者……单纯是门不当户不对吧。」"
+      },
+      {
+        "chapter_id": "book:1:chapter:170",
+        "content": "「没什么讨厌不讨厌……我甚至没想过这种事。」"
+      }
+    ]
+  ],
+  "progress": 170,
+  "question": "在学生会室的爆料大会上，毅（丸山毅）当众向沙也加表白。沙也加当场给出的答复是什么？她拒绝（或说无法接受）的理由是什么？",
+  "reference_answer": "面对毅突如其来的公开表白，沙也加当场给出的答复是「办不到」。当政近追问是心理、生理层面的办不到，还是家里原因造成的办不到时，她答说是后者，单纯是「门不当户不对」。她并非讨厌毅，甚至没想过这种事，因此严格来说可能性并不是零。",
+  "reference_points": [
+    "沙也加给的答复是「办不到」。",
+    "她的理由不是讨厌毅，而是「门不当户不对」这种无可奈何的家世原因。",
+    "她也表示没想过这种事、并没有讨厌毅，所以可能性不是零。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "fact"
+}

@@ -1,0 +1,30 @@
+{
+  "book_id": 1,
+  "difficulty": "medium",
+  "expect_refusal": false,
+  "id": "boundary-008",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:100",
+        "content": "「除了担任骑手的加地学长与浅间学姐，另外八人恐怕都是运动社团的王牌级社员……简直是『我心目中的最强队伍』。」"
+      }
+    ],
+    [
+      {
+        "chapter_id": "book:1:chapter:100",
+        "content": "对于沙也加与堇来说，加地泰贵与浅间雾香是国中部时代尊为正副会长的人物。"
+      }
+    ]
+  ],
+  "progress": 100,
+  "question": "出马战中，有希的「周防君嶋组」除了担任大将骑骑手的有希本人，另外还请到哪两名骑手？这两人对沙也加与堇来说是什么来历？",
+  "reference_answer": "有希队除有希本人之外的两名骑手是加地泰贵与浅间雾香。对沙也加与堇来说，这两人是国中部时代她们尊为正副会长的人物。",
+  "reference_points": [
+    "除有希本人之外，有希队的两名骑手是加地泰贵与浅间雾香",
+    "对沙也加与堇而言，这两人是国中部时代她们尊为正副会长的人物"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "boundary"
+}

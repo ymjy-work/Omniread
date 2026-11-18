@@ -1,0 +1,24 @@
+{
+  "book_id": 1,
+  "difficulty": "medium",
+  "expect_refusal": false,
+  "id": "alias-015",
+  "level": "past",
+  "must_cite_groups": [
+    [
+      {
+        "chapter_id": "book:1:chapter:184",
+        "content": "正好在这个时候，该名女学生志久间川雅，正在四下无人的校舍某房间和乃乃亚面对面。"
+      }
+    ]
+  ],
+  "progress": 186,
+  "question": "政近私下称作「开衩大姐大」的那名女学生，在学生议会的作票阴谋不了了之之后，正在哪里、和谁单独面对面？",
+  "reference_answer": "政近私下称作「开衩大姐大」的女学生是志久间川雅。学生议会的作票阴谋不了了之之后，她正和宫前乃乃亚两人单独在四下无人的校舍某房间面对面。",
+  "reference_points": [
+    "她当时正在校舍内一个四下无人的房间（原文表述为「校舍某房间」）。",
+    "和她单独面对面的人是宫前乃乃亚。"
+  ],
+  "schema_version": "m0.1.0",
+  "type": "alias"
+}
