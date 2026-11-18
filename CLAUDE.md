@@ -120,6 +120,8 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
 - `gateway/`：Claude Code + DeepSeek。
 - `rag/`：Codex + DeepSeek 写代码；系统提示与引用/拒答提示词由 Qwen4Max 子代理撰写。
 - `web/`：Codex + Qwen4Max。
+- Codex 会话复用：同一大阶段内用 `codex resume --last` 或指定 session 继续，不要每个任务新开会话；
+  一个大阶段结束后再换会话。
 
 ## 红线
 
