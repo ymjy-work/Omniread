@@ -1,10 +1,12 @@
-import { http } from './request'
+import { request } from './request'
 import type { ReadingProgress } from '../types/api'
 
+export type ProgressPayload = Pick<ReadingProgress, 'chapterIndex' | 'scrollRatio'>
+
 export function getProgress(bookId: number) {
-  return http.get<ReadingProgress>(`/books/${bookId}/progress`)
+  return request<ReadingProgress>({ url: `/books/${bookId}/progress`, method: 'get' })
 }
 
-export function saveProgress(bookId: number, progress: ReadingProgress) {
-  return http.put<void>(`/books/${bookId}/progress`, progress)
+export function saveProgress(bookId: number, progress: ProgressPayload) {
+  return request<void>({ url: `/books/${bookId}/progress`, method: 'put', data: progress })
 }

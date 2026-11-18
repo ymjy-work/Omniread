@@ -1,12 +1,42 @@
-import { ref } from 'vue'
-import type { ChatLevel } from '../types/chat'
+import { computed, ref, unref } from 'vue'
+import type { Ref } from 'vue'
+import { useReaderStore } from '../stores/reader'
 
-export function useChat() {
-  const asking = ref(false)
+type BookIdSource = number | Ref<number> | (() => number)
 
-  async function send(_question: string, _level: ChatLevel) {
-    // 接入 chat store 与 gateway 接口后补全
+export function useChat(bookId: BookIdSource) {
+  const reader = useReaderStore()
+  const question = ref('')
+  const sending = computed(() => reader.asking)
+  const error = computed(() => reader.chatError)
+
+  function resolveBookId() {
+    return typeof bookId === 'function' ? bookId() : unref(bookId)
   }
 
-  return { asking, send }
+  async function prepare() {
+    const id = resolveBookId()
+    if (!Number.isFinite(id)) return
+    try {
+      await reader.ensureSession(id)
+    } catch {
+      // 错误已写入 reader store
+    }
+  }
+
+  async function send() {
+    const text = question.value.trim()
+    if (!text || reader.asking) return
+    const id = resolveBookId()
+    if (!Number.isFinite(id)) return
+    question.value = ''
+    try {
+      await reader.ensureSession(id)
+      await reader.ask(text)
+    } catch {
+      // 错误已写入 reader store
+    }
+  }
+
+  return { question, sending, error, prepare, send }
 }

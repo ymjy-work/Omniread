@@ -12,6 +12,15 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   citations?: Citation[]
+  createdAt?: string
+}
+
+export interface ChatSession {
+  id: number
+  bookId: number
+  title?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface AskRequest {

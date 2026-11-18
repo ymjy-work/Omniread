@@ -24,7 +24,9 @@ export interface Book {
   id: number
   title: string
   author?: string
-  coverUrl?: string
+  coverUrl?: string | null
+  description?: string
+  chapterCount?: number
 }
 
 export interface ChapterSummary {
@@ -42,4 +44,5 @@ export interface ReadingProgress {
   bookId: number
   chapterIndex: number
   scrollRatio: number
+  updatedAt?: string
 }
