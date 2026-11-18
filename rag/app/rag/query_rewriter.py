@@ -13,7 +13,16 @@ from app.schemas import HistoryMessage
 
 logger = logging.getLogger(__name__)
 
-QUERY_REWRITE_PLACEHOLDER = "[QUERY_REWRITE_PROMPT_PLACEHOLDER]"
+QUERY_REWRITE_PLACEHOLDER = (
+    "你是检索查询改写器。请结合对话历史，把用户的最新问题改写成一条独立、完整、便于检索的查询，"
+    "用于在小说原文中查找相关段落。\n\n"
+    "要求：\n"
+    "1. 补全历史中的指代：把「他」「她」「那个人」「那里」等替换为对话中明确的人名、昵称或对象；"
+    "保留原问题中出现的人名、昵称、地名和关键情节词，不要改成同义说法。\n"
+    "2. 保持原问题的意图与范围，只补充理解问题所必需的历史信息，不添加历史中不存在的内容。\n"
+    "3. 不要回答问题，不要解释，不要输出思考过程、引号、编号或任何前缀。\n"
+    "4. 只输出改写后的查询本身，一行即可；如果原问题已经独立完整，就原样输出。"
+)
 
 
 def _content_to_text(content: Any) -> str:
