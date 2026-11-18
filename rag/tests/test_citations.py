@@ -8,11 +8,12 @@ def make_chunk(
     chunk_id: int,
     chapter_index: int,
     text: str,
+    chapter_id: str | None = None,
 ) -> Chunk:
     return Chunk(
         id=chunk_id,
         book_id=1,
-        chapter_id=f"book:1:chapter:{chapter_index}",
+        chapter_id=chapter_id or f"book:1:chapter:{chapter_index}",
         chapter_index=chapter_index,
         title=f"第{chapter_index}章",
         text=text,
@@ -26,6 +27,23 @@ def test_valid_citations_use_chunk_quote_and_strip_markers() -> None:
 
     assert "[[chunk:" not in result.answer
     assert [item.chapter_index for item in result.citations] == [2, 3]
+    assert [item.quote for item in result.citations] == ["证据甲", "证据乙"]
+
+
+def test_citations_dedupe_by_chapter_keeping_first_chunk_quote() -> None:
+    chunks = [
+        make_chunk(1, 2, "证据甲"),
+        make_chunk(2, 2, "证据甲后段"),
+        make_chunk(3, 3, "证据乙"),
+    ]
+    result = validate_citations(
+        "答案。[[chunk:1]][[chunk:2]][[chunk:3]]", chunks
+    )
+
+    assert [item.chapter_id for item in result.citations] == [
+        "book:1:chapter:2",
+        "book:1:chapter:3",
+    ]
     assert [item.quote for item in result.citations] == ["证据甲", "证据乙"]
 
 

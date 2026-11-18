@@ -43,6 +43,7 @@ class Generator:
                 model=settings.chat_model,
                 temperature=0.2,
                 max_tokens=1024,
+                extra_body={"enable_thinking": False},
             )
         return self._model
 

@@ -53,6 +53,7 @@ class QueryRewriter:
                 api_key=settings.bailian_api_key,
                 model=settings.chat_model,
                 temperature=0,
+                extra_body={"enable_thinking": False},
             )
         return self._model
 

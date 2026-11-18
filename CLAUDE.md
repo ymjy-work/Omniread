@@ -4,9 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 本目录现状
 
-三端骨架已就位：`web/`、`gateway/`、`rag/`。当前只有目录、配置模板与占位文件，业务实现尚未编写。
+三端已实现并跑通联调：`web/`（Vue 3）、`gateway/`（Spring Boot + SQLite）、`rag/`（FastAPI + LangChain）。
 架构与契约见 `.agent/docs/Omniread架构.md`，语料资产库在 `《不时轻声地以俄语遮羞的邻座艾莉同学》/`。
-本目录不是 git 仓库。
+本目录是 git 仓库，按阶段提交。
+
+联调状态：193 章已导入并索引（2703 chunks）；`past` 越界问题拒答、`full` 正常回答并带按章去重引用；
+fact-001 回答「化学参考书」且引用第 2 章。gateway 20 项测试、rag 25 项测试通过，web build 通过。
 
 ## 目录结构
 
@@ -137,5 +140,9 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
 - 含中文的路径在 shell 里偶发 `cd` 失败；优先从当前目录用相对路径 + 引号调用。
 - Spring Boot 父版本写 `4.1.2`，不要带 `.RELEASE`（Maven Central 只有 `4.1.2`）；MyBatis starter 用 `4.1.0`。
 - `web/` 用 TypeScript 6.0.3 + vue-tsc 3.3.14，`npm run build` 已通过，不要按旧经验降回 5.x。
-- 骨架已通过 `mvnw -DskipTests compile`、`npm run build`、`uv run pytest`（2 项）。
+- 百炼 `qwen3.7-text-embedding` 单请求最多 20 条；`OpenAIEmbeddings` 必须设
+  `check_embedding_ctx_length=False`，否则会发 token 数组被兼容端点拒绝。
+- `qwen3.7-plus` 默认思考模式会把 completion tokens 吃光、`content` 为空；`ChatOpenAI` 必须加
+  `extra_body={"enable_thinking": False}`。
+- gateway 的 `HttpClient` 固定 `HTTP_1_1`，不要用默认 HTTP/2 打 uvicorn（h2c upgrade 会 400）。
 - 语料目录的 `docs/` 是人机交付物，`temp/` 是一次性脚本与探针，两者都不属于产品代码，勿清理。

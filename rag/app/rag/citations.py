@@ -45,15 +45,20 @@ def validate_citations(
     if not valid_ids or not cleaned_answer:
         return refusal()
 
-    return CitationResult(
-        answer=cleaned_answer,
-        citations=[
+    citations: list[Citation] = []
+    seen_chapters: set[str] = set()
+    for chunk_id in valid_ids:
+        chunk = whitelist[chunk_id]
+        if chunk.chapter_id in seen_chapters:
+            continue
+        seen_chapters.add(chunk.chapter_id)
+        citations.append(
             Citation(
-                chapter_id=whitelist[chunk_id].chapter_id,
-                chapter_index=whitelist[chunk_id].chapter_index,
-                title=whitelist[chunk_id].title,
-                quote=whitelist[chunk_id].text,
+                chapter_id=chunk.chapter_id,
+                chapter_index=chunk.chapter_index,
+                title=chunk.title,
+                quote=chunk.text,
             )
-            for chunk_id in valid_ids
-        ],
-    )
+        )
+
+    return CitationResult(answer=cleaned_answer, citations=citations)
