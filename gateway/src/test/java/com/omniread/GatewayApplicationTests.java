@@ -1,10 +1,9 @@
 package com.omniread;
 
+import com.omniread.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class GatewayApplicationTests {
+class GatewayApplicationTests extends IntegrationTestBase {
 
 	@Test
 	void contextLoads() {

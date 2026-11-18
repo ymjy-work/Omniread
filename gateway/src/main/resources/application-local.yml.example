@@ -1,0 +1,6 @@
+omniread:
+  admin:
+    username: ""
+    password: ""
+  jwt:
+    secret: ""

@@ -1,9 +1,17 @@
 spring:
+  config:
+    import: optional:classpath:application-local.yml
   application:
     name: gateway
   datasource:
     url: jdbc:sqlite:${OMNIREAD_GATEWAY_DB:./var/gateway.db}
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite 单写者，串行化连接避免 SQLITE_BUSY
+      maximum-pool-size: 1
+  sql:
+    init:
+      mode: always
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -13,3 +21,10 @@ mybatis:
 server:
   address: 127.0.0.1
   port: 8080
+
+omniread:
+  rag:
+    base-url: http://127.0.0.1:8000
+    connect-timeout: 5s
+    ask-timeout: 120s
+    index-timeout: 600s

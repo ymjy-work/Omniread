@@ -15,6 +15,9 @@
 *.db-wal
 *.db-shm
 
+# 本地密钥
+gateway/src/main/resources/application-local.yml
+
 # 语料：整本原文不以明文入库（数据库与 golden 不在此限）
 《不时轻声地以俄语遮羞的邻座艾莉同学》/全文.txt
 《不时轻声地以俄语遮羞的邻座艾莉同学》/index.jsonl
