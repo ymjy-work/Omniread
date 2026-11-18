@@ -19,7 +19,7 @@ class Embedder:
         self,
         client: Any | None = None,
         *,
-        batch_size: int = 64,
+        batch_size: int = 20,
         max_attempts: int = 3,
         retry_base_seconds: float = 1.0,
     ) -> None:
@@ -41,6 +41,7 @@ class Embedder:
                 dimensions=settings.embedding_dim,
                 chunk_size=self._batch_size,
                 max_retries=0,
+                check_embedding_ctx_length=False,
             )
         return self._client
 

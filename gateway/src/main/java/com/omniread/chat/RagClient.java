@@ -35,6 +35,8 @@ public class RagClient {
 	public RagClient(AiProperties properties) {
 		this.properties = properties;
 		this.httpClient = HttpClient.newBuilder()
+				// uvicorn 明文端点不支持 h2c upgrade，固定 HTTP/1.1
+				.version(HttpClient.Version.HTTP_1_1)
 				.connectTimeout(properties.getConnectTimeout())
 				.build();
 	}
