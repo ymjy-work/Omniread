@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import FastAPI
 
 from app.api import documents, health, rag
+from app.middleware.error_handler import install_error_handlers
 from app.rag.pipeline import RagPipeline
 
 
@@ -21,6 +22,7 @@ def create_app(pipeline: Any | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.pipeline = pipeline
+    install_error_handlers(application)
     application.include_router(health.router)
     application.include_router(documents.router)
     application.include_router(rag.router)

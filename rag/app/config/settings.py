@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     rag_db: str = "./var/rag.db"
     host: str = "127.0.0.1"
     port: int = 8000
+    channels_file: str = "./channels.json"
 
 
 settings = Settings()

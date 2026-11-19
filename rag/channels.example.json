@@ -1,0 +1,9 @@
+[
+  {
+    "provider": "siliconflow",
+    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "api_key": "",
+    "priority": 10,
+    "enabled": true
+  }
+]
