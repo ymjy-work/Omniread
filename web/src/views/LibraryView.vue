@@ -1,22 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAccountStore } from '../stores/account'
-import { useAuthStore } from '../stores/auth'
+import UserTopbar from '../components/UserTopbar.vue'
 import { useBookStore } from '../stores/book'
-import { formatCredits, planLabel } from '../utils/billing'
 import type { Book } from '../types/api'
 
-const auth = useAuthStore()
-const account = useAccountStore()
 const bookStore = useBookStore()
-const router = useRouter()
 
 const books = computed(() => bookStore.books)
 
 onMounted(() => {
   void bookStore.fetchBooks()
-  void account.fetchAccount()
 })
 
 function coverTone(index: number) {
@@ -26,42 +19,18 @@ function coverTone(index: number) {
 function initial(book: Book) {
   return book.title.trim().charAt(0) || '书'
 }
-
-async function handleLogout() {
-  await auth.logout()
-  await router.replace({ name: 'login' })
-}
 </script>
 
 <template>
   <div class="library-page">
-    <header class="topbar">
-      <RouterLink class="brand" to="/">
-        <span class="brand-mark">阅</span>
-        <span class="brand-name">Omniread</span>
-      </RouterLink>
-
-      <nav class="topbar-actions">
-        <span
-          v-if="account.account"
-          class="quota-chip"
-          :title="`${planLabel(account.plan)} · 剩余积分`"
-        >
-          {{ planLabel(account.plan) }} · {{ formatCredits(account.credits) }} 积分
-        </span>
-        <RouterLink v-if="account.isAdmin" class="btn btn-ghost" to="/admin">管理</RouterLink>
-        <RouterLink class="btn btn-ghost" to="/settings">设置</RouterLink>
-        <span class="user-chip" :title="auth.user?.username || '读者'">{{ auth.displayName }}</span>
-        <button class="btn btn-ghost" type="button" @click="handleLogout">退出</button>
-      </nav>
-    </header>
+    <UserTopbar active="library" />
 
     <main class="library-main">
       <section class="hero">
         <div>
           <p class="eyebrow">LIBRARY</p>
           <h1>我的书库</h1>
-          <p class="hero-desc">选一本继续读，或者从第一章重新开始。</p>
+          <p class="hero-desc">从上次停下的那一页继续。</p>
         </div>
         <div v-if="!bookStore.booksLoading && !bookStore.booksError" class="hero-count">
           <strong>{{ books.length }}</strong>
@@ -86,7 +55,7 @@ async function handleLogout() {
       <section v-else-if="books.length === 0" class="state-box">
         <span class="empty-glyph">空</span>
         <p class="state-title">书库还没有书</p>
-        <p class="state-desc">导入语料后，书籍会出现在这里。</p>
+        <p class="state-desc">书籍由管理员导入后会出现在这里。</p>
       </section>
 
       <div v-else class="book-grid">
@@ -108,8 +77,10 @@ async function handleLogout() {
             <p class="book-author">{{ book.author || '佚名' }}</p>
             <p class="book-foot">
               <span v-if="book.chapterCount">{{ book.chapterCount }} 章</span>
-              <span v-else>开始阅读</span>
-              <span class="book-arrow" aria-hidden="true">→</span>
+              <span class="book-continue">
+                继续阅读
+                <span class="book-arrow" aria-hidden="true">→</span>
+              </span>
             </p>
           </div>
         </RouterLink>
@@ -124,74 +95,8 @@ async function handleLogout() {
   background: var(--bg);
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  height: var(--header-height);
-  padding: 0 clamp(18px, 4vw, 48px);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(12px);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--text);
-  color: var(--bg);
-  font-family: var(--font-serif);
-  font-size: 18px;
-}
-
-.brand-name {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.user-chip {
-  max-width: 150px;
-  margin: 0 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.quota-chip {
-  margin-right: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
 .library-main {
-  width: min(1180px, 100%);
+  width: min(1120px, 100%);
   margin: 0 auto;
   padding: clamp(28px, 5vw, 56px) clamp(18px, 4vw, 48px) 80px;
 }
@@ -266,9 +171,14 @@ async function handleLogout() {
   transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
+.book-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
 .book-card:hover .cover,
 .book-card:focus-visible .cover {
-  transform: translateY(-4px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
 
@@ -358,6 +268,13 @@ async function handleLogout() {
   color: var(--text-muted);
 }
 
+.book-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-secondary);
+}
+
 .book-arrow {
   opacity: 0;
   transform: translateX(-4px);
@@ -402,11 +319,6 @@ async function handleLogout() {
 }
 
 @media (max-width: 720px) {
-  .user-chip,
-  .quota-chip {
-    display: none;
-  }
-
   .hero {
     align-items: flex-start;
   }

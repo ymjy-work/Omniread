@@ -126,18 +126,19 @@ onMounted(() => {
 
 .chapter-link {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 8px 10px;
+  height: 36px;
+  padding: 0 10px;
   border: none;
   border-left: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   text-align: left;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.4;
   transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 
@@ -156,7 +157,6 @@ onMounted(() => {
 .chapter-no {
   flex: none;
   width: 22px;
-  padding-top: 1px;
   color: var(--text-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -167,10 +167,9 @@ onMounted(() => {
 }
 
 .chapter-title {
-  display: -webkit-box;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-state {

@@ -14,8 +14,10 @@ function readTheme(): ThemeName {
 }
 
 function readFontSize(): number {
-  const saved = Number(localStorage.getItem(FONT_KEY))
-  if (!Number.isFinite(saved)) return 18
+  const raw = localStorage.getItem(FONT_KEY)
+  if (raw === null || raw === '') return 19
+  const saved = Number(raw)
+  if (!Number.isFinite(saved)) return 19
   return Math.min(Math.max(saved, MIN_FONT), MAX_FONT)
 }
 

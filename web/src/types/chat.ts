@@ -1,3 +1,5 @@
+export type ChatSurface = 'official' | 'self'
+
 export type ChatLevel = 'past' | 'full'
 export type ChatMode = 'auto' | 'platform' | 'byok'
 

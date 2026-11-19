@@ -1,19 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Citation } from '../types/chat'
 
-defineProps<{ citation: Citation; index: number }>()
+const props = defineProps<{ citation: Citation; index: number }>()
 const emit = defineEmits<{ select: [citation: Citation] }>()
+
+const label = computed(
+  () => `第 ${props.citation.chapterIndex + 1} 章 ${props.citation.title}：${props.citation.quote}`,
+)
 </script>
 
 <template>
   <button
     class="citation-badge"
     type="button"
-    :title="`${citation.title}：${citation.quote}`"
+    :title="label"
+    :aria-label="`跳到${label}`"
     @click="emit('select', citation)"
   >
     <span class="badge-index">{{ index + 1 }}</span>
-    <span class="badge-title">{{ citation.title }}</span>
+    <span class="badge-chapter">第 {{ citation.chapterIndex + 1 }} 章</span>
   </button>
 </template>
 
@@ -23,17 +29,19 @@ const emit = defineEmits<{ select: [citation: Citation] }>()
   align-items: center;
   gap: 5px;
   max-width: 100%;
-  padding: 3px 8px 3px 3px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
   color: var(--text-secondary);
   font-size: 11.5px;
-  line-height: 1.4;
-  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+  line-height: 1.5;
+  transition: background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
-.citation-badge:hover {
+.citation-badge:hover,
+.citation-badge:focus-visible {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--text);
@@ -42,17 +50,18 @@ const emit = defineEmits<{ select: [citation: Citation] }>()
 .badge-index {
   display: grid;
   place-items: center;
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--radius-xs);
   background: var(--accent);
-  color: #fff;
+  color: #fffdf8;
   font-size: 10px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-.badge-title {
+.badge-chapter {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

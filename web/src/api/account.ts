@@ -32,3 +32,9 @@ export function deleteApiKey(provider: ApiProvider) {
     params: { provider },
   })
 }
+export function fetchProviderModels(provider: ApiProvider) {
+  return request<string[]>({
+    url: `/me/api-keys/${provider}/models`,
+    method: 'get',
+  })
+}

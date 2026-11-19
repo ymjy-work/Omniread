@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import MessageList from './MessageList.vue'
+import ModelPicker from './ModelPicker.vue'
 import { useChat } from '../composables/useChat'
 import { useAccountStore } from '../stores/account'
 import { useReaderStore } from '../stores/reader'
-import { errorMessage } from '../api/request'
-import { BYOK_PROVIDERS, keyStatusLabel, planLabel, providerLabel } from '../utils/billing'
-import type { ApiProvider } from '../types/account'
-import type { ChatMode, Citation } from '../types/chat'
+import { formatCredits } from '../utils/billing'
+import type { Citation } from '../types/chat'
 
 const props = defineProps<{ bookId: number }>()
 const emit = defineEmits<{ cite: [citation: Citation] }>()
@@ -16,64 +15,64 @@ const reader = useReaderStore()
 const account = useAccountStore()
 const { question, sending, prepare, send } = useChat(() => props.bookId)
 
-const inlineKey = ref('')
-const savingKey = ref(false)
-const keyError = ref('')
-
-const activeKey = computed(() =>
-  account.apiKeys.find((item) => item.provider === reader.provider),
-)
 const planReady = computed(() => Boolean(account.account))
 const canPlatform = computed(() => planReady.value && account.plan !== 'free')
-const insufficientCredits = computed(
-  () => reader.mode !== 'byok' && planReady.value && account.credits < 1,
-)
+const activeKey = computed(() => account.apiKeys.find((item) => item.provider === reader.provider))
 
-const modeHint = computed(() => {
-  if (reader.mode === 'platform') return '使用平台模型回答，每次消耗 1 积分。'
-  if (reader.mode === 'byok') return '使用你自己的 Key，不消耗积分。'
-  return '自动选择可用渠道，每次消耗 1 积分。'
+const blockingMessage = computed(() => {
+  if (reader.surface === 'self' && account.keysLoading && !account.keysLoaded) {
+    return '正在读取 API Key…'
+  }
+  return reader.askProblem
 })
 
-const configHint = computed(() => {
-  if (reader.mode === 'platform') {
-    if (!planReady.value) {
-      return account.error ? '账户信息加载失败，请重试。' : '账户信息加载中，请稍后。'
-    }
-    if (account.plan === 'free') return 'free 档只能使用 auto 模式。'
-    if (!reader.model) return '请选择一个平台模型。'
+const showPlanLink = computed(
+  () => blockingMessage.value.includes('积分不足') || blockingMessage.value.includes('余额不足'),
+)
+const showKeyLink = computed(
+  () => reader.surface === 'self' && !activeKey.value && !account.keysLoading,
+)
+
+const statusText = computed(() => {
+  if (account.error && !planReady.value) return account.error
+  if (reader.surface === 'self' && account.keysError && !activeKey.value) {
+    return account.keysError
   }
-  if (reader.mode === 'byok') {
-    if (!activeKey.value) return '请先填写并保存该提供商的 API Key。'
-    if (!reader.model.trim()) return '请填写 BYOK 模型 ID。'
+  if (blockingMessage.value) return blockingMessage.value
+  if (reader.surface === 'self' && reader.providerModelsError) {
+    return reader.providerModelsError
   }
-  if (insufficientCredits.value) return '积分不足，请购买套餐或改用 BYOK。'
-  return ''
+  if (reader.surface === 'official') {
+    return reader.mode === 'auto'
+      ? 'Free 档 auto 自动路由 · 每次 1 积分'
+      : '官方模型 · 每次 1 积分'
+  }
+  return '自己的 Key · 不扣积分'
 })
 
 const chatErrorText = computed(() => {
   const message = reader.chatError
   if (!message) return ''
   if (reader.chatErrorCode === 40201) {
-    return '积分不足，无法使用平台回答。请购买套餐或改用 BYOK。'
+    return '积分不足，无法使用平台回答。请购买套餐或改用自己。'
   }
   if (reader.chatErrorCode === 40202) return '余额不足，请联系管理员充值。'
   if (message.includes('API Key') || message.includes('Key')) {
     return '该提供商尚未配置 API Key，请先保存 Key。'
   }
-  if (message.includes('free 档')) return 'free 档只能使用 auto 模式。'
+  if (message.includes('free 档')) return 'Free 档只能使用 auto 模式。'
   return message
 })
 
 const sendDisabled = computed(
-  () => sending.value || !question.value.trim() || Boolean(configHint.value),
+  () => sending.value || !question.value.trim() || Boolean(blockingMessage.value),
 )
 
 onMounted(() => {
   void prepare()
   void account.fetchAccount()
   void account.fetchApiKeys()
-  if (reader.mode === 'platform' && canPlatform.value) void reader.loadPlatformModels()
+  if (reader.surface === 'official' && canPlatform.value) void reader.loadPlatformModels(true)
 })
 
 watch(
@@ -84,61 +83,16 @@ watch(
 )
 
 watch(
-  () => reader.mode,
-  (next) => {
-    if (next === 'platform') {
-      if (canPlatform.value) void reader.loadPlatformModels()
-      else if (planReady.value) reader.setMode('auto')
-    }
-  },
-)
-
-watch(
   () => account.plan,
   (plan) => {
-    if (plan === 'free' && reader.mode === 'platform') reader.setMode('auto')
-    if (plan && plan !== 'free' && reader.mode === 'platform') {
-      void reader.loadPlatformModels()
+    if (plan && plan !== 'free' && reader.surface === 'official') {
+      void reader.loadPlatformModels(true)
     }
   },
 )
 
 function handleCite(citation: Citation) {
   emit('cite', citation)
-}
-
-function chooseMode(next: ChatMode) {
-  if (next === 'platform' && !canPlatform.value) return
-  reader.setMode(next)
-}
-
-function onModelChange(event: Event) {
-  reader.setModel((event.target as HTMLSelectElement).value)
-}
-
-function onModelInput(event: Event) {
-  reader.setModel((event.target as HTMLInputElement).value)
-}
-
-function onProviderChange(event: Event) {
-  reader.setProvider((event.target as HTMLSelectElement).value as ApiProvider)
-  inlineKey.value = ''
-  keyError.value = ''
-}
-
-async function saveInlineKey() {
-  const value = inlineKey.value.trim()
-  if (!value || savingKey.value) return
-  savingKey.value = true
-  keyError.value = ''
-  try {
-    await account.saveApiKey(reader.provider, value)
-    inlineKey.value = ''
-  } catch (error) {
-    keyError.value = errorMessage(error, '保存 Key 失败')
-  } finally {
-    savingKey.value = false
-  }
 }
 
 function submit() {
@@ -159,24 +113,12 @@ function handleKeydown(event: KeyboardEvent) {
     <header class="chat-head">
       <div class="chat-title-row">
         <h2>文中助手</h2>
-        <div class="chat-meta">
-          <span
-            v-if="account.account"
-            class="credit-tag"
-            :class="{ empty: account.credits < 1 }"
-            :title="`${planLabel(account.plan)} · 剩余积分`"
-          >
-            积分 {{ account.credits }}
-          </span>
-          <span v-else-if="account.loading" class="credit-tag">账户…</span>
-          <RouterLink v-else class="credit-tag" to="/settings">配置账户</RouterLink>
-          <span v-if="reader.session" class="session-tag">#{{ reader.session.id }}</span>
-        </div>
+        <span v-if="reader.session" class="session-tag">#{{ reader.session.id }}</span>
       </div>
 
       <div class="control-row">
         <span class="control-label">范围</span>
-        <div class="segmented" role="group" aria-label="回答范围">
+        <div class="range-switch" role="group" aria-label="回答范围">
           <button
             type="button"
             :class="{ active: reader.level === 'past' }"
@@ -195,132 +137,6 @@ function handleKeydown(event: KeyboardEvent) {
           </button>
         </div>
       </div>
-
-      <div class="control-row">
-        <span class="control-label">模式</span>
-        <div class="segmented mode-switch" role="group" aria-label="回答模式">
-          <button
-            type="button"
-            :class="{ active: reader.mode === 'auto' }"
-            :aria-pressed="reader.mode === 'auto'"
-            @click="chooseMode('auto')"
-          >
-            自动
-          </button>
-          <button
-            type="button"
-            :class="{ active: reader.mode === 'platform' }"
-            :aria-pressed="reader.mode === 'platform'"
-            :disabled="!canPlatform"
-            :title="canPlatform ? '选择平台模型' : 'free 档或账户未加载时不可用'"
-            @click="chooseMode('platform')"
-          >
-            平台
-          </button>
-          <button
-            type="button"
-            :class="{ active: reader.mode === 'byok' }"
-            :aria-pressed="reader.mode === 'byok'"
-            @click="chooseMode('byok')"
-          >
-            BYOK
-          </button>
-        </div>
-      </div>
-
-      <p class="mode-hint">{{ modeHint }}</p>
-
-      <div v-if="reader.mode === 'platform'" class="config-box">
-        <div v-if="reader.modelsLoading" class="config-state">
-          <span class="spinner sm"></span>
-          正在加载平台模型…
-        </div>
-        <div v-else-if="reader.modelsError" class="config-state error">
-          <span>{{ reader.modelsError }}</span>
-          <button class="btn btn-ghost" type="button" @click="reader.loadPlatformModels(true)">
-            重试
-          </button>
-        </div>
-        <select
-          v-else-if="reader.platformModels.length > 0"
-          class="select"
-          :value="reader.model"
-          aria-label="平台模型"
-          @change="onModelChange"
-        >
-          <option value="">选择平台模型</option>
-          <option v-for="item in reader.platformModels" :key="`${item.provider}-${item.model}`" :value="item.model">
-            {{ item.displayName || item.model }}
-          </option>
-        </select>
-        <p v-else class="config-state">当前套餐暂无可用平台模型。</p>
-      </div>
-
-      <div v-if="reader.mode === 'byok'" class="config-box">
-        <div class="config-row">
-          <select
-            class="select"
-            :value="reader.provider"
-            aria-label="BYOK 提供商"
-            @change="onProviderChange"
-          >
-            <option v-for="item in BYOK_PROVIDERS" :key="item.value" :value="item.value">
-              {{ item.label }}
-            </option>
-          </select>
-          <span v-if="activeKey" class="key-ok">
-            {{ activeKey.keyMask }} · {{ keyStatusLabel(activeKey.status) }}
-          </span>
-        </div>
-
-        <div v-if="account.keysLoading && !activeKey" class="config-state">
-          <span class="spinner sm"></span>
-          正在读取 Key…
-        </div>
-        <div v-else-if="!activeKey" class="key-entry">
-          <input
-            v-model="inlineKey"
-            class="input"
-            type="password"
-            autocomplete="off"
-            :placeholder="`粘贴 ${providerLabel(reader.provider)} API Key`"
-            aria-label="API Key"
-            @keydown.enter.prevent="saveInlineKey"
-          />
-          <button
-            class="btn"
-            type="button"
-            :disabled="!inlineKey.trim() || savingKey"
-            @click="saveInlineKey"
-          >
-            <span v-if="savingKey" class="spinner sm"></span>
-            保存 Key
-          </button>
-        </div>
-
-        <p v-if="keyError" class="config-error">{{ keyError }}</p>
-
-        <input
-          class="input"
-          :value="reader.model"
-          placeholder="模型 ID，例如 gpt-4o-mini"
-          aria-label="BYOK 模型 ID"
-          @input="onModelInput"
-        />
-        <p class="config-sub">
-          保存后只显示掩码，可在 <RouterLink to="/settings">设置</RouterLink> 中管理。
-        </p>
-      </div>
-
-      <p v-if="configHint" class="config-hint">{{ configHint }}</p>
-      <p v-if="account.error" class="config-hint">
-        {{ account.error }}
-        <button class="link-btn" type="button" @click="account.fetchAccount(true)">重试</button>
-      </p>
-      <p v-if="account.keysError" class="config-hint">
-        {{ account.keysError }}
-        <button class="link-btn" type="button" @click="account.fetchApiKeys(true)">重试</button>
-      </p>
     </header>
 
     <MessageList
@@ -341,12 +157,35 @@ function handleKeydown(event: KeyboardEvent) {
         v-model="question"
         class="composer-input"
         rows="3"
-        placeholder="就这本书提问…"
+        placeholder="就这一章提问…"
         :disabled="reader.asking"
         @keydown="handleKeydown"
       ></textarea>
-      <div class="composer-row">
-        <span class="hint">Enter 发送 · Shift+Enter 换行</span>
+
+      <div class="composer-status" :class="{ warning: Boolean(blockingMessage) }">
+        <span
+          v-if="account.account"
+          class="credit-tag"
+          :class="{ empty: account.credits < 1 }"
+          :title="`剩余积分 ${account.credits}`"
+        >
+          积分 {{ formatCredits(account.credits) }}
+        </span>
+        <span class="status-text" role="status">{{ statusText }}</span>
+        <RouterLink v-if="showPlanLink" class="status-link" to="/plans">购买套餐</RouterLink>
+        <RouterLink v-else-if="showKeyLink" class="status-link" to="/settings">配置 Key</RouterLink>
+        <button
+          v-if="account.error && !planReady"
+          class="link-btn"
+          type="button"
+          @click="account.fetchAccount(true)"
+        >
+          重试
+        </button>
+      </div>
+
+      <div class="composer-controls">
+        <ModelPicker />
         <button
           class="btn btn-primary send-btn"
           type="button"
@@ -357,6 +196,8 @@ function handleKeydown(event: KeyboardEvent) {
           {{ sending ? '回答中' : '发送' }}
         </button>
       </div>
+
+      <p class="hint">Enter 发送 · Shift+Enter 换行</p>
     </footer>
   </aside>
 </template>
@@ -368,15 +209,13 @@ function handleKeydown(event: KeyboardEvent) {
   height: 100%;
   min-height: 0;
   background: var(--surface);
+  border-left: 1px solid var(--border);
 }
 
 .chat-head {
   flex: none;
-  max-height: 54%;
-  overflow-y: auto;
-  padding: 14px 16px 12px;
+  padding: 14px 16px 11px;
   border-bottom: 1px solid var(--border);
-  overscroll-behavior: contain;
 }
 
 .chat-title-row {
@@ -391,34 +230,11 @@ function handleKeydown(event: KeyboardEvent) {
   font-weight: 600;
 }
 
-.chat-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.credit-tag {
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.credit-tag.empty {
-  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
 .session-tag {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 62px;
+  max-width: 72px;
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -437,167 +253,37 @@ function handleKeydown(event: KeyboardEvent) {
   color: var(--text-muted);
 }
 
-.segmented {
+.range-switch {
   display: flex;
   flex: 1;
   gap: 3px;
   padding: 3px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 
-.segmented button {
+.range-switch button {
   flex: 1;
   padding: 4px 8px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-secondary);
   font-size: 12px;
-  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition: background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.segmented button:hover:not(:disabled) {
+.range-switch button:hover:not(:disabled) {
   color: var(--text);
 }
 
-.segmented button.active {
+.range-switch button.active {
   background: var(--surface);
   color: var(--text);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
-}
-
-.segmented button:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-}
-
-.mode-hint {
-  margin-top: 8px;
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--text-muted);
-}
-
-.config-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-
-.config-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.select {
-  width: 100%;
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12.5px;
-}
-
-.select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.config-state {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.config-state.error {
-  justify-content: space-between;
-  color: var(--danger);
-}
-
-.config-state .btn {
-  padding: 3px 8px;
-  font-size: 11.5px;
-  color: var(--danger);
-}
-
-.key-ok {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--text-secondary);
-}
-
-.key-entry {
-  display: flex;
-  gap: 6px;
-}
-
-.key-entry .input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 9px;
-  font-size: 12px;
-}
-
-.key-entry .btn {
-  flex: none;
-  padding: 6px 10px;
-  font-size: 11.5px;
-}
-
-.config-box .input {
-  padding: 7px 9px;
-  font-size: 12.5px;
-}
-
-.config-sub {
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
-.config-sub a {
-  color: var(--accent);
-}
-
-.config-error {
-  font-size: 11.5px;
-  color: var(--danger);
-}
-
-.config-hint {
-  margin-top: 8px;
-  padding: 6px 8px;
-  border-radius: 7px;
-  background: var(--accent-soft);
-  color: var(--text-secondary);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.link-btn {
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  font-size: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .session-error {
@@ -607,7 +293,7 @@ function handleKeydown(event: KeyboardEvent) {
   gap: 10px;
   margin: 0 14px 8px;
   padding: 8px 10px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--danger-soft);
   color: var(--danger);
   font-size: 12.5px;
@@ -621,7 +307,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 .composer {
   flex: none;
-  padding: 12px 14px 14px;
+  padding: 10px 12px 12px;
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
@@ -630,15 +316,16 @@ function handleKeydown(event: KeyboardEvent) {
   display: block;
   width: 100%;
   min-height: 70px;
-  max-height: 160px;
-  padding: 10px 12px;
+  max-height: 150px;
+  padding: 9px 11px;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   font-size: 14px;
   line-height: 1.65;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .composer-input::placeholder {
@@ -652,28 +339,87 @@ function handleKeydown(event: KeyboardEvent) {
   background: var(--surface);
 }
 
-.composer-row {
+.composer-status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 9px;
-}
-
-.hint {
-  font-size: 11px;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 20px;
+  margin-top: 7px;
+  font-size: 10.5px;
+  line-height: 1.45;
   color: var(--text-muted);
 }
 
-.send-btn {
-  min-width: 78px;
-  padding: 8px 16px;
-  font-size: 13.5px;
+.composer-status.warning {
+  color: var(--danger);
 }
 
-@media (max-width: 1000px) {
-  .chat-head {
-    max-height: 48%;
+.credit-tag {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.credit-tag.empty {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-link,
+.link-btn {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.composer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.send-btn {
+  flex: none;
+  min-width: 64px;
+  height: 32px;
+  padding: 0 13px;
+  font-size: 12.5px;
+}
+
+.hint {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 380px) {
+  .composer-controls {
+    justify-content: flex-start;
+  }
+
+  .send-btn {
+    margin-left: auto;
   }
 }
 </style>

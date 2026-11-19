@@ -136,6 +136,7 @@ export const useAccountStore = defineStore('account', () => {
     if (index >= 0) apiKeys.value.splice(index, 1, record)
     else apiKeys.value.push(record)
     keysLoaded.value = true
+    keysError.value = ''
     return record
   }
 
@@ -143,6 +144,7 @@ export const useAccountStore = defineStore('account', () => {
     await deleteApiKeyApi(provider)
     apiKeys.value = apiKeys.value.filter((item) => item.provider !== provider)
     keysLoaded.value = true
+    keysError.value = ''
   }
 
   function clear() {

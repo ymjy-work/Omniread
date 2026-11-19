@@ -39,7 +39,7 @@ function unwrap<T>(payload: unknown): T {
   if (payload && typeof payload === 'object' && 'code' in payload) {
     const result = payload as ApiResult<T>
     if (result.code === 0) return result.data
-    if (result.code === 401) redirectToLogin()
+    if (result.code === 401 && localStorage.getItem(TOKEN_KEY)) redirectToLogin()
     throw new ApiError(result.code, result.message || '请求失败')
   }
   return payload as T
@@ -54,7 +54,7 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status
       if (status === 401) {
-        redirectToLogin()
+        if (localStorage.getItem(TOKEN_KEY)) redirectToLogin()
         throw new ApiError(401, '登录已过期，请重新登录')
       }
       const body = error.response?.data

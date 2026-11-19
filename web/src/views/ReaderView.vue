@@ -47,6 +47,7 @@ const initializing = ref(true)
 const tocOpen = ref(false)
 const chatOpen = ref(false)
 const highlight = ref<{ start: number; end: number } | null>(null)
+const citationNotice = ref('')
 
 const { saving, ratio, saveError, schedule, flush, sync } = useReadingProgress({
   getScrollEl: () => scrollEl.value,
@@ -187,6 +188,7 @@ async function showChapter(index: number, options: ShowChapterOptions = {}) {
 
     const range = options.quote ? findQuote(normalizeText(chapter.text), options.quote) : null
     highlight.value = range
+    citationNotice.value = options.quote && !range ? '这段引用在当前章节里没有找到。' : ''
     await nextTick()
     if (range) {
       await revealHighlight()
@@ -211,6 +213,7 @@ function selectChapter(index: number) {
 
 async function handleCitation(citation: Citation) {
   chatOpen.value = false
+  citationNotice.value = ''
   const targetIndex = Number(citation.chapterIndex)
   if (!Number.isFinite(targetIndex)) return
   if (loadedIndex.value === targetIndex && reader.currentChapter) {
@@ -218,6 +221,8 @@ async function handleCitation(citation: Citation) {
     if (range) {
       highlight.value = range
       await revealHighlight()
+    } else {
+      citationNotice.value = '这段引用在当前章节里没有找到。'
     }
     return
   }
@@ -252,6 +257,10 @@ function closeDrawers() {
   chatOpen.value = false
 }
 
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && (tocOpen.value || chatOpen.value)) closeDrawers()
+}
 async function loadProgress() {
   try {
     progress.value = await getProgress(bookId.value)
@@ -270,12 +279,13 @@ function onVisibilityChange() {
 
 onMounted(async () => {
   if (!Number.isFinite(bookId.value)) {
-    await router.replace('/')
+    await router.replace('/library')
     return
   }
 
   document.addEventListener('visibilitychange', onVisibilityChange)
   void account.fetchAccount()
+  document.addEventListener('keydown', onKeydown)
   await Promise.all([
     bookStore.fetchBook(bookId.value),
     bookStore.fetchChapters(bookId.value),
@@ -295,6 +305,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   void flush()
+  document.removeEventListener('keydown', onKeydown)
 })
 
 watch(
@@ -313,7 +324,7 @@ watch(
   <div class="reader-shell">
     <header class="reader-header">
       <div class="header-left">
-        <RouterLink class="btn btn-ghost btn-icon" to="/" aria-label="返回书库">←</RouterLink>
+        <RouterLink class="btn btn-ghost btn-icon" to="/library" aria-label="返回书库">←</RouterLink>
         <button
           class="btn btn-ghost btn-icon mobile-only"
           type="button"
@@ -333,12 +344,12 @@ watch(
         <RouterLink
           v-if="account.account"
           class="credit-chip"
-          to="/settings"
+          to="/plans"
           :title="`剩余积分 ${account.credits}`"
         >
           {{ formatCredits(account.credits) }} 积分
         </RouterLink>
-        <span class="save-state" :title="saveError || '阅读进度自动保存'">
+        <span class="save-state" :class="{ saved: !saving && !saveError, error: Boolean(saveError) }" :title="saveError || '阅读进度自动保存'">
           <template v-if="saving">保存中…</template>
           <template v-else-if="saveError">未保存</template>
           <template v-else>{{ Math.round(ratio * 100) }}%</template>
@@ -346,6 +357,7 @@ watch(
         <button class="btn btn-ghost theme-btn" type="button" @click="cycleTheme">
           主题 · {{ themeLabel }}
         </button>
+        <RouterLink class="btn btn-ghost optional" to="/plans">套餐</RouterLink>
         <RouterLink class="btn btn-ghost optional" to="/settings">设置</RouterLink>
         <button
           class="btn btn-ghost mobile-only"
@@ -365,6 +377,11 @@ watch(
     <div v-if="bookStore.bookError && !bookStore.bookLoading" class="reader-alert" role="status">
       {{ bookStore.bookError }}，章节内容仍可阅读。
     </div>
+    <div v-if="citationNotice" class="reader-alert citation-alert" role="status">
+      {{ citationNotice }}
+      <button class="link-btn" type="button" @click="citationNotice = ''">关闭</button>
+    </div>
+
 
     <div class="reader-body">
       <aside class="reader-sidebar" :class="{ open: tocOpen }">
@@ -390,7 +407,7 @@ watch(
             <p class="state-desc">{{ reader.chapterError }}</p>
             <div class="error-actions">
               <button class="btn btn-primary" type="button" @click="retryChapter">重新加载</button>
-              <RouterLink class="btn" to="/">返回书库</RouterLink>
+              <RouterLink class="btn" to="/library">返回书库</RouterLink>
             </div>
           </section>
 
@@ -459,7 +476,6 @@ watch(
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(10px);
 }
 
 .header-left {
@@ -504,11 +520,19 @@ watch(
 .credit-chip {
   padding: 3px 8px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
   color: var(--text-secondary);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.save-state.saved {
+  color: var(--success);
+}
+
+.save-state.error {
+  color: var(--danger);
 }
 
 .save-state {
@@ -565,6 +589,17 @@ watch(
   overscroll-behavior: contain;
 }
 
+.reader-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.reader-scroll::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
 .reader-loading {
   display: flex;
   flex-direction: column;
@@ -577,9 +612,9 @@ watch(
 }
 
 .article-wrap {
-  width: min(100%, 760px);
+  width: min(100%, calc(var(--reading-measure) + 2 * 28px));
   margin: 0 auto;
-  padding: 44px clamp(20px, 5vw, 64px) 28px;
+  padding: 44px 28px 28px;
 }
 
 .article-head {
@@ -597,7 +632,7 @@ watch(
 
 .article-head h1 {
   font-family: var(--font-serif);
-  font-size: clamp(23px, 3vw, 31px);
+  font-size: clamp(24px, 3vw, 32px);
   font-weight: 600;
   line-height: 1.5;
   letter-spacing: 0.02em;
@@ -607,7 +642,8 @@ watch(
 .article-body {
   font-family: var(--font-serif);
   font-size: var(--reader-font-size);
-  line-height: 1.95;
+  line-height: var(--reading-leading);
+  letter-spacing: 0.012em;
   color: var(--reader-text);
   text-align: justify;
   overflow-wrap: break-word;
@@ -633,9 +669,9 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 14px;
-  width: min(100%, 760px);
+  width: min(100%, calc(var(--reading-measure) + 2 * 28px));
   margin: 0 auto;
-  padding: 8px clamp(20px, 5vw, 64px) 72px;
+  padding: 8px 28px 72px;
 }
 
 .chapter-foot .btn {
@@ -660,6 +696,23 @@ watch(
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
+}
+
+.citation-alert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--warning);
+}
+
+.citation-alert .link-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
 }
 
 .reader-alert {

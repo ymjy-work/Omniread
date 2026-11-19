@@ -46,8 +46,8 @@ onMounted(() => {
 
     <div v-else-if="messages.length === 0" class="list-state empty">
       <span class="empty-mark">问</span>
-      <p>可以向文中助手提问，例如“这一章里谁出现了？”</p>
-      <p class="empty-sub">回答会附上引用，点引用即可回到原文。</p>
+      <p>问这一章的人、事、伏笔。</p>
+      <p class="empty-sub">回答会附上原文引用，点引用回到那一页。</p>
     </div>
 
     <template v-else>
@@ -157,7 +157,7 @@ onMounted(() => {
 .bubble {
   max-width: 92%;
   padding: 11px 13px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   font-size: 14px;
   line-height: 1.75;
 }
@@ -165,13 +165,13 @@ onMounted(() => {
 .message.user .bubble {
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
-  border-bottom-right-radius: 5px;
+  border-bottom-right-radius: var(--radius-xs);
 }
 
 .message.assistant .bubble {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-bottom-left-radius: 5px;
+  border-bottom-left-radius: var(--radius-xs);
 }
 
 .message-text {
@@ -248,7 +248,7 @@ onMounted(() => {
 
 .list-error {
   padding: 9px 11px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--danger-soft);
   color: var(--danger);
   font-size: 12.5px;
