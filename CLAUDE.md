@@ -137,6 +137,8 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
 - `web/`：Codex + Qwen4Max。
 - Codex 会话复用：同一大阶段内用 `codex resume --last` 或指定 session 继续，不要每个任务新开会话；
   一个大阶段结束后再换会话。
+- Codex 启动必须带 `--dangerously-bypass-approvals-and-sandbox`（full access），否则写代码期间会卡在授权。
+  Herdr 写法：`herdr agent start <name> --kind codex --pane <id> -- --dangerously-bypass-approvals-and-sandbox -m <model>`。
 
 ## 红线
 
