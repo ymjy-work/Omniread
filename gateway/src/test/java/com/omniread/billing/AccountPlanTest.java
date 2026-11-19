@@ -30,6 +30,15 @@ class AccountPlanTest extends IntegrationTestBase {
 	}
 
 	@Test
+	void plansCatalogIsPublicButPurchaseRequiresLogin() throws Exception {
+		HttpResponse<String> response = send("GET", "/api/plans", null, null);
+		assertEquals(200, response.statusCode());
+		assertEquals(4, json(response).path("data").size());
+
+		assertEquals(401, send("POST", "/api/me/plan", "{\"plan\":\"plus\"}", null).statusCode());
+	}
+
+	@Test
 	void purchaseDeductsBalanceAndResetsCredits() throws Exception {
 		long userId = createUserViaAdmin("buyer-1", "pw-123456");
 		String token = loginToken("buyer-1", "pw-123456");

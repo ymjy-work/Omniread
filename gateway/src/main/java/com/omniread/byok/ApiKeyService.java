@@ -16,10 +16,13 @@ public class ApiKeyService {
 
 	private final ApiKeyMapper apiKeyMapper;
 	private final CryptoService cryptoService;
+	private final ByokModelsClient byokModelsClient;
 
-	public ApiKeyService(ApiKeyMapper apiKeyMapper, CryptoService cryptoService) {
+	public ApiKeyService(ApiKeyMapper apiKeyMapper, CryptoService cryptoService,
+			ByokModelsClient byokModelsClient) {
 		this.apiKeyMapper = apiKeyMapper;
 		this.cryptoService = cryptoService;
+		this.byokModelsClient = byokModelsClient;
 	}
 
 	@Transactional
@@ -59,6 +62,12 @@ public class ApiKeyService {
 
 	public String decryptKey(UserApiKeyEntity entity) {
 		return cryptoService.decrypt(entity.getEncryptedKey());
+	}
+
+	/** 用该用户已存 Key 拉取提供商模型列表；不开事务，避免长时间 HTTP 占用 SQLite 连接。 */
+	public List<String> listModels(long userId, String provider) {
+		UserApiKeyEntity entity = requireStoredKey(userId, provider);
+		return byokModelsClient.listModels(provider, decryptKey(entity));
 	}
 
 	private void requireValidProvider(String provider) {

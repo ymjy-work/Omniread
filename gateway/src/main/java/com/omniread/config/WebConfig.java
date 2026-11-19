@@ -6,7 +6,7 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** CORS 与登录拦截：/api/** 需 Bearer token，登录接口除外。 */
+/** CORS 与登录拦截：/api/** 需 Bearer token；登录与公开套餐目录除外。 */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
@@ -20,7 +20,7 @@ public class WebConfig implements WebMvcConfigurer {
 	public void addInterceptors(InterceptorRegistry registry) {
 		registry.addInterceptor(authInterceptor)
 				.addPathPatterns("/api/**")
-				.excludePathPatterns("/api/auth/login");
+				.excludePathPatterns("/api/auth/login", "/api/plans");
 	}
 
 	@Override

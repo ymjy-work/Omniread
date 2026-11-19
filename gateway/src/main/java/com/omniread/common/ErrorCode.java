@@ -12,7 +12,8 @@ public enum ErrorCode {
 	INSUFFICIENT_CREDITS(40201, "积分不足", 400),
 	INSUFFICIENT_BALANCE(40202, "余额不足，请联系管理员充值", 400),
 	INTERNAL_ERROR(50000, "服务内部错误", 500),
-	RAG_ERROR(50200, "检索服务不可用", 502);
+	RAG_ERROR(50200, "检索服务不可用", 502),
+	UPSTREAM_ERROR(50201, "模型服务不可用", 502);
 
 	private final int code;
 	private final String message;

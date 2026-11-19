@@ -9,6 +9,7 @@ import com.omniread.common.Result;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +36,12 @@ public class ApiKeyController {
 	public Result<ApiKeyVO> save(@RequestAttribute(AuthInterceptor.USER_ID_ATTR) long userId,
 			@Valid @RequestBody ApiKeySaveDTO request) {
 		return Result.ok(apiKeyService.save(userId, request));
+	}
+
+	@GetMapping("/{provider}/models")
+	public Result<List<String>> models(@RequestAttribute(AuthInterceptor.USER_ID_ATTR) long userId,
+			@PathVariable String provider) {
+		return Result.ok(apiKeyService.listModels(userId, provider));
 	}
 
 	@DeleteMapping
