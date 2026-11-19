@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { TOKEN_KEY } from '../api/request'
+import { useAccountStore } from '../stores/account'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -33,11 +34,17 @@ const router = createRouter({
       component: () => import('../views/SettingsView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: () => import('../views/AdminView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const hasToken = Boolean(localStorage.getItem(TOKEN_KEY))
   if (to.meta.requiresAuth && !hasToken) {
     return {
@@ -47,6 +54,13 @@ router.beforeEach((to) => {
   }
   if (to.name === 'login' && hasToken) {
     return { name: 'library' }
+  }
+  if (to.meta.requiresAdmin) {
+    const accountStore = useAccountStore()
+    const current = accountStore.account ?? (await accountStore.fetchAccount())
+    if (!current || current.role !== 'admin') {
+      return { name: 'library' }
+    }
   }
   return true
 })

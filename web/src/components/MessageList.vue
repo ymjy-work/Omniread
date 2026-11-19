@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
 import CitationBadge from './CitationBadge.vue'
+import { modeLabel, providerLabel } from '../utils/billing'
 import type { ChatMessage, Citation } from '../types/chat'
 
 const props = defineProps<{
@@ -67,6 +68,17 @@ onMounted(() => {
               @select="handleCite"
             />
           </div>
+          <p v-if="message.usage" class="usage-line">
+            <span>{{ modeLabel(message.usage.mode) }}</span>
+            <span class="usage-sep">·</span>
+            <span>{{ providerLabel(message.usage.provider) }} / {{ message.usage.model }}</span>
+            <span
+              v-if="message.usage.promptTokens || message.usage.completionTokens"
+              class="usage-tokens"
+            >
+              {{ message.usage.promptTokens }} + {{ message.usage.completionTokens }} tokens
+            </span>
+          </p>
         </div>
       </article>
 
@@ -174,6 +186,28 @@ onMounted(() => {
   margin-top: 10px;
   padding-top: 9px;
   border-top: 1px dashed var(--border);
+}
+
+.usage-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--border);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.usage-sep {
+  opacity: 0.6;
+}
+
+.usage-tokens {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .typing {

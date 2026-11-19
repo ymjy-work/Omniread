@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAccountStore } from '../stores/account'
 import { useAuthStore } from '../stores/auth'
 import { useBookStore } from '../stores/book'
+import { formatCredits, planLabel } from '../utils/billing'
 import type { Book } from '../types/api'
 
 const auth = useAuthStore()
+const account = useAccountStore()
 const bookStore = useBookStore()
 const router = useRouter()
 
@@ -13,6 +16,7 @@ const books = computed(() => bookStore.books)
 
 onMounted(() => {
   void bookStore.fetchBooks()
+  void account.fetchAccount()
 })
 
 function coverTone(index: number) {
@@ -38,6 +42,14 @@ async function handleLogout() {
       </RouterLink>
 
       <nav class="topbar-actions">
+        <span
+          v-if="account.account"
+          class="quota-chip"
+          :title="`${planLabel(account.plan)} · 剩余积分`"
+        >
+          {{ planLabel(account.plan) }} · {{ formatCredits(account.credits) }} 积分
+        </span>
+        <RouterLink v-if="account.isAdmin" class="btn btn-ghost" to="/admin">管理</RouterLink>
         <RouterLink class="btn btn-ghost" to="/settings">设置</RouterLink>
         <span class="user-chip" :title="auth.user?.username || '读者'">{{ auth.displayName }}</span>
         <button class="btn btn-ghost" type="button" @click="handleLogout">退出</button>
@@ -165,6 +177,17 @@ async function handleLogout() {
   white-space: nowrap;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.quota-chip {
+  margin-right: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
 }
 
 .library-main {
@@ -379,7 +402,8 @@ async function handleLogout() {
 }
 
 @media (max-width: 720px) {
-  .user-chip {
+  .user-chip,
+  .quota-chip {
     display: none;
   }
 

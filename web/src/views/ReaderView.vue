@@ -5,10 +5,12 @@ import ChapterNav from '../components/ChapterNav.vue'
 import ChatPanel from '../components/ChatPanel.vue'
 import { getProgress } from '../api/progress'
 import { useReadingProgress } from '../composables/useReadingProgress'
+import { useAccountStore } from '../stores/account'
 import { useBookStore } from '../stores/book'
 import { useReaderStore } from '../stores/reader'
 import { useSettingsStore } from '../stores/settings'
 import type { ThemeName } from '../stores/settings'
+import { formatCredits } from '../utils/billing'
 import type { ChapterSummary, ReadingProgress } from '../types/api'
 import type { Citation } from '../types/chat'
 
@@ -30,6 +32,7 @@ interface ShowChapterOptions {
 
 const route = useRoute()
 const router = useRouter()
+const account = useAccountStore()
 const bookStore = useBookStore()
 const reader = useReaderStore()
 const settings = useSettingsStore()
@@ -272,6 +275,7 @@ onMounted(async () => {
   }
 
   document.addEventListener('visibilitychange', onVisibilityChange)
+  void account.fetchAccount()
   await Promise.all([
     bookStore.fetchBook(bookId.value),
     bookStore.fetchChapters(bookId.value),
@@ -326,6 +330,14 @@ watch(
       </div>
 
       <div class="header-right">
+        <RouterLink
+          v-if="account.account"
+          class="credit-chip"
+          to="/settings"
+          :title="`剩余积分 ${account.credits}`"
+        >
+          {{ formatCredits(account.credits) }} 积分
+        </RouterLink>
         <span class="save-state" :title="saveError || '阅读进度自动保存'">
           <template v-if="saving">保存中…</template>
           <template v-else-if="saveError">未保存</template>
@@ -487,6 +499,16 @@ watch(
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.credit-chip {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .save-state {
