@@ -9,8 +9,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 本目录是 git 仓库，按阶段提交。
 
 联调状态：193 章已导入并索引（2703 chunks）；`past` 越界问题拒答、`full` 正常回答并带按章去重引用；
-fact-001 回答「化学参考书」且引用第 2 章。套餐/积分/BYOK 已实现：gateway 39 项、rag 59 项测试通过，web build 通过；
-计费与 BYOK 的真实联调待做。
+fact-001 回答「化学参考书」且引用第 2 章。套餐/积分/BYOK 已实现：gateway 39 项、rag 59 项测试通过，web build 通过。
+计费与 BYOK 已真实联调：管理员建号 free/100/20；auto 扣 1 积分；余额买 Plus；platform 选模型；
+BYOK 保存/掩码/删除通过。
 
 ## 目录结构
 
