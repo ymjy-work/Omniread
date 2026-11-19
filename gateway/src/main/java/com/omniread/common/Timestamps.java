@@ -3,6 +3,7 @@ package com.omniread.common;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 
 /** 库中 created_at / updated_at 的统一格式：定宽毫秒 ISO 字符串，可按字典序比较。 */
 public final class Timestamps {
@@ -15,5 +16,9 @@ public final class Timestamps {
 
 	public static String now() {
 		return FORMAT.format(Instant.now());
+	}
+
+	public static String plusDays(String timestamp, long days) {
+		return FORMAT.format(Instant.from(FORMAT.parse(timestamp)).plus(days, ChronoUnit.DAYS));
 	}
 }

@@ -4,7 +4,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.omniread.auth.AuthMapper;
+import com.omniread.auth.model.UserEntity;
+import com.omniread.billing.AccountService;
+import com.omniread.billing.LedgerMapper;
 import com.omniread.book.BookMapper;
+import com.omniread.byok.ApiKeyService;
+import com.omniread.byok.model.UserApiKeyEntity;
+import com.omniread.catalog.ModelCatalogMapper;
 import com.omniread.chat.model.AskRequestDTO;
 import com.omniread.chat.model.AskResponseVO;
 import com.omniread.chat.model.ChatMessageEntity;
@@ -32,14 +39,28 @@ public class ChatService {
 	private final BookMapper bookMapper;
 	private final ProgressMapper progressMapper;
 	private final RagClient ragClient;
+	private final AuthMapper authMapper;
+	private final AccountService accountService;
+	private final ApiKeyService apiKeyService;
+	private final ModelCatalogMapper modelCatalogMapper;
+	private final LedgerMapper ledgerMapper;
+	private final UsageRecordMapper usageRecordMapper;
 	private final ObjectMapper mapper = JsonMapper.builder().build();
 
 	public ChatService(ChatMapper chatMapper, BookMapper bookMapper, ProgressMapper progressMapper,
-			RagClient ragClient) {
+			RagClient ragClient, AuthMapper authMapper, AccountService accountService,
+			ApiKeyService apiKeyService, ModelCatalogMapper modelCatalogMapper,
+			LedgerMapper ledgerMapper, UsageRecordMapper usageRecordMapper) {
 		this.chatMapper = chatMapper;
 		this.bookMapper = bookMapper;
 		this.progressMapper = progressMapper;
 		this.ragClient = ragClient;
+		this.authMapper = authMapper;
+		this.accountService = accountService;
+		this.apiKeyService = apiKeyService;
+		this.modelCatalogMapper = modelCatalogMapper;
+		this.ledgerMapper = ledgerMapper;
+		this.usageRecordMapper = usageRecordMapper;
 	}
 
 	@Transactional
@@ -71,10 +92,54 @@ public class ChatService {
 		return messages;
 	}
 
-	/** 取 progress 与最近 6 条历史 → rag → 落 user/assistant 消息。rag 调用不包在事务里。 */
+	/** 校验模式与计费资格 → rag → 成功后条件扣积分并写 usage/credit 流水；失败不扣。 */
 	public AskResponseVO ask(long userId, long sessionId, AskRequestDTO request) {
 		ChatSessionEntity session = requireOwnedSession(userId, sessionId);
+		UserEntity user = authMapper.findUserById(userId);
+		if (user == null) {
+			throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
+		}
+		accountService.ensureCurrent(user);
+
 		String level = request.level() == null || request.level().isBlank() ? "past" : request.level();
+		String mode = request.mode() == null || request.mode().isBlank() ? "auto" : request.mode();
+		String provider = null;
+		String model = null;
+		String apiKey = null;
+		boolean chargeCredits = true;
+		switch (mode) {
+			case "auto" -> {
+				// 所有档位可用，provider/model 忽略，由 rag 路由
+			}
+			case "platform" -> {
+				if ("free".equals(user.getPlan())) {
+					throw new BusinessException(ErrorCode.FORBIDDEN, "free 档仅支持 auto 模式");
+				}
+				if (request.model() == null || request.model().isBlank()) {
+					throw new BusinessException(ErrorCode.BAD_REQUEST, "platform 模式必须指定 model");
+				}
+				if (modelCatalogMapper.findForPlan("bailian", request.model(), user.getPlan()) == null) {
+					throw new BusinessException(ErrorCode.BAD_REQUEST, "模型不在当前套餐可用范围");
+				}
+				provider = "bailian";
+				model = request.model();
+			}
+			case "byok" -> {
+				if (request.model() == null || request.model().isBlank()) {
+					throw new BusinessException(ErrorCode.BAD_REQUEST, "byok 模式必须填写 model");
+				}
+				UserApiKeyEntity stored = apiKeyService.requireStoredKey(userId, request.provider());
+				provider = request.provider();
+				model = request.model();
+				apiKey = apiKeyService.decryptKey(stored);
+				chargeCredits = false;
+			}
+			default -> throw new BusinessException(ErrorCode.BAD_REQUEST, "mode 只能是 auto、platform 或 byok");
+		}
+		if (chargeCredits && user.getCredits() < 1) {
+			throw new BusinessException(ErrorCode.INSUFFICIENT_CREDITS);
+		}
+
 		Integer progress = null;
 		if ("past".equals(level)) {
 			ReadingProgressEntity current = progressMapper.findByUserAndBook(userId, session.getBookId());
@@ -84,8 +149,21 @@ public class ChatService {
 		Collections.reverse(history);
 
 		insertMessage(sessionId, "user", request.question(), null);
-		AskResponseVO response = ragClient.ask(session.getBookId(), request.question(), level,
-				progress, history, TOP_K);
+		AskResponseVO response = ragClient.ask(new RagClient.AskCommand(session.getBookId(),
+				request.question(), level, progress, history, TOP_K, mode, provider, model, apiKey));
+
+		int creditsUsed = 0;
+		if (chargeCredits) {
+			if (authMapper.deductCredit(userId) == 0) {
+				throw new BusinessException(ErrorCode.INSUFFICIENT_CREDITS);
+			}
+			creditsUsed = 1;
+			ledgerMapper.insertCredit(userId, "usage", -1, user.getCredits() - 1,
+					"session:" + sessionId, Timestamps.now());
+		}
+		usageRecordMapper.insert(userId, sessionId, mode, response.usage().provider(),
+				response.usage().model(), response.usage().promptTokens(),
+				response.usage().completionTokens(), creditsUsed, Timestamps.now());
 		insertMessage(sessionId, "assistant", response.answer(),
 				mapper.writeValueAsString(response.citations()));
 		chatMapper.touchSession(sessionId, Timestamps.now());

@@ -50,14 +50,34 @@ public abstract class IntegrationTestBase {
 			respond(exchange, "{\"indexed_chunks\":3}");
 		});
 		RAG_STUB.createContext("/v1/ask", exchange -> {
-			LAST_ASK_BODY.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-			respond(exchange, MAPPER.writeValueAsString(java.util.Map.of(
-					"answer", STUB_ANSWER,
-					"citations", java.util.List.of(java.util.Map.of(
-							"chapter_id", "book:1:chapter:1",
-							"chapter_index", 1,
-							"title", "序章",
-							"quote", "私立征岭学园。")))));
+			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+			LAST_ASK_BODY.set(body);
+			JsonNode request = MAPPER.readTree(body);
+			if (request.path("question").asString().startsWith("FAIL")) {
+				byte[] error = "{\"error\":\"stub failure\"}".getBytes(StandardCharsets.UTF_8);
+				exchange.getResponseHeaders().set("Content-Type", "application/json");
+				exchange.sendResponseHeaders(500, error.length);
+				try (OutputStream out = exchange.getResponseBody()) {
+					out.write(error);
+				}
+				return;
+			}
+			java.util.Map<String, Object> response = new java.util.LinkedHashMap<>();
+			response.put("answer", STUB_ANSWER);
+			response.put("citations", java.util.List.of(java.util.Map.of(
+					"chapter_id", "book:1:chapter:1",
+					"chapter_index", 1,
+					"title", "序章",
+					"quote", "私立征岭学园。")));
+			java.util.Map<String, Object> usage = new java.util.LinkedHashMap<>();
+			usage.put("prompt_tokens", 10);
+			usage.put("completion_tokens", 20);
+			if ("auto".equals(request.path("mode").asString())) {
+				usage.put("provider", "free-channel");
+				usage.put("model", "auto-model");
+			}
+			response.put("usage", usage);
+			respond(exchange, MAPPER.writeValueAsString(response));
 		});
 		RAG_STUB.start();
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> RAG_STUB.stop(0)));
@@ -78,6 +98,8 @@ public abstract class IntegrationTestBase {
 		registry.add("omniread.jwt.secret", () -> "test-secret-0123456789abcdef0123456789abcdef");
 		registry.add("omniread.admin.username", () -> "admin");
 		registry.add("omniread.admin.password", () -> "admin-pass-123");
+		registry.add("omniread.crypto.key", () -> java.util.Base64.getEncoder()
+				.encodeToString("0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8)));
 		registry.add("omniread.rag.base-url",
 				() -> "http://127.0.0.1:" + RAG_STUB.getAddress().getPort());
 	}
@@ -105,10 +127,23 @@ public abstract class IntegrationTestBase {
 
 	protected String adminToken() throws IOException, InterruptedException {
 		if (cachedToken == null) {
-			HttpResponse<String> response = send("POST", "/api/auth/login",
-					"{\"username\":\"admin\",\"password\":\"admin-pass-123\"}", null);
-			cachedToken = json(response).path("data").path("token").asString();
+			cachedToken = loginToken("admin", "admin-pass-123");
 		}
 		return cachedToken;
+	}
+
+	protected long createUserViaAdmin(String username, String password)
+			throws IOException, InterruptedException {
+		HttpResponse<String> response = send("POST", "/api/admin/users",
+				MAPPER.writeValueAsString(java.util.Map.of("username", username, "password", password)),
+				adminToken());
+		return json(response).path("data").path("id").asLong();
+	}
+
+	protected String loginToken(String username, String password) throws IOException, InterruptedException {
+		HttpResponse<String> response = send("POST", "/api/auth/login",
+				MAPPER.writeValueAsString(java.util.Map.of("username", username, "password", password)),
+				null);
+		return json(response).path("data").path("token").asString();
 	}
 }

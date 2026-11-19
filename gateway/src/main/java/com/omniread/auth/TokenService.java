@@ -33,11 +33,12 @@ public class TokenService {
 		this.verifier = JWT.require(algorithm).build();
 	}
 
-	public String issue(long userId, String username) {
+	public String issue(long userId, String username, String role) {
 		Instant now = Instant.now();
 		return JWT.create()
 				.withSubject(String.valueOf(userId))
 				.withClaim("username", username)
+				.withClaim("role", role)
 				.withIssuedAt(now)
 				.withExpiresAt(now.plusSeconds(TTL_SECONDS))
 				.sign(algorithm);
@@ -46,7 +47,8 @@ public class TokenService {
 	public Claims parse(String token) {
 		try {
 			DecodedJWT jwt = verifier.verify(token);
-			return new Claims(Long.parseLong(jwt.getSubject()), jwt.getClaim("username").asString());
+			return new Claims(Long.parseLong(jwt.getSubject()), jwt.getClaim("username").asString(),
+					jwt.getClaim("role").asString());
 		}
 		catch (TokenExpiredException e) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED, "登录已过期，请重新登录");
@@ -56,6 +58,6 @@ public class TokenService {
 		}
 	}
 
-	public record Claims(long userId, String username) {
+	public record Claims(long userId, String username, String role) {
 	}
 }

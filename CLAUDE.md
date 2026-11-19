@@ -9,7 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 本目录是 git 仓库，按阶段提交。
 
 联调状态：193 章已导入并索引（2703 chunks）；`past` 越界问题拒答、`full` 正常回答并带按章去重引用；
-fact-001 回答「化学参考书」且引用第 2 章。gateway 20 项测试、rag 25 项测试通过，web build 通过。
+fact-001 回答「化学参考书」且引用第 2 章。套餐/积分/BYOK 已实现：gateway 39 项、rag 59 项测试通过，web build 通过；
+计费与 BYOK 的真实联调待做。
 
 ## 目录结构
 
@@ -54,8 +55,9 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
 
 - **gateway 是薄网关**：鉴权/限流、书/章/进度/会话 CRUD、事务、统一 `Result`、转发 rag；不做切片、向量、检索、prompt。
 - **rag 承担全部 AI 判断**：切片、向量、索引、边界过滤、检索、prompt、引用校验、拒答；不管登录、不碰用户表。
-- 模型全部走阿里云百炼：chat `qwen3.7-plus`、embedding `qwen3.7-text-embedding`（1024 维，归一化）、
-  rerank `qwen3-rerank`（候选 30 → 取 8）；key 只在 rag，gateway 不接触模型。
+- 平台模型走阿里云百炼：chat `qwen3.7-plus`、embedding `qwen3.7-text-embedding`（1024 维，归一化）、
+  rerank `qwen3-rerank`（候选 30 → 取 8）。平台 Key 与免费渠道 Key 只在 rag；用户 BYOK Key 由
+  gateway 加密存储、请求时解密传入 rag，不落日志。
 - 数据归属：`user` / `book` / `chapter` / `reading_progress` / `chat_session` / `chat_message` / `login_attempt`
   在 `gateway.db`；`chunk` 在 `rag.db`。两个独立 SQLite 文件、各自单写者：gateway 不读 `rag.db`，
   rag 不连 `gateway.db`；rag 不存章节正文，正文只在索引请求中传入。
@@ -77,6 +79,15 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
   Controller 只校验参数、Service 管事务、Mapper 只写 SQL，`model/` 按 `Entity` / `DTO` / `VO` 后缀区分，
   `RagClient` 是唯一出站口；rag 的 `api/` 只做参数与错误映射，流程在 `rag/pipeline.py`，
   `rag/realm.py`（past/full → 章节区间）与 `rag/citations.py`（引用校验）是本项目业务核心。
+
+## 套餐、积分与 BYOK
+
+- 档位 free/plus/pro/ultra：价格 0/20/60/100，积分 100/500/2000/4000。
+- free 每 1 个月补 100 积分；付费从购买日算 1 个月，到期未续回落 free。
+- 平台回答固定扣 1 积分；BYOK 不扣；失败不扣。管理员建号，新用户默认 free/100 积分/20 余额。
+- BYOK 提供商：bailian/openai/deepseek/siliconflow；模型由用户填写；Key 用 AES-GCM 加密，只回掩码。
+- 免费渠道在 rag 的 `channels.json`（gitignore），auto 按 priority 尝试，全部失败回退平台 Key。
+- 详细口径见 `opus/需求-套餐与积分.md`。
 
 ## 语料资产库
 
@@ -145,4 +156,6 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
 - `qwen3.7-plus` 默认思考模式会把 completion tokens 吃光、`content` 为空；`ChatOpenAI` 必须加
   `extra_body={"enable_thinking": False}`。
 - gateway 的 `HttpClient` 固定 `HTTP_1_1`，不要用默认 HTTP/2 打 uvicorn（h2c upgrade 会 400）。
+- gateway 本地配置还需要 `omniread.crypto.key`（base64 编码 32 字节），缺失时启动失败；它只用于
+  加密用户 BYOK Key，不写日志。
 - 语料目录的 `docs/` 是人机交付物，`temp/` 是一次性脚本与探针，两者都不属于产品代码，勿清理。

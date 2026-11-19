@@ -31,7 +31,7 @@ public class AuthService {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
 		}
 		loginThrottle.record(request.username(), ip, true);
-		String token = tokenService.issue(user.getId(), user.getUsername());
+		String token = tokenService.issue(user.getId(), user.getUsername(), user.getRole());
 		return new AuthResponseVO(token,
 				new AuthResponseVO.UserVO(user.getId(), user.getUsername(), user.getDisplayName()));
 	}

@@ -12,6 +12,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class AuthInterceptor implements HandlerInterceptor {
 
 	public static final String USER_ID_ATTR = "userId";
+	public static final String USER_ROLE_ATTR = "userRole";
 
 	private final TokenService tokenService;
 
@@ -30,6 +31,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 		}
 		TokenService.Claims claims = tokenService.parse(authorization.substring(7).trim());
 		request.setAttribute(USER_ID_ATTR, claims.userId());
+		request.setAttribute(USER_ROLE_ATTR, claims.role() == null ? "" : claims.role());
 		return true;
 	}
 }

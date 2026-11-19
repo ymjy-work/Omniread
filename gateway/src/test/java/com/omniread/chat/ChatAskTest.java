@@ -103,11 +103,18 @@ class ChatAskTest extends IntegrationTestBase {
 
 		UserEntity other = new UserEntity();
 		other.setUsername("other-user");
-		other.setPasswordHash(new BCryptPasswordEncoder().encode("{{SECRET_73n6i592}}"));
-		other.setCreatedAt(Timestamps.now());
+		other.setPasswordHash(new BCryptPasswordEncoder().encode("other-pass-1"));
+		String now = Timestamps.now();
+		other.setCreatedAt(now);
+		other.setRole("user");
+		other.setPlan("free");
+		other.setCredits(100L);
+		other.setPlanStartedAt(now);
+		other.setPlanExpiresAt(Timestamps.plusDays(now, 30));
+		other.setBalance(0.0);
 		authMapper.insertUser(other);
 		JsonNode login = json(send("POST", "/api/auth/login",
-				"{\"username\":\"other-user\",\"password\":\"{{SECRET_73n6i592}}\"}", null));
+				"{\"username\":\"other-user\",\"password\":\"other-pass-1\"}", null));
 		String otherToken = login.path("data").path("token").asString();
 
 		HttpResponse<String> response = send("GET",

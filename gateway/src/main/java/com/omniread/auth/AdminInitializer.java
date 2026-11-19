@@ -36,14 +36,26 @@ public class AdminInitializer implements ApplicationRunner {
 			log.warn("omniread.admin.username/password 未配置，跳过管理员创建（将无法登录）");
 			return;
 		}
-		if (authMapper.findUserByUsername(username) != null) {
+		UserEntity existing = authMapper.findUserByUsername(username);
+		if (existing != null) {
+			if (!"admin".equals(existing.getRole())) {
+				authMapper.updateRole(existing.getId(), "admin");
+				log.info("已修正用户 {} 的角色为 admin", username);
+			}
 			return;
 		}
+		String now = Timestamps.now();
 		UserEntity user = new UserEntity();
 		user.setUsername(username);
 		user.setPasswordHash(new BCryptPasswordEncoder().encode(password));
 		user.setDisplayName(username);
-		user.setCreatedAt(Timestamps.now());
+		user.setCreatedAt(now);
+		user.setRole("admin");
+		user.setPlan("ultra");
+		user.setCredits(4000L);
+		user.setPlanStartedAt(now);
+		user.setPlanExpiresAt(Timestamps.plusDays(now, 30));
+		user.setBalance(0.0);
 		authMapper.insertUser(user);
 		log.info("已创建管理员用户 {}", username);
 	}

@@ -4,3 +4,6 @@ omniread:
     password: ""
   jwt:
     secret: ""
+  crypto:
+    # base64 编码的 32 字节 AES-GCM 主密钥，用于加密用户 BYOK Key
+    key: ""

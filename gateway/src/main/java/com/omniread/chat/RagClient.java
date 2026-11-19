@@ -54,17 +54,26 @@ public class RagClient {
 	}
 
 	/** progress 为当前章节号；level=full 时传 null。history 为最近 6 条 user/assistant 消息。 */
-	public AskResponseVO ask(long bookId, String question, String level, Integer progress,
-			List<ChatMessageEntity> history, int topK) {
+	public AskResponseVO ask(AskCommand command) {
 		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("book_id", bookId);
-		body.put("question", question);
-		body.put("level", level);
-		body.put("progress", progress);
-		body.put("history", history.stream()
+		body.put("book_id", command.bookId());
+		body.put("question", command.question());
+		body.put("level", command.level());
+		body.put("progress", command.progress());
+		body.put("history", command.history().stream()
 				.map(message -> Map.of("role", message.getRole(), "content", message.getContent()))
 				.toList());
-		body.put("top_k", topK);
+		body.put("top_k", command.topK());
+		body.put("mode", command.mode());
+		if (command.provider() != null) {
+			body.put("provider", command.provider());
+		}
+		if (command.model() != null) {
+			body.put("model", command.model());
+		}
+		if (command.apiKey() != null) {
+			body.put("api_key", command.apiKey());
+		}
 		JsonNode response = post("/v1/ask", body, properties.getAskTimeout());
 		List<AskResponseVO.CitationVO> citations = new ArrayList<>();
 		for (JsonNode node : response.path("citations")) {
@@ -74,7 +83,21 @@ public class RagClient {
 					node.path("title").asString(),
 					node.path("quote").asString()));
 		}
-		return new AskResponseVO(response.path("answer").asString(), citations);
+		// auto 模式 rag 在 usage 内返回实际路由；缺省时回退请求值，缺 usage 时 token 记 0
+		JsonNode usage = response.path("usage");
+		String provider = usage.hasNonNull("provider")
+				? usage.get("provider").asString() : command.provider();
+		String model = usage.hasNonNull("model")
+				? usage.get("model").asString() : command.model();
+		AskResponseVO.UsageVO usageVO = new AskResponseVO.UsageVO(command.mode(), provider, model,
+				usage.path("prompt_tokens").asLong(), usage.path("completion_tokens").asLong());
+		return new AskResponseVO(response.path("answer").asString(), citations, usageVO);
+	}
+
+	/** apiKey 仅 byok 模式传入（解密后的明文），只进请求体，不写日志。 */
+	public record AskCommand(long bookId, String question, String level, Integer progress,
+			List<ChatMessageEntity> history, int topK, String mode, String provider, String model,
+			String apiKey) {
 	}
 
 	private JsonNode post(String path, Object body, Duration timeout) {
