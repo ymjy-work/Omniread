@@ -18,6 +18,7 @@ import type {
   ChatMode,
   ChatSession,
   ChatSurface,
+  Citation,
 } from '../types/chat'
 
 const LEVEL_KEY = 'omniread.chatLevel'
@@ -98,6 +99,8 @@ export const useReaderStore = defineStore('reader', () => {
   const chatError = ref('')
   const chatErrorCode = ref<number | null>(null)
   const asking = ref(false)
+  const citationRequest = ref<{ id: number; citation: Citation } | null>(null)
+  let citationRequestId = 0
 
   const surface = computed<ChatSurface>(() => (mode.value === 'byok' ? 'self' : 'official'))
   const suggestedModels = computed(() => SUGGESTED_MODELS[provider.value] ?? [])
@@ -260,11 +263,11 @@ export const useReaderStore = defineStore('reader', () => {
     }
     if (mode.value === 'byok') {
       if (account.keysLoading && !account.keysLoaded) return '正在读取 API Key…'
-      if (!account.hasKey(provider.value)) return '请先在设置中保存该提供商的 API Key。'
+      if (!account.hasKey(provider.value)) return '请先在自己面板中保存该提供商的 API Key。'
       if (!byokModel.value) return '请选择模型。'
     }
     if (mode.value !== 'byok' && account.account && account.credits < 1) {
-      return '积分不足，请购买套餐或改用自己。'
+      return '积分不足，请改用自己。'
     }
     return ''
   })
@@ -379,6 +382,10 @@ export const useReaderStore = defineStore('reader', () => {
     asking.value = false
   }
 
+  function requestCitation(citation: Citation) {
+    citationRequest.value = { id: ++citationRequestId, citation }
+  }
+
   ensureByokModel()
 
   return {
@@ -405,6 +412,7 @@ export const useReaderStore = defineStore('reader', () => {
     chatError,
     chatErrorCode,
     asking,
+    citationRequest,
     askProblem,
     loadChapter,
     saveProgress,
@@ -419,6 +427,7 @@ export const useReaderStore = defineStore('reader', () => {
     ensureSession,
     loadMessages,
     ask,
+    requestCitation,
     resetChat,
   }
 })

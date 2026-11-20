@@ -2,15 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ChapterNav from '../components/ChapterNav.vue'
-import ChatPanel from '../components/ChatPanel.vue'
 import { getProgress } from '../api/progress'
 import { useReadingProgress } from '../composables/useReadingProgress'
-import { useAccountStore } from '../stores/account'
 import { useBookStore } from '../stores/book'
 import { useReaderStore } from '../stores/reader'
-import { useSettingsStore } from '../stores/settings'
-import type { ThemeName } from '../stores/settings'
-import { formatCredits } from '../utils/billing'
 import type { ChapterSummary, ReadingProgress } from '../types/api'
 import type { Citation } from '../types/chat'
 
@@ -32,10 +27,8 @@ interface ShowChapterOptions {
 
 const route = useRoute()
 const router = useRouter()
-const account = useAccountStore()
 const bookStore = useBookStore()
 const reader = useReaderStore()
-const settings = useSettingsStore()
 
 const bookId = computed(() => Number(route.params.bookId))
 const scrollEl = ref<HTMLElement | null>(null)
@@ -45,7 +38,6 @@ const requestedIndex = ref<number | null>(null)
 const progress = ref<ReadingProgress | null>(null)
 const initializing = ref(true)
 const tocOpen = ref(false)
-const chatOpen = ref(false)
 const highlight = ref<{ start: number; end: number } | null>(null)
 const citationNotice = ref('')
 
@@ -55,10 +47,6 @@ const { saving, ratio, saveError, schedule, flush, sync } = useReadingProgress({
   getChapterIndex: () => (reader.chapterLoading || reader.chapterError ? null : loadedIndex.value),
   delay: 1000,
 })
-
-const themeOrder: ThemeName[] = ['light', 'sepia', 'dark']
-const themeLabels: Record<ThemeName, string> = { light: '明亮', sepia: '护眼', dark: '夜间' }
-const themeLabel = computed(() => themeLabels[settings.theme])
 
 const bookTitle = computed(
   () => bookStore.currentBook?.title || (bookStore.bookLoading ? '加载中…' : '阅读'),
@@ -212,7 +200,7 @@ function selectChapter(index: number) {
 }
 
 async function handleCitation(citation: Citation) {
-  chatOpen.value = false
+  tocOpen.value = false
   citationNotice.value = ''
   const targetIndex = Number(citation.chapterIndex)
   if (!Number.isFinite(targetIndex)) return
@@ -247,19 +235,12 @@ function retryChapters() {
   void bookStore.fetchChapters(bookId.value)
 }
 
-function cycleTheme() {
-  const index = themeOrder.indexOf(settings.theme)
-  settings.setTheme(themeOrder[(index + 1) % themeOrder.length] ?? 'light')
-}
-
-function closeDrawers() {
+function closeToc() {
   tocOpen.value = false
-  chatOpen.value = false
 }
-
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && (tocOpen.value || chatOpen.value)) closeDrawers()
+  if (event.key === 'Escape' && tocOpen.value) closeToc()
 }
 async function loadProgress() {
   try {
@@ -284,7 +265,6 @@ onMounted(async () => {
   }
 
   document.addEventListener('visibilitychange', onVisibilityChange)
-  void account.fetchAccount()
   document.addEventListener('keydown', onKeydown)
   await Promise.all([
     bookStore.fetchBook(bookId.value),
@@ -318,6 +298,13 @@ watch(
     }
   },
 )
+
+watch(
+  () => reader.citationRequest,
+  (request) => {
+    if (request) void handleCitation(request.citation)
+  },
+)
 </script>
 
 <template>
@@ -326,13 +313,16 @@ watch(
       <div class="header-left">
         <RouterLink class="btn btn-ghost btn-icon" to="/library" aria-label="返回书库">←</RouterLink>
         <button
-          class="btn btn-ghost btn-icon mobile-only"
+          class="btn btn-ghost toc-btn"
           type="button"
           :aria-expanded="tocOpen"
           aria-label="打开章节目录"
           @click="tocOpen = !tocOpen"
         >
-          ☰
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h10" />
+          </svg>
+          <span>目录</span>
         </button>
         <div class="header-titles">
           <span class="book-title">{{ bookTitle }}</span>
@@ -341,32 +331,11 @@ watch(
       </div>
 
       <div class="header-right">
-        <RouterLink
-          v-if="account.account"
-          class="credit-chip"
-          to="/plans"
-          :title="`剩余积分 ${account.credits}`"
-        >
-          {{ formatCredits(account.credits) }} 积分
-        </RouterLink>
         <span class="save-state" :class="{ saved: !saving && !saveError, error: Boolean(saveError) }" :title="saveError || '阅读进度自动保存'">
           <template v-if="saving">保存中…</template>
           <template v-else-if="saveError">未保存</template>
           <template v-else>{{ Math.round(ratio * 100) }}%</template>
         </span>
-        <button class="btn btn-ghost theme-btn" type="button" @click="cycleTheme">
-          主题 · {{ themeLabel }}
-        </button>
-        <RouterLink class="btn btn-ghost optional" to="/plans">套餐</RouterLink>
-        <RouterLink class="btn btn-ghost optional" to="/settings">设置</RouterLink>
-        <button
-          class="btn btn-ghost mobile-only"
-          type="button"
-          :aria-expanded="chatOpen"
-          @click="chatOpen = !chatOpen"
-        >
-          对话
-        </button>
       </div>
     </header>
 
@@ -384,7 +353,12 @@ watch(
 
 
     <div class="reader-body">
-      <aside class="reader-sidebar" :class="{ open: tocOpen }">
+      <aside
+        class="reader-sidebar"
+        :class="{ open: tocOpen }"
+        :aria-hidden="!tocOpen"
+        :inert="!tocOpen"
+      >
         <ChapterNav
           :chapters="bookStore.chapters"
           :current-index="loadedIndex"
@@ -394,6 +368,8 @@ watch(
           @retry="retryChapters"
         />
       </aside>
+
+      <div v-if="tocOpen" class="scrim" @click="closeToc"></div>
 
       <main class="reader-main">
         <div ref="scrollEl" class="reader-scroll" @scroll.passive="onScroll">
@@ -445,13 +421,7 @@ watch(
           </section>
         </div>
       </main>
-
-      <aside class="reader-chat" :class="{ open: chatOpen }">
-        <ChatPanel :book-id="bookId" @cite="handleCitation" />
-      </aside>
     </div>
-
-    <div v-if="tocOpen || chatOpen" class="scrim" @click="closeDrawers"></div>
   </div>
 </template>
 
@@ -459,7 +429,7 @@ watch(
 .reader-shell {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: 100%;
   overflow: hidden;
   background: var(--bg);
 }
@@ -483,6 +453,23 @@ watch(
   align-items: center;
   gap: 4px;
   min-width: 0;
+}
+
+.toc-btn {
+  gap: 5px;
+  height: 32px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.toc-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .header-titles {
@@ -517,16 +504,6 @@ watch(
   gap: 2px;
 }
 
-.credit-chip {
-  padding: 3px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 .save-state.saved {
   color: var(--success);
 }
@@ -541,10 +518,6 @@ watch(
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   white-space: nowrap;
-}
-
-.theme-btn {
-  font-size: 12.5px;
 }
 
 .progress-rail {
@@ -562,23 +535,44 @@ watch(
 }
 
 .reader-body {
+  position: relative;
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 272px minmax(0, 1fr) 372px;
+  display: flex;
+  overflow: hidden;
 }
 
-.reader-sidebar,
-.reader-chat {
+.reader-sidebar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(82vw, 280px);
   min-height: 0;
   overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  transform: translateX(-102%);
+  visibility: hidden;
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    visibility var(--dur-slow) var(--ease-out);
+}
+
+.reader-sidebar.open {
+  transform: none;
+  visibility: visible;
 }
 
 .reader-main {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   background: var(--reader-bg);
 }
 
@@ -733,80 +727,13 @@ watch(
 }
 
 .scrim {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 45;
+  z-index: 30;
   background: var(--scrim);
 }
 
-.mobile-only {
-  display: none;
-}
-
-@media (max-width: 1180px) {
-  .reader-body {
-    grid-template-columns: 240px minmax(0, 1fr) 336px;
-  }
-}
-
-@media (max-width: 1000px) {
-  .reader-body {
-    display: block;
-    position: relative;
-  }
-
-  .reader-main {
-    height: 100%;
-  }
-
-  .reader-sidebar,
-  .reader-chat {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    z-index: 60;
-    display: flex;
-    flex-direction: column;
-    width: min(86vw, 340px);
-    box-shadow: var(--shadow-md);
-    transition: transform 0.24s ease;
-  }
-
-  .reader-sidebar {
-    left: 0;
-    transform: translateX(-102%);
-  }
-
-  .reader-chat {
-    right: 0;
-    width: min(94vw, 400px);
-    transform: translateX(102%);
-  }
-
-  .reader-sidebar.open,
-  .reader-chat.open {
-    transform: none;
-  }
-
-  .mobile-only {
-    display: inline-flex;
-  }
-}
-
-@media (min-width: 1001px) {
-  .scrim {
-    display: none;
-  }
-
-  .reader-sidebar,
-  .reader-chat {
-    display: flex;
-    flex-direction: column;
-  }
-}
-
 @media (max-width: 640px) {
-  .optional,
   .save-state {
     display: none;
   }
@@ -829,7 +756,7 @@ watch(
 }
 
 @media (max-width: 420px) {
-  .theme-btn {
+  .toc-btn span {
     display: none;
   }
 

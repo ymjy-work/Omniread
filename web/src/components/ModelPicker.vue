@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import ByokPanel from './ByokPanel.vue'
 import { useAccountStore } from '../stores/account'
 import { useReaderStore } from '../stores/reader'
 import { BYOK_PROVIDERS } from '../utils/billing'
@@ -140,66 +141,69 @@ function pullModels() {
     </template>
 
     <template v-else>
-      <select
-        class="pick-select provider-select"
-        :value="reader.provider"
-        aria-label="BYOK 提供商"
-        :disabled="reader.asking"
-        @change="onProviderChange"
-      >
-        <option v-for="item in BYOK_PROVIDERS" :key="item.value" :value="item.value">
-          {{ item.label }}
-        </option>
-      </select>
+      <div class="self-panel">
+        <div class="self-row">
+          <span class="field-label">Key</span>
+          <select
+            class="pick-select provider-select"
+            :value="reader.provider"
+            aria-label="BYOK 提供商"
+            :disabled="reader.asking"
+            @change="onProviderChange"
+          >
+            <option v-for="item in BYOK_PROVIDERS" :key="item.value" :value="item.value">
+              {{ item.label }}
+            </option>
+          </select>
+          <span v-if="keyLoading" class="key-pill">读取中…</span>
+          <span v-else class="key-pill" :class="{ missing: !activeKey }">
+            {{ activeKey?.keyMask || '未配置' }}
+          </span>
+        </div>
 
-      <select
-        class="pick-select model-select"
-        :value="reader.model"
-        aria-label="BYOK 模型"
-        :disabled="reader.asking"
-        @change="onModelChange"
-      >
-        <option v-for="item in reader.availableModels" :key="item" :value="item">
-          {{ item }}
-        </option>
-      </select>
+        <div class="self-row model-row">
+          <span class="field-label">模型</span>
+          <select
+            class="pick-select model-select"
+            :value="reader.model"
+            aria-label="BYOK 模型"
+            :disabled="reader.asking"
+            @change="onModelChange"
+          >
+            <option v-for="item in reader.availableModels" :key="item" :value="item">
+              {{ item }}
+            </option>
+          </select>
+          <button
+            class="pick-btn"
+            type="button"
+            :disabled="pullDisabled"
+            :title="!activeKey ? '先保存 Key 再拉取' : undefined"
+            @click="pullModels"
+          >
+            <span v-if="reader.providerModelsLoading" class="spinner sm"></span>
+            {{
+              reader.providerModelsLoading
+                ? '拉取中…'
+                : pulledCount > 0
+                  ? '刷新'
+                  : reader.providerModelsError
+                    ? '重试'
+                    : '拉取'
+            }}
+          </button>
+        </div>
 
-      <button
-        class="pick-btn"
-        type="button"
-        :disabled="pullDisabled"
-        :title="!activeKey ? '先保存 Key 再拉取' : undefined"
-        @click="pullModels"
-      >
-        <span v-if="reader.providerModelsLoading" class="spinner sm"></span>
-        {{
-          reader.providerModelsLoading
-            ? '拉取中…'
-            : pulledCount > 0
-              ? '刷新'
-              : reader.providerModelsError
-                ? '重试'
-                : '拉取'
-        }}
-      </button>
+        <ByokPanel />
 
-      <RouterLink
-        v-if="!keyLoading && !activeKey"
-        class="pick-link"
-        to="/settings"
-      >
-        配置 Key
-      </RouterLink>
-      <span v-else-if="keyLoading" class="pick-note">读取 Key…</span>
-
-      <span
-        v-if="reader.providerModelsError"
-        class="pick-note error status-note"
-        role="status"
-      >
-        {{ reader.providerModelsError }}
-        <button class="pick-link" type="button" @click="pullModels">重试</button>
-      </span>
+        <p
+          v-if="reader.providerModelsError"
+          class="pick-note error provider-status"
+          role="status"
+        >
+          {{ reader.providerModelsError }}
+        </p>
+      </div>
     </template>
   </div>
 </template>
@@ -211,6 +215,7 @@ function pullModels() {
   gap: 6px;
   flex-wrap: wrap;
   min-width: 0;
+  max-width: 100%;
 }
 
 .surface-switch {
@@ -264,11 +269,54 @@ function pullModels() {
 }
 
 .provider-select {
-  max-width: 82px;
+  max-width: 90px;
 }
 
 .model-select {
   max-width: 160px;
+}
+
+.self-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.self-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field-label {
+  flex: none;
+  width: 30px;
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
+.model-row .model-select {
+  flex: 1;
+  max-width: none;
+}
+
+.key-pill {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-pill.missing {
+  color: var(--warning);
 }
 
 .pick-btn {
@@ -309,17 +357,6 @@ function pullModels() {
   color: var(--danger);
 }
 
-.pick-link {
-  flex: none;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  font-size: 10.5px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 .auto-pill {
   padding: 1px 7px;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
@@ -329,9 +366,9 @@ function pullModels() {
   font-size: 10px;
 }
 
-.status-note {
-  flex-basis: 100%;
-  text-align: right;
+.provider-status {
+  width: 100%;
+  white-space: normal;
 }
 
 .model-picker.wide {
@@ -363,8 +400,21 @@ function pullModels() {
   font-size: var(--text-sm);
 }
 
-.model-picker.wide .pick-note,
-.model-picker.wide .pick-link {
+.model-picker.wide .pick-note {
+  font-size: var(--text-sm);
+}
+
+.model-picker.wide .self-panel {
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.model-picker.wide .self-row {
+  gap: var(--space-2);
+}
+
+.model-picker.wide .field-label,
+.model-picker.wide .key-pill {
   font-size: var(--text-sm);
 }
 </style>

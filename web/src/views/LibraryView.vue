@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import UserTopbar from '../components/UserTopbar.vue'
 import { useBookStore } from '../stores/book'
 import type { Book } from '../types/api'
 
@@ -23,12 +22,10 @@ function initial(book: Book) {
 
 <template>
   <div class="library-page">
-    <UserTopbar active="library" />
-
     <main class="library-main">
       <section class="hero">
         <div>
-          <h1>我的书库</h1>
+          <h1>书库</h1>
           <p class="hero-desc">从上次停下的那一页继续。</p>
         </div>
         <div v-if="!bookStore.booksLoading && !bookStore.booksError" class="hero-count">
@@ -90,14 +87,16 @@ function initial(book: Book) {
 
 <style scoped>
 .library-page {
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
   background: var(--bg);
 }
 
 .library-main {
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: clamp(28px, 5vw, 56px) clamp(18px, 4vw, 48px) 80px;
+  padding: clamp(24px, 4vw, 48px) clamp(18px, 3vw, 40px) 64px;
 }
 
 .hero {

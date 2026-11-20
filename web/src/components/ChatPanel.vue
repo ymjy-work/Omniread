@@ -8,8 +8,18 @@ import { useReaderStore } from '../stores/reader'
 import { formatCredits } from '../utils/billing'
 import type { Citation } from '../types/chat'
 
-const props = defineProps<{ bookId: number }>()
-const emit = defineEmits<{ cite: [citation: Citation] }>()
+const props = withDefaults(
+  defineProps<{
+    bookId: number
+    bookTitle?: string
+    collapsible?: boolean
+  }>(),
+  {
+    bookTitle: '',
+    collapsible: false,
+  },
+)
+const emit = defineEmits<{ cite: [citation: Citation]; collapse: [] }>()
 
 const reader = useReaderStore()
 const account = useAccountStore()
@@ -26,17 +36,13 @@ const blockingMessage = computed(() => {
   return reader.askProblem
 })
 
-const showPlanLink = computed(
-  () => blockingMessage.value.includes('积分不足') || blockingMessage.value.includes('余额不足'),
-)
-const showKeyLink = computed(
-  () => reader.surface === 'self' && !activeKey.value && !account.keysLoading,
-)
-
 const statusText = computed(() => {
   if (account.error && !planReady.value) return account.error
   if (reader.surface === 'self' && account.keysError && !activeKey.value) {
     return account.keysError
+  }
+  if (reader.surface === 'self' && !activeKey.value && !account.keysLoading) {
+    return '请在自己面板保存该提供商的 API Key。'
   }
   if (blockingMessage.value) return blockingMessage.value
   if (reader.surface === 'self' && reader.providerModelsError) {
@@ -54,9 +60,9 @@ const chatErrorText = computed(() => {
   const message = reader.chatError
   if (!message) return ''
   if (reader.chatErrorCode === 40201) {
-    return '积分不足，无法使用平台回答。请购买套餐或改用自己。'
+    return '积分不足，无法使用官方回答。请改用自己。'
   }
-  if (reader.chatErrorCode === 40202) return '余额不足，请联系管理员充值。'
+  if (reader.chatErrorCode === 40202) return '余额不足，当前无法使用官方回答。'
   if (message.includes('API Key') || message.includes('Key')) {
     return '该提供商尚未配置 API Key，请先保存 Key。'
   }
@@ -109,11 +115,26 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <aside class="chat-panel">
+  <div class="chat-panel">
     <header class="chat-head">
       <div class="chat-title-row">
-        <h2>文中助手</h2>
-        <span v-if="reader.session" class="session-tag">#{{ reader.session.id }}</span>
+        <div class="chat-identity">
+          <h2>文中助手</h2>
+          <p class="book-context">{{ bookTitle || '当前书' }}</p>
+        </div>
+        <div class="chat-head-actions">
+          <span v-if="reader.session" class="session-tag">#{{ reader.session.id }}</span>
+          <button
+            v-if="collapsible"
+            class="collapse-btn"
+            type="button"
+            aria-label="收起对话面板"
+            title="收起对话"
+            @click="emit('collapse')"
+          >
+            ›
+          </button>
+        </div>
       </div>
 
       <div class="control-row">
@@ -172,8 +193,6 @@ function handleKeydown(event: KeyboardEvent) {
           积分 {{ formatCredits(account.credits) }}
         </span>
         <span class="status-text" role="status">{{ statusText }}</span>
-        <RouterLink v-if="showPlanLink" class="status-link" to="/plans">购买套餐</RouterLink>
-        <RouterLink v-else-if="showKeyLink" class="status-link" to="/settings">配置 Key</RouterLink>
         <button
           v-if="account.error && !planReady"
           class="link-btn"
@@ -199,7 +218,7 @@ function handleKeydown(event: KeyboardEvent) {
 
       <p class="hint">Enter 发送 · Shift+Enter 换行</p>
     </footer>
-  </aside>
+  </div>
 </template>
 
 <style scoped>
@@ -225,9 +244,48 @@ function handleKeydown(event: KeyboardEvent) {
   gap: 10px;
 }
 
+.chat-identity {
+  min-width: 0;
+}
+
 .chat-head h2 {
   font-size: 15px;
   font-weight: 600;
+}
+
+.book-context {
+  overflow: hidden;
+  max-width: 230px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.collapse-btn {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.collapse-btn:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .session-tag {
@@ -378,7 +436,6 @@ function handleKeydown(event: KeyboardEvent) {
   text-overflow: ellipsis;
 }
 
-.status-link,
 .link-btn {
   flex: none;
   padding: 0;

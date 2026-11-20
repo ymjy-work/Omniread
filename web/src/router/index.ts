@@ -34,25 +34,19 @@ const router = createRouter({
       path: '/library',
       name: 'library',
       component: () => import('../views/LibraryView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, appShell: true },
     },
     {
       path: '/books/:bookId',
       name: 'reader-root',
       component: () => import('../views/ReaderView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, appShell: true },
     },
     {
       path: '/books/:bookId/chapters/:chapterIndex',
       name: 'reader',
       component: () => import('../views/ReaderView.vue'),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/SettingsView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, appShell: true },
     },
     {
       path: '/admin/login',

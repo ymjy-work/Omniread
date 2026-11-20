@@ -5,7 +5,7 @@ import { useAccountStore } from '../stores/account'
 import { useAuthStore } from '../stores/auth'
 import { formatCredits, planLabel } from '../utils/billing'
 
-defineProps<{ active?: 'library' | 'plans' | 'settings' }>()
+defineProps<{ active?: 'library' | 'plans' }>()
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -31,10 +31,6 @@ async function handleLogout() {
     <nav class="topnav" aria-label="用户区导航">
       <RouterLink class="nav-link" :class="{ active: active === 'library' }" to="/library">书库</RouterLink>
       <RouterLink class="nav-link" :class="{ active: active === 'plans' }" to="/plans">套餐</RouterLink>
-      <RouterLink class="nav-link" :class="{ active: active === 'settings' }" to="/settings">
-        设置
-      </RouterLink>
-      <RouterLink v-if="account.isAdmin" class="nav-link admin-link" to="/admin">管理</RouterLink>
     </nav>
 
     <div class="topbar-side">
@@ -114,11 +110,6 @@ async function handleLogout() {
   background: var(--surface-2);
   color: var(--text);
   font-weight: 600;
-}
-
-.admin-link {
-  margin-left: 4px;
-  border: 1px solid var(--border);
 }
 
 .topbar-side {
