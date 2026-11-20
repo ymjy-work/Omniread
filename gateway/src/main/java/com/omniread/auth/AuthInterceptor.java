@@ -13,6 +13,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
 	public static final String USER_ID_ATTR = "userId";
 	public static final String USER_ROLE_ATTR = "userRole";
+	public static final String CLAIMS_ATTR = "tokenClaims";
 
 	private final TokenService tokenService;
 
@@ -32,6 +33,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 		TokenService.Claims claims = tokenService.parse(authorization.substring(7).trim());
 		request.setAttribute(USER_ID_ATTR, claims.userId());
 		request.setAttribute(USER_ROLE_ATTR, claims.role() == null ? "" : claims.role());
+		request.setAttribute(CLAIMS_ATTR, claims);
 		return true;
 	}
 }

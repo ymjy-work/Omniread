@@ -1,25 +1,29 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { errorMessage } from '../api/request'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import { errorMessage } from '../api/errors'
+import { useAdminAuthStore } from '../stores/adminAuth'
 import { useAdminStore } from '../stores/admin'
-import { useAuthStore } from '../stores/auth'
 import { formatCredits, formatDate, formatMoney, planLabel, roleLabel } from '../utils/billing'
 import type { AdminUser } from '../types/account'
 
 const router = useRouter()
-const auth = useAuthStore()
+const adminAuth = useAdminAuthStore()
 const admin = useAdminStore()
 
-const form = reactive({ username: '', password: '', displayName: '' })
+const createFormRef = ref<FormInstance>()
+const createForm = reactive({ username: '', password: '', displayName: '' })
 const creating = ref(false)
-const createError = ref('')
-const createMessage = ref('')
+
+const createRules: FormRules = {
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入初始密码', trigger: 'blur' }],
+}
 
 const grantAmounts = reactive<Record<number, string>>({})
 const grantingId = ref<number | null>(null)
-const grantError = ref('')
-const grantMessage = ref('')
 
 const totalUsers = computed(() => admin.users.length)
 
@@ -31,32 +35,24 @@ function initial(user: AdminUser) {
   return (user.displayName || user.username).trim().charAt(0) || '用'
 }
 
-function onGrantInput(userId: number, event: Event) {
-  grantAmounts[userId] = (event.target as HTMLInputElement).value
-}
-
 async function submitCreate() {
-  if (creating.value) return
-  const username = form.username.trim()
-  if (!username || !form.password) {
-    createError.value = '请输入用户名和密码。'
-    return
-  }
+  const valid = await createFormRef.value?.validate().catch(() => false)
+  if (!valid || creating.value) return
   creating.value = true
-  createError.value = ''
-  createMessage.value = ''
   try {
     const user = await admin.createUser({
-      username,
-      password: form.password,
-      displayName: form.displayName.trim() || undefined,
+      username: createForm.username.trim(),
+      password: createForm.password,
+      displayName: createForm.displayName.trim() || undefined,
     })
-    createMessage.value = `已创建 @${user.username}：${planLabel(user.plan)} / ${formatCredits(user.credits)} 积分 / 余额 ${formatMoney(user.balance)}。`
-    form.username = ''
-    form.password = ''
-    form.displayName = ''
+    ElMessage.success(
+      `已创建 @${user.username}：${planLabel(user.plan)} / ${formatCredits(user.credits)} 积分 / 余额 ${formatMoney(user.balance)}`,
+    )
+    createForm.username = ''
+    createForm.password = ''
+    createForm.displayName = ''
   } catch (error) {
-    createError.value = errorMessage(error, '创建用户失败')
+    ElMessage.error(errorMessage(error, '创建用户失败'))
   } finally {
     creating.value = false
   }
@@ -67,26 +63,24 @@ async function grant(user: AdminUser) {
   const raw = (grantAmounts[user.id] ?? '').trim()
   const amount = Number(raw)
   if (!raw || !Number.isFinite(amount) || amount <= 0) {
-    grantError.value = '请输入大于 0 的发放金额。'
+    ElMessage.warning('请输入大于 0 的发放金额')
     return
   }
   grantingId.value = user.id
-  grantError.value = ''
-  grantMessage.value = ''
   try {
     const updated = await admin.grantBalance(user.id, { amount, reason: '管理员发放' })
     grantAmounts[user.id] = ''
-    grantMessage.value = `已向 @${updated.username} 发放 ${formatMoney(amount)}，当前余额 ${formatMoney(updated.balance)}。`
+    ElMessage.success(`已向 @${updated.username} 发放 ${formatMoney(amount)}，当前余额 ${formatMoney(updated.balance)}`)
   } catch (error) {
-    grantError.value = errorMessage(error, '发放余额失败')
+    ElMessage.error(errorMessage(error, '发放余额失败'))
   } finally {
     grantingId.value = null
   }
 }
 
 async function handleLogout() {
-  await auth.logout()
-  await router.replace({ name: 'login' })
+  await adminAuth.logout()
+  await router.replace({ name: 'admin-login' })
 }
 </script>
 
@@ -106,15 +100,14 @@ async function handleLogout() {
       </nav>
 
       <div class="admin-side">
-        <span class="operator">{{ auth.displayName }}</span>
+        <span class="operator">{{ adminAuth.displayName }}</span>
         <RouterLink class="quiet-link" to="/library">返回用户区</RouterLink>
-        <button class="btn" type="button" @click="handleLogout">退出</button>
+        <el-button size="small" @click="handleLogout">退出</el-button>
       </div>
     </header>
 
     <main class="admin-main">
       <header class="admin-head">
-        <p class="eyebrow">ADMIN CONSOLE</p>
         <h1>用户管理</h1>
         <p class="head-desc">创建账号、查看额度并发放余额。</p>
       </header>
@@ -128,45 +121,38 @@ async function handleLogout() {
           <span class="meta-tag">默认 Free · 100 积分 · ¥20.00</span>
         </div>
 
-        <form class="create-form" @submit.prevent="submitCreate">
-          <label class="field">
-            <span>用户名</span>
-            <input
-              v-model="form.username"
-              class="input"
-              type="text"
-              autocomplete="off"
-              placeholder="登录用户名"
-            />
-          </label>
-          <label class="field">
-            <span>密码</span>
-            <input
-              v-model="form.password"
-              class="input"
+        <el-form
+          ref="createFormRef"
+          :model="createForm"
+          :rules="createRules"
+          class="create-form"
+          label-position="top"
+          @submit.prevent="submitCreate"
+        >
+          <el-form-item label="用户名" prop="username">
+            <el-input v-model="createForm.username" autocomplete="off" placeholder="登录用户名" />
+          </el-form-item>
+          <el-form-item label="密码" prop="password">
+            <el-input
+              v-model="createForm.password"
               type="password"
               autocomplete="new-password"
               placeholder="初始密码"
+              show-password
             />
-          </label>
-          <label class="field">
-            <span>显示名称</span>
-            <input
-              v-model="form.displayName"
-              class="input"
-              type="text"
-              autocomplete="off"
-              placeholder="可留空"
-            />
-          </label>
-          <button class="btn btn-primary" type="submit" :disabled="creating">
-            <span v-if="creating" class="spinner sm"></span>
+          </el-form-item>
+          <el-form-item label="显示名称" prop="displayName">
+            <el-input v-model="createForm.displayName" autocomplete="off" placeholder="可留空" />
+          </el-form-item>
+          <el-button
+            class="create-submit"
+            type="primary"
+            native-type="submit"
+            :loading="creating"
+          >
             {{ creating ? '创建中…' : '创建用户' }}
-          </button>
-        </form>
-
-        <p v-if="createError" class="notice error" role="alert">{{ createError }}</p>
-        <p v-if="createMessage" class="notice success" role="status">{{ createMessage }}</p>
+          </el-button>
+        </el-form>
       </section>
 
       <section class="admin-card">
@@ -175,83 +161,67 @@ async function handleLogout() {
             <h2>用户列表</h2>
             <p>共 {{ totalUsers }} 位用户。</p>
           </div>
-          <button class="btn" type="button" :disabled="admin.loading" @click="admin.fetchUsers()">
-            <span v-if="admin.loading" class="spinner sm"></span>
-            {{ admin.loading ? '刷新中…' : '刷新' }}
-          </button>
+          <el-button :loading="admin.loading" @click="admin.fetchUsers()">刷新</el-button>
         </div>
 
-        <div v-if="admin.loading && admin.users.length === 0" class="inline-state">
-          <span class="spinner"></span>
-          正在加载用户…
-        </div>
-
-        <div v-else-if="admin.error && admin.users.length === 0" class="inline-state">
+        <div v-if="admin.error && admin.users.length === 0" class="inline-state">
           <span class="error-text">{{ admin.error }}</span>
-          <button class="btn" type="button" @click="admin.fetchUsers()">重试</button>
+          <el-button @click="admin.fetchUsers()">重试</el-button>
         </div>
 
-        <p v-else-if="admin.users.length === 0" class="inline-state">还没有用户。</p>
-
-        <div v-else class="table-wrap">
-          <div class="user-table">
-            <div class="table-head">
-              <span>用户</span>
-              <span>档位</span>
-              <span>积分</span>
-              <span>余额</span>
-              <span>到期</span>
-              <span>发放余额</span>
-            </div>
-            <div v-for="user in admin.users" :key="user.id" class="table-row">
+        <el-table
+          v-else
+          v-loading="admin.loading"
+          :data="admin.users"
+          row-key="id"
+          empty-text="还没有用户"
+          class="user-table"
+        >
+          <el-table-column label="用户" min-width="240" fixed>
+            <template #default="{ row }">
               <div class="user-ident">
-                <span class="avatar">{{ initial(user) }}</span>
+                <span class="avatar">{{ initial(row) }}</span>
                 <div>
-                  <strong>{{ user.displayName || user.username }}</strong>
-                  <span>
-                    @{{ user.username }} · {{ roleLabel(user.role) }} ·
-                    {{ formatDate(user.createdAt) }}
-                  </span>
+                  <strong>{{ row.displayName || row.username }}</strong>
+                  <span>@{{ row.username }} · {{ roleLabel(row.role) }} · {{ formatDate(row.createdAt) }}</span>
                 </div>
               </div>
-              <div class="cell">
-                <strong>{{ planLabel(user.plan) }}</strong>
-              </div>
-              <div class="cell numeric">
-                <strong>{{ formatCredits(user.credits) }}</strong>
-              </div>
-              <div class="cell numeric">
-                <strong>{{ formatMoney(user.balance) }}</strong>
-              </div>
-              <div class="cell numeric">
-                <strong>{{ formatDate(user.planExpiresAt) }}</strong>
-              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="档位" prop="plan" width="90">
+            <template #default="{ row }">{{ planLabel(row.plan) }}</template>
+          </el-table-column>
+          <el-table-column label="积分" width="100" align="right">
+            <template #default="{ row }">{{ formatCredits(row.credits) }}</template>
+          </el-table-column>
+          <el-table-column label="余额" width="110" align="right">
+            <template #default="{ row }">{{ formatMoney(row.balance) }}</template>
+          </el-table-column>
+          <el-table-column label="到期" width="120" align="right">
+            <template #default="{ row }">{{ formatDate(row.planExpiresAt) }}</template>
+          </el-table-column>
+          <el-table-column label="发放余额" min-width="210" fixed="right">
+            <template #default="{ row }">
               <div class="grant-box">
-                <input
-                  class="input"
-                  type="text"
+                <el-input
+                  v-model="grantAmounts[row.id]"
                   inputmode="decimal"
                   placeholder="金额"
-                  :value="grantAmounts[user.id] ?? ''"
                   :disabled="grantingId !== null"
-                  @input="onGrantInput(user.id, $event)"
+                  class="grant-input"
                 />
-                <button
-                  class="btn btn-primary"
-                  type="button"
-                  :disabled="grantingId !== null"
-                  @click="grant(user)"
+                <el-button
+                  type="primary"
+                  :loading="grantingId === row.id"
+                  :disabled="grantingId !== null && grantingId !== row.id"
+                  @click="grant(row)"
                 >
-                  <span v-if="grantingId === user.id" class="spinner sm"></span>
-                  {{ grantingId === user.id ? '发放中' : '发放' }}
-                </button>
+                  发放
+                </el-button>
               </div>
-            </div>
-          </div>
-
-          <p v-if="grantError" class="notice error" role="alert">{{ grantError }}</p>
-          <p v-if="grantMessage" class="notice success" role="status">{{ grantMessage }}</p>
-        </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </section>
     </main>
   </div>
@@ -271,12 +241,15 @@ async function handleLogout() {
   --accent: #2f5d8a;
   --accent-hover: #274d73;
   --accent-soft: rgba(47, 93, 138, 0.1);
-  --success: #3e6b4c;
-  --success-soft: rgba(62, 107, 76, 0.12);
-  --warning: #8f691d;
-  --warning-soft: rgba(143, 105, 29, 0.12);
   --danger: #a33b3b;
   --danger-soft: rgba(163, 59, 59, 0.1);
+  --el-color-primary: var(--accent);
+  --el-color-primary-hover: var(--accent-hover);
+  --el-border-color: var(--border);
+  --el-border-color-light: var(--border);
+  --el-fill-color-blank: #fff;
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-primary: var(--text);
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -372,11 +345,6 @@ async function handleLogout() {
   color: var(--accent);
 }
 
-.admin-side .btn {
-  padding: 6px 11px;
-  font-size: 12px;
-}
-
 .admin-main {
   width: min(1180px, 100%);
   margin: 0 auto;
@@ -384,17 +352,6 @@ async function handleLogout() {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.admin-head {
-  margin-bottom: 2px;
-}
-
-.eyebrow {
-  margin-bottom: 6px;
-  color: var(--text-muted);
-  font-size: 10px;
-  letter-spacing: 0.22em;
 }
 
 .admin-head h1 {
@@ -459,25 +416,13 @@ async function handleLogout() {
   gap: 9px;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
+.create-form :deep(.el-form-item) {
+  margin-bottom: 0;
 }
 
-.field span {
-  color: var(--text-muted);
-  font-size: 10.5px;
-}
-
-.field .input {
-  padding: 7px 9px;
-  font-size: 12.5px;
-}
-
-.create-form > .btn {
-  padding: 8px 14px;
+.create-submit {
+  min-width: 104px;
+  height: 32px;
   font-size: 12.5px;
 }
 
@@ -492,60 +437,16 @@ async function handleLogout() {
   font-size: 12.5px;
 }
 
-.notice {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.notice.error {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.notice.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
 .user-table {
-  min-width: 860px;
+  --el-table-border-color: var(--border);
+  --el-table-header-bg-color: var(--surface-2);
+  --el-table-row-hover-bg-color: var(--surface-2);
+  --el-table-text-color: var(--text-secondary);
+  --el-table-header-text-color: var(--text-muted);
 }
 
-.table-head,
-.table-row {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.6fr) 72px 72px 96px 104px minmax(190px, 1fr);
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.table-head {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-}
-
-.table-row {
-  min-height: 40px;
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-row:hover {
-  background: var(--surface-2);
+.user-table :deep(.el-table__cell) {
+  padding: 7px 0;
 }
 
 .user-ident {
@@ -590,38 +491,18 @@ async function handleLogout() {
   font-size: 10px;
 }
 
-.cell {
-  min-width: 0;
-}
-
-.cell strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  font-weight: 600;
-}
-
-.cell.numeric strong {
-  font-variant-numeric: tabular-nums;
-}
-
 .grant-box {
   display: flex;
   gap: 6px;
 }
 
-.grant-box .input {
-  width: 76px;
-  min-width: 0;
-  padding: 5px 7px;
-  font-size: 11.5px;
+.grant-input {
+  width: 96px;
 }
 
-.grant-box .btn {
-  padding: 5px 9px;
-  font-size: 11px;
-  white-space: nowrap;
+.grant-box :deep(.el-input__wrapper),
+.create-form :deep(.el-input__wrapper) {
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 900px) {
@@ -629,7 +510,7 @@ async function handleLogout() {
     grid-template-columns: 1fr 1fr;
   }
 
-  .create-form > .btn {
+  .create-submit {
     grid-column: 1 / -1;
   }
 }

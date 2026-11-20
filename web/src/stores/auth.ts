@@ -1,26 +1,22 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { login as loginApi, logout as logoutApi } from '../api/auth'
-import { errorMessage, TOKEN_KEY, USER_KEY } from '../api/request'
+import { login as loginApi, logout as logoutApi, register as registerApi } from '../api/auth'
+import { errorMessage } from '../api/errors'
+import {
+  clearUserSession,
+  getUserToken,
+  readStoredUser,
+  saveUserSession,
+} from '../auth/session'
 import type { User } from '../types/api'
 
-function readStoredUser(): User | null {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<User>
-    if (typeof parsed.username === 'string') return parsed as User
-    return null
-  } catch {
-    return null
-  }
-}
-
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
+  const token = ref<string | null>(getUserToken())
   const user = ref<User | null>(readStoredUser())
   const loggingIn = ref(false)
+  const registering = ref(false)
   const loginError = ref('')
+  const registerError = ref('')
 
   const isAuthenticated = computed(() => Boolean(token.value))
   const displayName = computed(() => user.value?.displayName || user.value?.username || '读者')
@@ -28,20 +24,19 @@ export const useAuthStore = defineStore('auth', () => {
   function setSession(nextToken: string, nextUser: User) {
     token.value = nextToken
     user.value = nextUser
-    localStorage.setItem(TOKEN_KEY, nextToken)
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+    saveUserSession(nextToken, nextUser)
   }
 
   function clear() {
     token.value = null
     user.value = null
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    clearUserSession()
   }
 
   async function login(username: string, password: string) {
     loggingIn.value = true
     loginError.value = ''
+    registerError.value = ''
     try {
       const response = await loginApi({ username, password })
       setSession(response.token, response.user)
@@ -52,6 +47,27 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       loggingIn.value = false
     }
+  }
+
+  async function register(username: string, password: string, displayName?: string) {
+    registering.value = true
+    loginError.value = ''
+    registerError.value = ''
+    try {
+      const response = await registerApi({ username, password, displayName })
+      setSession(response.token, response.user)
+      return response
+    } catch (error) {
+      registerError.value = errorMessage(error, '注册失败')
+      throw error
+    } finally {
+      registering.value = false
+    }
+  }
+
+  function clearErrors() {
+    loginError.value = ''
+    registerError.value = ''
   }
 
   async function logout() {
@@ -68,12 +84,16 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     user,
     loggingIn,
+    registering,
     loginError,
+    registerError,
     isAuthenticated,
     displayName,
     setSession,
+    clearErrors,
     clear,
     login,
+    register,
     logout,
   }
 })

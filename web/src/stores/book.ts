@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getBook, listBooks, listChapters } from '../api/book'
-import { errorMessage } from '../api/request'
+import { errorMessage } from '../api/errors'
 import type { Book, ChapterSummary } from '../types/api'
 
 export const useBookStore = defineStore('book', () => {

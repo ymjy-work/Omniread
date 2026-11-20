@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { TOKEN_KEY } from '../api/request'
-import { useAccountStore } from '../stores/account'
+import { getAdminToken, getUserToken } from '../auth/session'
 
 function safeInternalRedirect(value: unknown): string | null {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
@@ -56,10 +55,15 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/admin/login',
+      name: 'admin-login',
+      component: () => import('../views/AdminLoginView.vue'),
+    },
+    {
       path: '/admin',
       name: 'admin',
       component: () => import('../views/AdminView.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAdmin: true },
     },
     {
       path: '/plan',
@@ -71,7 +75,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  const hasToken = Boolean(localStorage.getItem(TOKEN_KEY))
+  const hasToken = Boolean(getUserToken())
 
   if (to.name === 'login' && hasToken) {
     const target = safeInternalRedirect(to.query.redirect)
@@ -82,12 +86,15 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
+  if (to.name === 'admin-login' && getAdminToken()) {
+    return { name: 'admin' }
+  }
+
   if (to.meta.requiresAdmin) {
-    const account = await useAccountStore().fetchAccount(true)
-    if (!account) {
-      return { name: 'login', query: { redirect: to.fullPath } }
+    if (!getAdminToken()) {
+      return { name: 'admin-login', query: { redirect: to.fullPath } }
     }
-    if (account.role !== 'admin') return { name: 'library' }
+    return true
   }
 
   return true

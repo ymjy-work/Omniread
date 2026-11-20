@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { saveProgress } from '../api/progress'
-import { errorMessage } from '../api/request'
+import { errorMessage } from '../api/errors'
 
 interface ProgressOptions {
   getScrollEl: () => HTMLElement | null

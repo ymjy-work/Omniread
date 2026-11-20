@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import ModelPicker from '../components/ModelPicker.vue'
 import UserTopbar from '../components/UserTopbar.vue'
-import { errorMessage } from '../api/request'
+import { errorMessage } from '../api/errors'
 import { useAccountStore } from '../stores/account'
 import { useAuthStore } from '../stores/auth'
 import { useReaderStore } from '../stores/reader'
@@ -151,7 +151,6 @@ async function confirmDelete(provider: ApiProvider) {
 
     <main class="settings-main">
       <header class="page-head">
-        <p class="eyebrow">SETTINGS</p>
         <h1>设置</h1>
         <p class="page-desc">阅读偏好、账户与模型。</p>
       </header>
@@ -365,13 +364,6 @@ async function confirmDelete(provider: ApiProvider) {
 
 .page-head {
   margin-bottom: var(--space-2);
-}
-
-.eyebrow {
-  margin-bottom: 10px;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  letter-spacing: 0.26em;
 }
 
 .page-head h1 {

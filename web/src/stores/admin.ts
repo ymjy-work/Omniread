@@ -5,7 +5,7 @@ import {
   grantBalance as grantBalanceApi,
   listUsers,
 } from '../api/admin'
-import { errorMessage } from '../api/request'
+import { errorMessage } from '../api/errors'
 import type {
   AdminUser,
   CreateUserRequest,

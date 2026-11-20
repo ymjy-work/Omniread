@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 架构与契约见 `.agent/docs/Omniread架构.md`，语料资产库在 `《不时轻声地以俄语遮羞的邻座艾莉同学》/`。
 本目录是 git 仓库，按阶段提交。
 
-联调状态：193 章已导入并索引（2703 chunks）；`past` 越界问题拒答、`full` 正常回答并带按章去重引用；
-fact-001 回答「化学参考书」且引用第 2 章。套餐/积分/BYOK 已实现：gateway 39 项、rag 59 项测试通过，web build 通过。
-计费与 BYOK 已真实联调：管理员建号 free/100/20；auto 扣 1 积分；余额买 Plus；platform 选模型；
-BYOK 保存/掩码/删除通过。
+联调状态：193 章已导入并索引（2703 chunks）；`past` 越界问题拒答、`full` 正常回答并带按章去重引用。
+套餐/积分/BYOK 已实现：gateway 55 项、rag 59 项测试通过，web build 通过。
+管理员体系独立（`/api/admin/auth/login` + 前端 `/admin/login`，双 token 分离）；
+自助注册 gateway 侧已实现（free/100 积分/0 余额）；前端公开落地页 `/` 与公开定价 `/plans` 已验收。
 
 ## 目录结构
 
@@ -131,21 +131,24 @@ web (Vue 3) ──HTTP/JSON──▶ gateway (Java) ──HTTP──▶ rag (Pyt
 
 ## 协作分工
 
-- 脚手架：本会话只建目录、契约、配置模板与占位文件，不写业务实现。
+- 主会话是项目经理：对接用户需求、拆任务、派发 agent、验收，不自己写业务代码。
 - `gateway/`：Claude Code + DeepSeek。
 - `rag/`：Codex + DeepSeek 写代码；系统提示与引用/拒答提示词由 Qwen4Max 子代理撰写。
-- `web/`：Codex + Qwen4Max。
+- `web/`：Codex + DeepSeek（2026-11-20 起，从 Qwen4Max 切换）。
 - Codex 会话复用：同一大阶段内用 `codex resume --last` 或指定 session 继续，不要每个任务新开会话；
   一个大阶段结束后再换会话。
 - Codex 启动必须带 `--dangerously-bypass-approvals-and-sandbox`（full access），否则写代码期间会卡在授权。
   Herdr 写法：`herdr agent start <name> --kind codex --pane <id> -- --dangerously-bypass-approvals-and-sandbox -m <model>`。
+- 跨服务联调：各 agent 都运行在 Herdr pane 内（`HERDR_ENV=1`），需要契约/接口对不齐时，直接用
+  `herdr agent prompt <对方agent名> "问题" --wait` 问对方 agent，不要凭猜测改接口；
+  调用方约定：`herdr agent list` 查名字，问题里写清文件路径与期望行为。
 
 ## 红线
 
 - 语料可以按需入库；唯一限制是整本小说原文不要以明文形式（`.md` / `.txt` / `index.jsonl` 等）进入版本库。
   数据库文件与 `golden/` 题目不受此限。
 - 密钥/Token 只写本机 `.env`（仓库建立后须 gitignore），模板留空值；覆盖含凭证文件前先 Read 并请示。
-- 是否 `git init` / 提交 / 推送由用户决定，不擅自执行。
+- 提交由项目管理；**推送到 GitHub 必须先经用户验收批准**，不擅自 push。
 - 代码注释与项目文档只写现状，不写「原本是 A → 后来改成 B」；需要留痕的决策单独放决策文件。
 
 ## 环境与坑

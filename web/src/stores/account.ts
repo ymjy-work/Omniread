@@ -8,7 +8,7 @@ import {
   purchasePlan as purchasePlanApi,
   saveApiKey as saveApiKeyApi,
 } from '../api/account'
-import { errorMessage } from '../api/request'
+import { errorMessage } from '../api/errors'
 import type {
   Account,
   ApiKeyRecord,

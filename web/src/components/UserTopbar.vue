@@ -60,6 +60,8 @@ async function handleLogout() {
   padding: 0 clamp(18px, 4vw, 48px);
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: saturate(1.25) blur(10px);
+  -webkit-backdrop-filter: saturate(1.25) blur(10px);
 }
 
 .brand {

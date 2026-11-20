@@ -52,4 +52,14 @@ class AuthFlowTest extends IntegrationTestBase {
 		assertEquals(200, authorized.statusCode());
 		assertTrue(json(authorized).path("data").isArray());
 	}
+
+	@Test
+	void logoutRevokesUserToken() throws Exception {
+		createUserViaAdmin("logout-user-1", "pw-123456");
+		String token = loginToken("logout-user-1", "pw-123456");
+
+		assertEquals(200, send("POST", "/api/auth/logout", null, token).statusCode());
+		assertEquals(401, send("GET", "/api/me/account", null, token).statusCode());
+		assertEquals(401, send("POST", "/api/auth/logout", null, null).statusCode());
+	}
 }

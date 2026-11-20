@@ -28,7 +28,6 @@ function initial(book: Book) {
     <main class="library-main">
       <section class="hero">
         <div>
-          <p class="eyebrow">LIBRARY</p>
           <h1>我的书库</h1>
           <p class="hero-desc">从上次停下的那一页继续。</p>
         </div>
@@ -107,13 +106,6 @@ function initial(book: Book) {
   justify-content: space-between;
   gap: 24px;
   margin-bottom: clamp(26px, 4vw, 40px);
-}
-
-.eyebrow {
-  margin-bottom: 10px;
-  font-size: 11px;
-  letter-spacing: 0.26em;
-  color: var(--text-muted);
 }
 
 .hero h1 {

@@ -35,6 +35,8 @@ const accountText = computed(() => (auth.isAuthenticated ? '进入书库' : '登
   padding: 0 clamp(20px, 5vw, 64px);
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: saturate(1.25) blur(10px);
+  -webkit-backdrop-filter: saturate(1.25) blur(10px);
 }
 
 .brand {

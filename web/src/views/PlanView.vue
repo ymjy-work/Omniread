@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import PublicHeader from '../components/PublicHeader.vue'
 import UserTopbar from '../components/UserTopbar.vue'
-import { errorMessage, TOKEN_KEY } from '../api/request'
+import { errorMessage } from '../api/errors'
 import { useAccountStore } from '../stores/account'
 import { useAuthStore } from '../stores/auth'
 import { PLAN_ORDER, formatCredits, formatDate, formatMoney, planLabel } from '../utils/billing'
@@ -29,7 +29,7 @@ const purchasing = ref<PlanCode | ''>('')
 const purchaseError = ref('')
 const purchaseMessage = ref('')
 
-const hasToken = computed(() => auth.isAuthenticated || Boolean(localStorage.getItem(TOKEN_KEY)))
+const hasToken = computed(() => auth.isAuthenticated)
 
 const displayPlans = computed<PlanCatalog[]>(() => {
   const list = account.plans.length > 0 ? account.plans : []
@@ -125,7 +125,6 @@ function retryPlans() {
 
     <main class="plan-main">
       <header class="page-head">
-        <p class="eyebrow">PLAN</p>
         <h1>套餐</h1>
         <p class="page-desc">按阅读量选择。所有档位都能使用自己的 API Key，BYOK 不扣积分。</p>
       </header>
@@ -242,13 +241,6 @@ function retryPlans() {
         <p v-if="usingFallback" class="fallback-note">套餐目录暂时无法读取，当前展示为固定价格。</p>
       </section>
 
-      <footer v-if="!hasToken" class="plan-footer">
-        <span>阅 Omniread</span>
-        <nav aria-label="定价页页脚">
-          <RouterLink to="/">产品</RouterLink>
-          <RouterLink to="/login">登录</RouterLink>
-        </nav>
-      </footer>
     </main>
   </div>
 </template>
@@ -270,13 +262,6 @@ function retryPlans() {
 
 .page-head {
   margin-bottom: var(--space-2);
-}
-
-.eyebrow {
-  margin-bottom: 10px;
-  font-size: var(--text-xs);
-  letter-spacing: 0.26em;
-  color: var(--text-muted);
 }
 
 .page-head h1 {
@@ -490,27 +475,6 @@ function retryPlans() {
   color: var(--warning);
 }
 
-.plan-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.plan-footer nav {
-  display: flex;
-  gap: var(--space-4);
-}
-
-.plan-footer a:hover {
-  color: var(--accent);
-}
-
 .inline-state {
   display: flex;
   align-items: center;
@@ -534,9 +498,5 @@ function retryPlans() {
     grid-template-columns: 1fr;
   }
 
-  .plan-footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 </style>

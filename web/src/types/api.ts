@@ -8,11 +8,16 @@ export interface User {
   id: number
   username: string
   displayName?: string
+  role?: UserRole
 }
 
 export interface LoginRequest {
   username: string
   password: string
+}
+
+export interface RegisterRequest extends LoginRequest {
+  displayName?: string
 }
 
 export interface AuthResponse {
@@ -46,3 +51,4 @@ export interface ReadingProgress {
   scrollRatio: number
   updatedAt?: string
 }
+import type { UserRole } from './account'

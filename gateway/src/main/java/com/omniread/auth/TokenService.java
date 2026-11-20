@@ -2,6 +2,9 @@ package com.omniread.auth;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
@@ -22,6 +25,8 @@ public class TokenService {
 
 	private final Algorithm algorithm;
 	private final JWTVerifier verifier;
+	/** 已注销 token 的 jti → 过期时间；进程内有效，重启后清空。 */
+	private final Map<String, Instant> revokedTokens = new ConcurrentHashMap<>();
 
 	public TokenService(@Value("${omniread.jwt.secret:}") String secret) {
 		if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
@@ -37,6 +42,7 @@ public class TokenService {
 		Instant now = Instant.now();
 		return JWT.create()
 				.withSubject(String.valueOf(userId))
+				.withJWTId(UUID.randomUUID().toString())
 				.withClaim("username", username)
 				.withClaim("role", role)
 				.withIssuedAt(now)
@@ -47,8 +53,13 @@ public class TokenService {
 	public Claims parse(String token) {
 		try {
 			DecodedJWT jwt = verifier.verify(token);
+			String jti = jwt.getId();
+			Instant expiresAt = jwt.getExpiresAt() == null ? null : jwt.getExpiresAt().toInstant();
+			if (jti != null && isRevoked(jti)) {
+				throw new BusinessException(ErrorCode.UNAUTHORIZED, "登录已失效，请重新登录");
+			}
 			return new Claims(Long.parseLong(jwt.getSubject()), jwt.getClaim("username").asString(),
-					jwt.getClaim("role").asString());
+					jwt.getClaim("role").asString(), jti, expiresAt);
 		}
 		catch (TokenExpiredException e) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED, "登录已过期，请重新登录");
@@ -58,6 +69,25 @@ public class TokenService {
 		}
 	}
 
-	public record Claims(long userId, String username, String role) {
+	/** 注销当前 token；只吊销这一个 jti，重启后吊销表清空。 */
+	public void revoke(Claims claims) {
+		if (claims.jti() != null && claims.expiresAt() != null) {
+			revokedTokens.put(claims.jti(), claims.expiresAt());
+		}
+	}
+
+	private boolean isRevoked(String jti) {
+		Instant expiresAt = revokedTokens.get(jti);
+		if (expiresAt == null) {
+			return false;
+		}
+		if (expiresAt.isBefore(Instant.now())) {
+			revokedTokens.remove(jti);
+			return false;
+		}
+		return true;
+	}
+
+	public record Claims(long userId, String username, String role, String jti, Instant expiresAt) {
 	}
 }

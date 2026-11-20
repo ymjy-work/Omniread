@@ -4,6 +4,8 @@
   --font-serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", "SimSun",
     Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  --el-color-primary: var(--accent);
+  --el-font-family: var(--font-sans);
 
   --text-xs: 11px;
   --text-sm: 12.5px;
@@ -229,13 +231,14 @@ samp {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 8px 14px;
+  padding: 9px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font-size: var(--text-base);
   line-height: 1.2;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   transition: background-color var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
